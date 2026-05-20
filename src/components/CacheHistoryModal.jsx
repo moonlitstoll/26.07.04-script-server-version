@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
     X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2
 } from 'lucide-react';
@@ -8,8 +9,13 @@ const CacheHistoryModal = ({
     loadCache, deleteCache, clearAllCache, processFiles, removeFile,
     setActiveFileId, onClose
 }) => {
-    const analyzingFiles = files.filter(f => f.isAnalyzing);
-    const filteredCacheKeys = cacheKeys.filter(key => key.toLowerCase().includes(searchQuery.toLowerCase()));
+    const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
+    const sortedFilteredCacheKeys = useMemo(() =>
+        cacheKeys
+            .filter(key => key.toLowerCase().includes(searchQuery.toLowerCase()))
+            .sort().reverse(),
+        [cacheKeys, searchQuery]
+    );
 
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
@@ -18,12 +24,13 @@ const CacheHistoryModal = ({
                     <div className="flex items-center gap-2">
                         <button
                             onClick={clearAllCache}
+                            aria-label="전체 기록 삭제"
                             className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors text-sm font-bold"
                         >
                             <Trash2 size={16} /> Clear All History
                         </button>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
+                    <button onClick={onClose} aria-label="닫기" className="p-2 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
                         <X size={24} className="text-slate-400 hover:text-red-500" />
                     </button>
                 </div>
@@ -76,7 +83,7 @@ const CacheHistoryModal = ({
                         </div>
                     </div>
 
-                    {analyzingFiles.length === 0 && filteredCacheKeys.length === 0 ? (
+                    {analyzingFiles.length === 0 && sortedFilteredCacheKeys.length === 0 ? (
                         <div className="text-center py-20 text-slate-400">
                             <Clock size={48} className="mx-auto mb-4 opacity-20" />
                             <p className="text-lg font-medium">No history found</p>
@@ -131,8 +138,7 @@ const CacheHistoryModal = ({
                             })}
 
                             {/* 2. Cached Files */}
-                            {filteredCacheKeys
-                                .sort().reverse().map(key => {
+                            {sortedFilteredCacheKeys.map(key => {
                                     const name = key.replace('gemini_analysis_', '');
                                     const isActiveCached = activeFile?.file?.name === name;
                                     const { statusText, badgeColor, progressText } = getCacheStatus(key);

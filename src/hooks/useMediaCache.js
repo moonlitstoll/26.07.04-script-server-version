@@ -42,7 +42,7 @@ export const useMediaCache = ({
                         if (hasMetadata && parsed.metadata.name) {
                             await mediaStore.deleteFile(parsed.metadata.name, parsed.metadata.size);
                         }
-                    } catch { /* ignore */ }
+                    } catch (e) { console.warn("Failed to parse cache for cleanup:", e); }
                 }
                 showToast({ message: "삭제 완료", type: "success" });
             }
@@ -105,7 +105,7 @@ export const useMediaCache = ({
 
                 let cacheDuration = 0;
                 if (fileForDuration) {
-                    try { cacheDuration = await getMediaDuration(fileForDuration); } catch { /* ignore */ }
+                    try { cacheDuration = await getMediaDuration(fileForDuration); } catch (e) { console.warn("Failed to get media duration:", e); }
                 }
                 const data = sanitizeData(rawData, cacheDuration);
 

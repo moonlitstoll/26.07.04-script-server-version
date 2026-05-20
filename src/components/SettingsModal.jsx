@@ -83,7 +83,7 @@ const SettingsModal = ({
                             <p className="text-xs text-slate-500 font-medium">Gemini AI & Model Configuration</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                    <button onClick={onClose} aria-label="설정 닫기" className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                         <X size={20} className="text-slate-400" />
                     </button>
                 </div>

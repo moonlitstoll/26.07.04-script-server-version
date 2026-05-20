@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
+const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
+
 export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
     const [currentTime, setCurrentTime] = useState(0);
@@ -144,7 +147,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             // [추가] Action Guard: 수동 점프 직후 1.5초간 하이라이트 강제 고정
             // 점프 시 Math.max(0, seconds - bufferTime)으로 가기 때문에, 실제 index 구간에 진입하기 전까지 하이라이트를 유지함
             const timeSinceAction = Date.now() - lastActionTimeRef.current;
-            const isWithinActionGuard = timeSinceAction < 1500;
+            const isWithinActionGuard = timeSinceAction < ACTION_GUARD_MS;
             const targetIdx = loopTargetIdxRef.current;
 
             let finalIdx = actualIdx;
@@ -219,7 +222,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         let pulseId = null;
         const managePulse = () => {
             if (!v.paused && !pulseId) {
-                pulseId = setInterval(runSync, 100);
+                pulseId = setInterval(runSync, SYNC_INTERVAL_MS);
             } else if (v.paused && pulseId) {
                 clearInterval(pulseId);
                 pulseId = null;

@@ -355,7 +355,7 @@ const App = () => {
               duration={duration}
               playbackRate={playbackRate}
               isGlobalLoopActive={isGlobalLoopActive}
-              activeSentenceIdx={activeSentenceIdx}
+              currentSentenceIdx={activeSentenceIdx}
               showAnalysis={showAnalysis}
               showSpeedMenu={showSpeedMenu}
               togglePlay={togglePlay}

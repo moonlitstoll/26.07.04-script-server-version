@@ -47,7 +47,7 @@ export const useMediaAnalysis = ({
                     }
                 }));
                 if (refreshCacheKeys) refreshCacheKeys();
-            } catch { /* ignore */ }
+            } catch (e) { console.warn("Failed to save cache:", e); }
         };
 
         const pendingIndices = transcript
@@ -144,7 +144,7 @@ export const useMediaAnalysis = ({
                     const parsed = JSON.parse(cached);
                     const rawData = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed.data : parsed;
                     let cacheDuration = 0;
-                    try { cacheDuration = await getMediaDuration(fItem.file); } catch { /* ignore */ }
+                    try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
                     const data = sanitizeData(rawData, cacheDuration);
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false, isFromCache: true } : p));
                 } else {
@@ -189,7 +189,7 @@ export const useMediaAnalysis = ({
                         };
                         localStorage.setItem(cacheKey, JSON.stringify(cacheData));
                         if (refreshCacheKeys) refreshCacheKeys();
-                    } catch { /* ignore */ }
+                    } catch (e) { console.warn("Failed to save Stage 1 cache:", e); }
 
                     runStage2(fItem.id, fItem.file, data, apiKey, stage2Model);
 

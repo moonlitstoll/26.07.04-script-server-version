@@ -84,6 +84,8 @@ const PlayerControls = ({
                             <div className="relative">
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(!showSpeedMenu); }}
+                                    aria-label={`재생 속도 ${playbackRate.toFixed(1)}x`}
+                                    aria-expanded={showSpeedMenu}
                                     className={`
                     flex items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all min-w-[40px] border
                     ${showSpeedMenu ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}
@@ -110,6 +112,7 @@ const PlayerControls = ({
 
                             <button
                                 onClick={() => setShowAnalysis(!showAnalysis)}
+                                aria-label={showAnalysis ? '번역/분석 숨기기' : '번역/분석 보기'}
                                 className={`p-1.5 rounded-lg border transition-all ${showAnalysis ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-400 border-slate-200'}`}
                             >
                                 {showAnalysis ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -118,18 +121,19 @@ const PlayerControls = ({
 
                         {/* Main Controls */}
                         <div className="flex items-center gap-2">
-                            <button onClick={() => handlePrev(currentSentenceIdx)} className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
                                 <SkipBack size={18} className="fill-current" />
                             </button>
 
                             <button
                                 onClick={togglePlay}
+                                aria-label={isPlaying ? '일시정지' : '재생'}
                                 className="w-10 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform active:scale-95"
                             >
                                 {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
                             </button>
 
-                            <button onClick={() => handleNext(currentSentenceIdx)} className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
                                 <SkipForward size={18} className="fill-current" />
                             </button>
                         </div>
@@ -138,6 +142,8 @@ const PlayerControls = ({
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={toggleLoop}
+                                aria-label={isGlobalLoopActive ? '문장 반복 끄기' : '문장 반복 켜기'}
+                                aria-pressed={isGlobalLoopActive}
                                 className={`p-1.5 rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
                                 title="Toggle Global Sentence Loop"
                             >
