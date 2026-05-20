@@ -3,11 +3,10 @@ import { extractOriginalAudio } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 
-const getModels = (modelId) => {
-    const validModels = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2-flash", "gemini-3.5-flash"];
-    const found = validModels.find(m => m === modelId || m.includes(modelId));
-    return [found || "gemini-2.5-flash"];
-};
+const VALID_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2-flash", "gemini-3.5-flash"];
+
+const resolveModel = (modelId) =>
+    VALID_MODELS.find(m => m === modelId) || "gemini-2.5-flash";
 
 
 async function fileToGenerativePart(file) {
@@ -62,10 +61,10 @@ const safetySettings = [
     { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
 ];
 
-export async function extractTranscript(file, apiKey, modelId = "gemini-2.0-flash", totalDuration = 0, onProgress = null, temperature = 0.5, topP = 0.7) {
+export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", totalDuration = 0, onProgress = null, temperature = 0.5, topP = 0.7) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = getModels(modelId)[0] || "gemini-2.0-flash";
+    const modelName = resolveModel(modelId);
 
     console.log(`[Stage 1] Streaming Analysis with Circuit Breaker, model: ${modelName} `);
 
@@ -289,7 +288,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
     if (!items || items.length === 0) return [];
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-        model: modelId || "gemini-2.0-flash",
+        model: modelId || "gemini-2.5-flash",
         generationConfig: { temperature: 0.3 },
         safetySettings
     });
@@ -346,7 +345,7 @@ export async function analyzeSingleSentence(item, index, apiKey, modelId, signal
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-        model: modelId || "gemini-2.0-flash",
+        model: modelId || "gemini-2.5-flash",
         generationConfig: { temperature: 0.3 },
         safetySettings
     });

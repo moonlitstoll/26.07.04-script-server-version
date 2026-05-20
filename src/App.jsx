@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileAudio, FileVideo, Settings, Home,
-  X, Check, AlertCircle,
-  Plus
+  FileAudio, FileVideo, Settings, Home, AlertCircle
 } from 'lucide-react';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
@@ -15,6 +13,8 @@ import SettingsModal from './components/SettingsModal';
 import CacheHistoryModal from './components/CacheHistoryModal';
 import PlayerControls from './components/PlayerControls';
 import EmptyState from './components/EmptyState';
+import ConfirmModal from './components/ConfirmModal';
+import Toast from './components/Toast';
 
 
 const App = () => {
@@ -36,6 +36,11 @@ const App = () => {
   const [showCacheHistory, setShowCacheHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSwitchingFile, setIsSwitchingFile] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
+  const [toastState, setToastState] = useState(null);
+
+  const showConfirm = useCallback((opts) => setConfirmState(opts), []);
+  const showToast = useCallback((opts) => setToastState(opts), []);
 
   const toggleGlobalAnalysis = useCallback(() => setShowAnalysis(prev => !prev), []);
   const stage2AbortRef = useRef(null);
@@ -63,7 +68,7 @@ const App = () => {
 
   const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
-    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef
+    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
   });
 
   useEffect(() => {
@@ -163,9 +168,30 @@ const App = () => {
     });
   };
 
+  // Shared overlays for both Empty and Main states
+  const overlays = (
+    <>
+      {confirmState && (
+        <ConfirmModal
+          message={confirmState.message}
+          onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
+      {toastState && (
+        <Toast
+          message={toastState.message}
+          type={toastState.type}
+          onClose={() => setToastState(null)}
+        />
+      )}
+    </>
+  );
+
   // ─── Empty State ───
   if (files.length === 0) {
     return (
+      <>
       <EmptyState
         isDragging={isDragging}
         onDragOver={onDragOver}
@@ -192,6 +218,8 @@ const App = () => {
         deleteCache={deleteCache}
         clearAllCache={clearAllCache}
       />
+      {overlays}
+      </>
     );
   }
 
@@ -414,6 +442,7 @@ const App = () => {
         />
       )}
 
+      {overlays}
     </div>
   );
 };
