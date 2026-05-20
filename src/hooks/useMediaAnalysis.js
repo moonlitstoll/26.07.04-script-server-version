@@ -57,9 +57,9 @@ export const useMediaAnalysis = ({
 
         if (pendingIndices.length === 0) return;
 
-        // [20x2 Strategy] 20개씩 묶어 최대 2건 동시 처리
+        // 20개씩 묶어 동시 처리 (Pro는 RPM 낮아서 2, 나머지는 3)
         const BATCH_SIZE = 20;
-        const CONCURRENCY = 2;
+        const CONCURRENCY = currentModelId === 'gemini-2.5-pro' ? 2 : 3;
         const batches = [];
         for (let i = 0; i < pendingIndices.length; i += BATCH_SIZE) {
             batches.push(pendingIndices.slice(i, i + BATCH_SIZE));
