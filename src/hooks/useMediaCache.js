@@ -12,7 +12,7 @@ export const useMediaCache = ({
     resetPlayerState,
     runStage2,
     apiKey,
-    selectedModel,
+    stage2Model,
     stage2AbortRef
 }) => {
     const [cacheKeys, setCacheKeys] = useState([]);
@@ -128,7 +128,7 @@ export const useMediaCache = ({
                 const hasPending = data.some(d => !d.isAnalyzed);
                 if (hasPending && apiKey && newFileEntry.file?.name && runStage2) {
                     console.log(`[Cache Load] ${data.filter(d => !d.isAnalyzed).length} pending items detected. Resuming Stage 2...`);
-                    runStage2(id, newFileEntry.file, data, apiKey, selectedModel);
+                    runStage2(id, newFileEntry.file, data, apiKey, stage2Model);
                 }
                 if (setIsSwitchingFile) setIsSwitchingFile(false);
             } catch (e) {

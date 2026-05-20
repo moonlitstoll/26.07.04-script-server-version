@@ -1,14 +1,16 @@
 import {
-    Upload, Volume2, Settings, X, Trash2
+    Upload, Volume2, Settings, Trash2
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
+import { getCacheDisplayName } from '../utils/cacheStatus';
 
 const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
     processFiles,
     showSettings, setShowSettings,
     apiKey, setApiKey,
-    selectedModel, setSelectedModel,
+    stage1Model, setStage1Model,
+    stage2Model, setStage2Model,
     temperature, setTemperature,
     topP, setTopP,
     bufferTime, setBufferTime,
@@ -36,8 +38,10 @@ const EmptyState = ({
                 <SettingsModal
                     apiKey={apiKey}
                     setApiKey={setApiKey}
-                    selectedModel={selectedModel}
-                    setSelectedModel={setSelectedModel}
+                    stage1Model={stage1Model}
+                    setStage1Model={setStage1Model}
+                    stage2Model={stage2Model}
+                    setStage2Model={setStage2Model}
                     bufferTime={bufferTime}
                     setBufferTime={setBufferTime}
                     temperature={temperature}
@@ -85,7 +89,7 @@ const EmptyState = ({
                             </div>
                         ) : (
                             cacheKeys.map(key => {
-                                const name = key.replace('gemini_analysis_', '').replace(/_\d+$/, '');
+                                const name = getCacheDisplayName(key);
                                 return (
                                     <div
                                         key={key}

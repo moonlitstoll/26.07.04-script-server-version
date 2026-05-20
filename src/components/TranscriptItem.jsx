@@ -6,8 +6,7 @@ import {
 const TranscriptItem = memo(({
     item, idx, isActive, isGlobalLooping, manualScrollNonce,
     seekTo, jumpToSentence,
-    isLooping, showAnalysis,
-    showTranslations
+    isLooping, showAnalysis
 }) => {
     const itemRef = useRef(null);
 
@@ -39,7 +38,7 @@ const TranscriptItem = memo(({
         if (isActive && itemRef.current) {
             itemRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
         }
-    }, [showAnalysis, showTranslations, isActive]);
+    }, [showAnalysis, isActive]);
 
     return (
         <div
@@ -110,7 +109,7 @@ const TranscriptItem = memo(({
                     )}
 
                     {/* Translation */}
-                    {(showTranslations || showAnalysis) && item.translation && (
+                    {showAnalysis && item.translation && (
                         <div className={`rounded-xl px-3 py-2 border transition-colors duration-300 mb-2 ${showAnalysis ? 'bg-indigo-50/80 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
                             <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-[11px] uppercase tracking-wider mb-0.5">
                                 <Languages size={12} /> Translation

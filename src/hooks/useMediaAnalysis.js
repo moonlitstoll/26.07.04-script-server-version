@@ -10,7 +10,8 @@ export const useMediaAnalysis = ({
     resetPlayerState,
     refreshCacheKeys,
     apiKey,
-    selectedModel,
+    stage1Model,
+    stage2Model,
     temperature,
     topP,
     stage2AbortRef
@@ -156,7 +157,7 @@ export const useMediaAnalysis = ({
                         fileDuration = await getMediaDuration(fItem.file);
                         console.log(`[Stage 1] Real duration for ${fItem.file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
 
-                        rawData = await extractTranscript(fItem.file, apiKey, selectedModel, fileDuration, (incrementalData) => {
+                        rawData = await extractTranscript(fItem.file, apiKey, stage1Model, fileDuration, (incrementalData) => {
                             setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: incrementalData } : p));
                         }, temperature, topP);
                     } catch (apiError) {
@@ -190,7 +191,7 @@ export const useMediaAnalysis = ({
                         if (refreshCacheKeys) refreshCacheKeys();
                     } catch { /* ignore */ }
 
-                    runStage2(fItem.id, fItem.file, data, apiKey, selectedModel);
+                    runStage2(fItem.id, fItem.file, data, apiKey, stage2Model);
 
                     try {
                         await mediaStore.saveFile(fItem.file);

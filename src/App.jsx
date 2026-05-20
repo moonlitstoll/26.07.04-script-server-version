@@ -19,7 +19,8 @@ import EmptyState from './components/EmptyState';
 
 const App = () => {
   const [apiKey, setApiKey] = useState(localStorage.getItem('miniapp_gemini_key') || import.meta.env.VITE_GEMINI_API_KEY || '');
-  const [selectedModel, setSelectedModel] = useState(localStorage.getItem('miniapp_gemini_model') || 'gemini-2.5-flash');
+  const [stage1Model, setStage1Model] = useState(localStorage.getItem('miniapp_stage1_model') || 'gemini-2.5-flash');
+  const [stage2Model, setStage2Model] = useState(localStorage.getItem('miniapp_stage2_model') || 'gemini-2.5-flash');
   const [bufferTime, setBufferTime] = useState(parseFloat(localStorage.getItem('miniapp_buffer_time')) || 0.3);
   const [temperature, setTemperature] = useState(parseFloat(localStorage.getItem('miniapp_temperature')) || 0.5);
   const [topP, setTopP] = useState(parseFloat(localStorage.getItem('miniapp_top_p')) || 0.7);
@@ -31,7 +32,6 @@ const App = () => {
   // UI state
   const [showSettings, setShowSettings] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(true);
-  const [showTranslations] = useState(true);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showCacheHistory, setShowCacheHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,26 +58,28 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2 } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, selectedModel, temperature, topP, stage2AbortRef
+    apiKey, stage1Model, stage2Model, temperature, topP, stage2AbortRef
   });
 
   const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
-    resetPlayerState, runStage2, apiKey, selectedModel, stage2AbortRef
+    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef
   });
 
   useEffect(() => {
     refreshCacheKeysRef.current = refreshCacheKeys;
   }, [refreshCacheKeys]);
 
-  const saveConfiguration = (key, model, buffer, temp, p) => {
+  const saveConfiguration = (key, s1Model, s2Model, buffer, temp, p) => {
     localStorage.setItem('miniapp_gemini_key', key);
-    localStorage.setItem('miniapp_gemini_model', model);
+    localStorage.setItem('miniapp_stage1_model', s1Model);
+    localStorage.setItem('miniapp_stage2_model', s2Model);
     localStorage.setItem('miniapp_buffer_time', buffer.toString());
     localStorage.setItem('miniapp_temperature', temp.toString());
     localStorage.setItem('miniapp_top_p', p.toString());
     setApiKey(key);
-    setSelectedModel(model);
+    setStage1Model(s1Model);
+    setStage2Model(s2Model);
     setBufferTime(buffer);
     setTemperature(temp);
     setTopP(p);
@@ -87,9 +89,6 @@ const App = () => {
   useEffect(() => {
     if (showSettings || showCacheHistory) refreshCacheKeys();
   }, [showSettings, showCacheHistory, refreshCacheKeys]);
-
-  // Derived current idx for UI
-  const currentSentenceIdx = activeSentenceIdx;
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -177,8 +176,10 @@ const App = () => {
         setShowSettings={setShowSettings}
         apiKey={apiKey}
         setApiKey={setApiKey}
-        selectedModel={selectedModel}
-        setSelectedModel={setSelectedModel}
+        stage1Model={stage1Model}
+        setStage1Model={setStage1Model}
+        stage2Model={stage2Model}
+        setStage2Model={setStage2Model}
         bufferTime={bufferTime}
         setBufferTime={setBufferTime}
         temperature={temperature}
@@ -292,7 +293,7 @@ const App = () => {
                   <div key={activeFileId} className="space-y-2 min-h-[200px] relative">
                     <ErrorBoundary>
                       {transcriptData.map((item, idx) => {
-                        const isActive = idx === currentSentenceIdx;
+                        const isActive = idx === activeSentenceIdx;
                         const compositeKey = `${activeFileId}-${idx}-${item.seconds}`;
                         return (
                           <TranscriptItem
@@ -307,7 +308,6 @@ const App = () => {
                             isLooping={isActive && isGlobalLoopActive}
                             isGlobalLooping={isGlobalLoopActive}
                             showAnalysis={showAnalysis}
-                            showTranslations={showTranslations}
                             toggleGlobalAnalysis={toggleGlobalAnalysis}
                           />
                         );
@@ -327,7 +327,7 @@ const App = () => {
               duration={duration}
               playbackRate={playbackRate}
               isGlobalLoopActive={isGlobalLoopActive}
-              currentSentenceIdx={currentSentenceIdx}
+              activeSentenceIdx={activeSentenceIdx}
               showAnalysis={showAnalysis}
               showSpeedMenu={showSpeedMenu}
               togglePlay={togglePlay}
@@ -352,27 +352,16 @@ const App = () => {
                   <h3 className="text-xl font-bold text-slate-800">No active file</h3>
                   <p className="text-slate-500 mt-1">Upload or select a file to start the analysis.</p>
                 </div>
-                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-3">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Default Gemini Model</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {[
-                      { id: 'gemini-2.0-flash', name: 'Gemini 2 Flash' },
-                      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-                      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' }
-                    ].map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => saveConfiguration(apiKey, m.id)}
-                        className={`flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all ${selectedModel === m.id
-                          ? 'bg-white border-indigo-200 text-indigo-700 font-bold shadow-sm'
-                          : 'bg-white/50 border-slate-100 text-slate-500 hover:bg-white'
-                          }`}
-                      >
-                        <span className="text-sm">{m.name}</span>
-                        {selectedModel === m.id && <Check size={14} className="text-indigo-600" />}
-                      </button>
-                    ))}
-                  </div>
+                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-2 text-left">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Current Models</p>
+                  <p className="text-sm text-slate-600"><span className="font-bold text-indigo-600">Stage 1</span> (전사): {stage1Model}</p>
+                  <p className="text-sm text-slate-600"><span className="font-bold text-purple-600">Stage 2</span> (분석): {stage2Model}</p>
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="w-full mt-2 px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
+                  >
+                    모델 설정 변경
+                  </button>
                 </div>
                 <button
                   onClick={() => setShowCacheHistory(true)}
@@ -391,8 +380,10 @@ const App = () => {
         <SettingsModal
           apiKey={apiKey}
           setApiKey={setApiKey}
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
+          stage1Model={stage1Model}
+          setStage1Model={setStage1Model}
+          stage2Model={stage2Model}
+          setStage2Model={setStage2Model}
           bufferTime={bufferTime}
           setBufferTime={setBufferTime}
           temperature={temperature}
