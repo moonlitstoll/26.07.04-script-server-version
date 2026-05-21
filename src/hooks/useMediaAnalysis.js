@@ -14,7 +14,8 @@ export const useMediaAnalysis = ({
     stage2Model,
     temperature,
     topP,
-    stage2AbortRef
+    stage2AbortRef,
+    showToast
 }) => {
     const [isDragging, setIsDragging] = useState(false);
 
@@ -68,6 +69,7 @@ export const useMediaAnalysis = ({
         console.log(`[Stage 2] Split into ${batches.length} batches (Max 2 concurrent).`);
 
         let workingData = JSON.parse(JSON.stringify(transcript));
+        let totalSuccessCount = 0;
 
         // 배치 순차 처리 (병렬성 제어)
         for (let i = 0; i < batches.length; i += CONCURRENCY) {
@@ -81,6 +83,7 @@ export const useMediaAnalysis = ({
                 try {
                     const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal);
                     if (results && !signal.aborted) {
+                        let groupSuccess = 0;
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
                                 workingData[res.index] = {
@@ -89,8 +92,10 @@ export const useMediaAnalysis = ({
                                     analysis: res.analysis,
                                     isAnalyzed: true
                                 };
+                                groupSuccess++;
                             }
                         });
+                        totalSuccessCount += groupSuccess;
                         // 중간 결과 반영 및 저장
                         updateGlobalState(workingData);
                         saveToCache(fileInfo, workingData, i + (currentBatchGroup.length * BATCH_SIZE) >= pendingIndices.length ? 'completed' : 'analyzing');
@@ -102,7 +107,13 @@ export const useMediaAnalysis = ({
 
             await Promise.all(batchPromises);
         }
-        console.log(`[Stage 2] Full Batch processing finished.`);
+
+        if (!signal.aborted && totalSuccessCount === 0 && pendingIndices.length > 0) {
+            console.error('[Stage 2] All batches failed — no sentences analyzed.');
+            if (showToast) showToast({ message: '분석 실패: API 오류가 발생했습니다. 설정에서 모델을 확인해주세요.', type: 'error' });
+        }
+
+        console.log(`[Stage 2] Full Batch processing finished. Analyzed: ${totalSuccessCount}/${pendingIndices.length}`);
     };
 
     const processFiles = async (fileList) => {

@@ -290,12 +290,9 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
     const resolvedModel = modelId || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
         model: resolvedModel,
-        generationConfig: {
-            temperature: 0.3,
-            ...(resolvedModel.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
-        },
+        generationConfig: { temperature: 0.3 },
         safetySettings
-    }, ...(resolvedModel.includes('2.5') ? [{ apiVersion: "v1beta" }] : []));
+    });
 
     const inputContent = items.map(item => `문장(INDEX: ${item.index}): ${item.text} `).join('\n');
     const prompt = `${STAGE2_BATCH_PROMPT} \n\n분석할 문장 목록: \n${inputContent} `;
@@ -351,12 +348,9 @@ export async function analyzeSingleSentence(item, index, apiKey, modelId, signal
     const resolvedModel = modelId || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
         model: resolvedModel,
-        generationConfig: {
-            temperature: 0.3,
-            ...(resolvedModel.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
-        },
+        generationConfig: { temperature: 0.3 },
         safetySettings
-    }, ...(resolvedModel.includes('2.5') ? [{ apiVersion: "v1beta" }] : []));
+    });
 
     const prompt = `${STAGE2_PROMPT} \n\n분석할 문장(번호: ${index}): \n${item.text} `;
 

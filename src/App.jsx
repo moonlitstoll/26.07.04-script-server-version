@@ -63,7 +63,8 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2 } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, stage1Model, stage2Model, temperature, topP, stage2AbortRef
+    apiKey, stage1Model, stage2Model, temperature, topP, stage2AbortRef,
+    showToast
   });
 
   const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys } = useMediaCache({
