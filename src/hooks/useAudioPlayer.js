@@ -42,25 +42,33 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         const v = videoRef.current;
         if (v) {
             triggerManualScroll();
-            // [4차 수정] Time-Based Intent Guard: 1초간 브라우저의 모든 정지 신호 차단
             lastActionTimeRef.current = Date.now();
-            setIsPlaying(true); // 즉각 1번(||) 고정
+            setIsPlaying(true);
 
             const targetTime = Math.max(0, Math.min(s, v.duration || 999999));
             v.currentTime = targetTime;
 
-            // 비동기 재생 명령
-            v.play().catch(() => { });
+            v.play().catch((err) => {
+                if (err.name !== 'AbortError') {
+                    console.error('[Player] seekTo play() failed:', err);
+                    setIsPlaying(false);
+                }
+            });
         }
     }, [triggerManualScroll]);
 
     const togglePlay = useCallback(() => {
         if (videoRef.current) {
-            lastActionTimeRef.current = Date.now(); // 수동 토글 시에도 시간 갱신
+            lastActionTimeRef.current = Date.now();
 
             if (videoRef.current.paused) {
                 setIsPlaying(true);
-                videoRef.current.play().catch(() => { });
+                videoRef.current.play().catch((err) => {
+                    if (err.name !== 'AbortError') {
+                        console.error('[Player] togglePlay play() failed:', err);
+                        setIsPlaying(false);
+                    }
+                });
             } else {
                 setIsPlaying(false);
                 videoRef.current.pause();
@@ -187,7 +195,12 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
                         setIsPlaying(true);
 
                         v.currentTime = start;
-                        v.play().catch(() => { });
+                        v.play().catch((err) => {
+                            if (err.name !== 'AbortError') {
+                                console.error('[Player] loop restart play() failed:', err);
+                                setIsPlaying(false);
+                            }
+                        });
                         return;
                     }
 
