@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileAudio, FileVideo, Settings, Home, AlertCircle
+  FileAudio, FileVideo, Settings, Home, AlertCircle, RotateCcw
 } from 'lucide-react';
+import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
@@ -18,12 +19,8 @@ import Toast from './components/Toast';
 
 
 const App = () => {
-  const [apiKey, setApiKey] = useState(localStorage.getItem('miniapp_gemini_key') || import.meta.env.VITE_GEMINI_API_KEY || '');
-  const [stage1Model, setStage1Model] = useState(localStorage.getItem('miniapp_stage1_model') || 'gemini-2.5-flash');
-  const [stage2Model, setStage2Model] = useState(localStorage.getItem('miniapp_stage2_model') || 'gemini-2.5-flash');
-  const [bufferTime, setBufferTime] = useState(parseFloat(localStorage.getItem('miniapp_buffer_time')) || 0.3);
-  const [temperature, setTemperature] = useState(parseFloat(localStorage.getItem('miniapp_temperature')) || 0.5);
-  const [topP, setTopP] = useState(parseFloat(localStorage.getItem('miniapp_top_p')) || 0.7);
+  const { config, saveConfiguration, updateField } = useSettings();
+  const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP } = config;
 
   // Multi-file state
   const [files, setFiles] = useState([]);
@@ -60,7 +57,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2 } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, temperature, topP, stage2AbortRef,
@@ -76,19 +73,16 @@ const App = () => {
     refreshCacheKeysRef.current = refreshCacheKeys;
   }, [refreshCacheKeys]);
 
-  const saveConfiguration = (key, s1Model, s2Model, buffer, temp, p) => {
-    localStorage.setItem('miniapp_gemini_key', key);
-    localStorage.setItem('miniapp_stage1_model', s1Model);
-    localStorage.setItem('miniapp_stage2_model', s2Model);
-    localStorage.setItem('miniapp_buffer_time', buffer.toString());
-    localStorage.setItem('miniapp_temperature', temp.toString());
-    localStorage.setItem('miniapp_top_p', p.toString());
-    setApiKey(key);
-    setStage1Model(s1Model);
-    setStage2Model(s2Model);
-    setBufferTime(buffer);
-    setTemperature(temp);
-    setTopP(p);
+  // SettingsModal 호환용 래퍼: 개별 인자 → config 객체로 변환
+  const handleSaveConfiguration = (key, s1Model, s2Model, buffer, temp, p) => {
+    saveConfiguration({
+      apiKey: key,
+      stage1Model: s1Model,
+      stage2Model: s2Model,
+      bufferTime: buffer,
+      temperature: temp,
+      topP: p
+    });
     setShowSettings(false);
   };
 
@@ -202,18 +196,18 @@ const App = () => {
         showSettings={showSettings}
         setShowSettings={setShowSettings}
         apiKey={apiKey}
-        setApiKey={setApiKey}
+        setApiKey={(v) => updateField('apiKey', v)}
         stage1Model={stage1Model}
-        setStage1Model={setStage1Model}
+        setStage1Model={(v) => updateField('stage1Model', v)}
         stage2Model={stage2Model}
-        setStage2Model={setStage2Model}
+        setStage2Model={(v) => updateField('stage2Model', v)}
         bufferTime={bufferTime}
-        setBufferTime={setBufferTime}
+        setBufferTime={(v) => updateField('bufferTime', v)}
         temperature={temperature}
-        setTemperature={setTemperature}
+        setTemperature={(v) => updateField('temperature', v)}
         topP={topP}
-        setTopP={setTopP}
-        saveConfiguration={saveConfiguration}
+        setTopP={(v) => updateField('topP', v)}
+        saveConfiguration={handleSaveConfiguration}
         cacheKeys={cacheKeys}
         loadCache={loadCache}
         deleteCache={deleteCache}
@@ -313,6 +307,13 @@ const App = () => {
                     <AlertCircle size={32} className="mx-auto mb-3 text-red-500" />
                     <h3 className="font-bold text-lg mb-1">Analysis Failed</h3>
                     <p>{activeFile.error}</p>
+                    <button
+                      onClick={() => retryAnalysis(activeFile.id)}
+                      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100"
+                    >
+                      <RotateCcw size={16} />
+                      다시 시도
+                    </button>
                   </div>
                 ) : transcriptData.length === 0 ? (
                   <div className="text-center py-20 text-slate-400">
@@ -408,18 +409,18 @@ const App = () => {
       {showSettings && (
         <SettingsModal
           apiKey={apiKey}
-          setApiKey={setApiKey}
+          setApiKey={(v) => updateField('apiKey', v)}
           stage1Model={stage1Model}
-          setStage1Model={setStage1Model}
+          setStage1Model={(v) => updateField('stage1Model', v)}
           stage2Model={stage2Model}
-          setStage2Model={setStage2Model}
+          setStage2Model={(v) => updateField('stage2Model', v)}
           bufferTime={bufferTime}
-          setBufferTime={setBufferTime}
+          setBufferTime={(v) => updateField('bufferTime', v)}
           temperature={temperature}
-          setTemperature={setTemperature}
+          setTemperature={(v) => updateField('temperature', v)}
           topP={topP}
-          setTopP={setTopP}
-          saveConfiguration={saveConfiguration}
+          setTopP={(v) => updateField('topP', v)}
+          saveConfiguration={handleSaveConfiguration}
           onClose={() => setShowSettings(false)}
         />
       )}

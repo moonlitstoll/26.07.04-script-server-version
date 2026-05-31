@@ -8,6 +8,19 @@ const VALID_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-li
 const resolveModel = (modelId) =>
     VALID_MODELS.find(m => m === modelId) || "gemini-2.5-flash";
 
+// [모듈 레벨 상수] 정규식 패턴 및 유틸 — 호출마다 재컴파일/재생성 방지
+const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;
+const SCREEN_TEXT_PATTERNS = /^(Phim:|Film:|Movie:|Sub:|Subtitle:|Ngu\u1ed3n:|Source:|[[({]?(Music|Nh\u1ea1c|\uc74c\uc545|Sound|Effect|Laughter|Applause|Noise|Silence|ti\u1ebfng|background|audio|\u0111\u1ed9ng|thanh)[[)}]?)[:\s-]*$/i;
+const BRACKET_DESCRIPTION_PATTERN = /^[[({][^\]})]+[\]})]$/i;
+
+const formatTime = (seconds) => {
+    const ms = Math.floor((seconds % 1) * 1000).toString().padStart(3, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    const m = Math.floor((seconds / 60) % 60).toString().padStart(2, '0');
+    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    return `${h}:${m}:${s}.${ms}`;
+};
+
 
 async function fileToGenerativePart(file) {
     const isVideo = file.type && file.type.startsWith('video/');
@@ -61,7 +74,7 @@ const safetySettings = [
     { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" },
 ];
 
-export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", totalDuration = 0, onProgress = null, temperature = 0.5, topP = 0.7) {
+export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", totalDuration = 0, onProgress = null, temperature = 0.5, topP = 0.7, signal = null) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = resolveModel(modelId);
@@ -69,13 +82,14 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
     console.log(`[Stage 1] Streaming Analysis with Circuit Breaker, model: ${modelName} `);
 
     try {
+        // Stage 1 취소 요청 시 즉시 중단
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
         const mediaData = await fileToGenerativePart(file);
         const model = genAI.getGenerativeModel({
             model: modelName,
             generationConfig: {
-                // [2단계 문맥 균형형] 사용자가 설정한 온도 반영 (기본 0.5)
                 temperature: temperature || 0.5,
-                // [2단계 문맥 균형형] 사용자가 설정한 후보 샘플링 반영 (기본 0.7)
                 topP: topP || 0.7,
                 maxOutputTokens: 65536,
                 ...(modelName.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
@@ -85,24 +99,14 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
 
         let dynamicPrompt = STAGE1_PROMPT;
         if (totalDuration > 0) {
-            // Helper function to format seconds into HH:MM:SS.ms
-            const formatTime = (seconds) => {
-                const ms = Math.floor((seconds % 1) * 1000).toString().padStart(3, '0');
-                const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-                const m = Math.floor((seconds / 60) % 60).toString().padStart(2, '0');
-                const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
-                return `${h}:${m}:${s}.${ms}`;
-            };
             dynamicPrompt += `\n[미디어 길이 정보] 00:00:00.000부터 ${formatTime(totalDuration)}까지의 전체 분량에 대해 타임스탬프를 작성하세요.\n`;
         }
 
-        // 맹인 모드: 모든 파일(비디오 오픈, 오디오 오픈 공통)은 오직 '소리'만 전달됨
-        const audioOnlyPrompt = `
+        dynamicPrompt += `
 [특별 주의 사항]
 본 데이터는 시각 단서(화면)가 전혀 없는 순수 오디오 데이터입니다. 화면을 묘사하거나 시각적 행동을 추론하려 하지 마십시오.
 화자의 미세한 톤 변화, 숨소리, 억양 등 오직 '청각적 단서'에만 100% 의존해서 대화의 문맥을 파악하고 전사하십시오.
 `;
-        dynamicPrompt += audioOnlyPrompt;
 
         dynamicPrompt += `
 [필독: 영상 정보 및 절대 규칙]
@@ -112,6 +116,8 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
 실제 음성이 종료되었거나 ${totalDuration.toFixed(1)}초 근방에 도달했다면, 무의미한 텍스트(환각)를 절대 지어내지 말고 즉각 \`[END_OF_AUDIO]\`를 한 줄 출력한 뒤 출력을 완전히 멈추십시오.
 `;
 
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
         const streamResult = await model.generateContentStream([mediaData, dynamicPrompt]);
 
         let fullText = "";
@@ -119,37 +125,23 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
         let lastSentences = [];
         const historyCache = new Map();
         let lastProgressTime = 0;
-        const PROGRESS_INTERVAL = 500; // 500ms 쓰로틀: 과다 리렌더링 방지
-
-        // [MM:SS.cc] [화자 라벨] || 텍스트 정규식 파서
-        // [수정점] 문장 분리가 많아짐에 따라 앞에 붙는 기호나 괄호 처리를 더 유연하게 개선
-        const lineRegex = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;
-
-        // [C안] 화면 텍스트 및 비음성 묘사 필터 패턴: 제목, 자막 라벨, 음악/소음 표시 등 제거
-        // 괄호([]) 캡션 내부에 대사가 아닌 '묘사' 혹은 특정 키워드가 포함된 경우 필터링 (다국어 대응)
-        const screenTextPatterns = /^(Phim:|Film:|Movie:|Sub:|Subtitle:|Nguồn:|Source:|[[({]?(Music|Nhạc|음악|Sound|Effect|Laughter|Applause|Noise|Silence|tiếng|background|audio|động|thanh)[[)}]?)[:\s-]*$/i;
-
-        // 추가적인 괄호 전용 필터: [Music], (Laughter) 등 괄호로만 감싸진 단답형 묘사 차단
-        const bracketDescriptionPattern = /^[[({][^\]})]+[\]})]$/i;
+        const PROGRESS_INTERVAL = 500;
 
         // [C안] 타임스탬프 역행 방지용 마지막 유효 시간 추적
         let lastValidTime = -1;
 
         // 줄 파싱 헬퍼 함수 (증분/잔여 공통 사용)
         const parseLine = (line) => {
-            const match = line.match(lineRegex);
+            const match = line.match(LINE_REGEX);
             if (!match) return null;
 
             let rawTimeStr = match[1];
-            let speaker = match[2] ? match[2].trim() : ""; // Capture group 2 for speaker
-            let content = match[3].trim(); // Capture group 3 for content
+            let speaker = match[2] ? match[2].trim() : "";
+            let content = match[3].trim();
             if (!content || content.length < 2) return null;
 
-            // [C안] 화면 텍스트 필터: 제목, 자막 라벨, 음악 표시 등 제거
-            if (screenTextPatterns.test(content)) return null;
-
-            // [강화] 모든 형태의 괄호 묘사([tiếng nhạc] 등) 단독 출력 차단
-            if (bracketDescriptionPattern.test(content)) return null;
+            if (SCREEN_TEXT_PATTERNS.test(content)) return null;
+            if (BRACKET_DESCRIPTION_PATTERN.test(content)) return null;
 
             const analysisResult = analyzeIntraLineRepetition(content);
             if (analysisResult.status === "BLOCKED") {
@@ -213,6 +205,9 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
         };
 
         for await (const chunk of streamResult.stream) {
+            // Stage 1 취소 체크
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
             const chunkText = chunk.text();
             if (!chunkText) continue;
             fullText += chunkText;
@@ -227,14 +222,13 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
                     break;
                 } else {
                     console.log(`[Stage 1] END_OF_AUDIO detected too early (${(progressRatio * 100).toFixed(0)}%). Ignoring and continuing...`);
-                    // 마커를 제거하여 다음 chunk에서 재감지 방지
                     fullText = fullText.replace('[END_OF_AUDIO]', '');
                 }
             }
 
             // [증분 파싱] 완성된 줄만 처리, 마지막 미완성 줄은 다음 chunk로 이월
             const lines = fullText.split('\n');
-            fullText = lines.pop() || ""; // 미완성 줄만 남김
+            fullText = lines.pop() || "";
 
             for (const line of lines) {
                 const parsed = parseLine(line);
@@ -265,16 +259,16 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
             throw new Error("API Error (Stage 1): No valid data found. Video might just be music/noise.");
         }
 
-        // 정규화는 위에서 자체적으로 하였으므로 추출 데이터 그대로 반환
         return allMatches.sort((a, b) => a.seconds - b.seconds);
     } catch (err) {
+        if (err.name === 'AbortError') throw err;
         console.error(`Stage 1 Error: `, err);
         const errStr = String(err.message || err);
         if (errStr.includes("RECITATION")) {
             throw new Error("[오류: 저작권/표절 필터링] 오디오에 유명 노래 가사나 연설문 등 기존 데이터와 완벽히 일치하는 내용이 감지되어 구글 AI가 생성을 차단했습니다. 1. 이 오디오 특정 구간(노래 등)을 잘라내거나, 2. 다른 모델(예: 1.5 Pro)을 선택해서 시도해 보세요.");
         }
-        if (errStr.includes("reading from the stream") || errStr.includes("QUIC")) {
-            throw new Error("[오류: 구글 서버 네트워크 불안정] 해외 AI 서버로의 스트리밍 연결이 끊어졌습니다(QUIC Protocol Error). 잠시 후 다시 재생 버튼을 눌러 시도하거나 새로고침 후 진행해 주세요.");
+        if (errStr.includes("reading from the stream") || errStr.includes("QUIC") || errStr.includes("Failed to parse stream")) {
+            throw new Error("[오류: 구글 서버 네트워크 불안정] AI 서버와의 스트리밍 연결이 끊어졌습니다. 네트워크 상태를 확인하고 '다시 시도' 버튼을 눌러주세요.");
         }
         throw new Error(`API Error (Stage 1): ${errStr}`);
     }
@@ -340,7 +334,6 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
 
 /**
  * [Stage 2] 단일 문장 정밀 분석
- * 텍스트 마커를 사용하여 파싱 에러를 방지합니다.
  */
 export async function analyzeSingleSentence(item, index, apiKey, modelId, signal) {
     if (!apiKey) throw new Error("API Key is required");
@@ -362,7 +355,6 @@ export async function analyzeSingleSentence(item, index, apiKey, modelId, signal
         const response = await result.response;
         const text = response.text();
 
-        // 텍스트 마커 파싱 및 클리닝
         const translationMatch = text.match(/\[번역\]\s*(.*)/);
         const analysisLines = [...text.matchAll(/\[분석\]\s*(.*)/g)]
             .map(m => m[1].replace(/^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i, '').trim());
@@ -378,4 +370,3 @@ export async function analyzeSingleSentence(item, index, apiKey, modelId, signal
         return null;
     }
 }
-

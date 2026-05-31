@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
+import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -18,9 +19,10 @@ export const useMediaAnalysis = ({
     showToast
 }) => {
     const [isDragging, setIsDragging] = useState(false);
+    const stage1AbortRef = useRef(null);
 
     /**
-     * STAGE 2: FULL BATCH ANALYSIS (All at once)
+     * STAGE 2: FULL BATCH ANALYSIS
      */
     const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId) => {
         console.log(`[Stage 2] Starting FULL BATCH Analysis for file ${fileId}...`);
@@ -33,24 +35,6 @@ export const useMediaAnalysis = ({
             setFiles(prev => prev.map(f => f.id === fileId ? { ...f, data: [...data] } : f));
         };
 
-        const saveToCache = (fInfo, data, status) => {
-            if (!fInfo || !fInfo.name) return;
-            const cacheKey = `gemini_analysis_${fInfo.name}_${fInfo.size}`;
-            try {
-                localStorage.setItem(cacheKey, JSON.stringify({
-                    data,
-                    metadata: {
-                        name: fInfo.name,
-                        size: fInfo.size,
-                        lastModified: fInfo.lastModified,
-                        savedAt: Date.now(),
-                        status
-                    }
-                }));
-                if (refreshCacheKeys) refreshCacheKeys();
-            } catch (e) { console.warn("Failed to save cache:", e); }
-        };
-
         const pendingIndices = transcript
             .map((item, idx) => ({ item, idx }))
             .filter(x => !x.item.isAnalyzed)
@@ -58,7 +42,6 @@ export const useMediaAnalysis = ({
 
         if (pendingIndices.length === 0) return;
 
-        // 20개씩 묶어 동시 처리 (Pro는 RPM 낮아서 2, 나머지는 3)
         const BATCH_SIZE = 20;
         const CONCURRENCY = currentModelId === 'gemini-2.5-pro' ? 2 : 3;
         const batches = [];
@@ -66,12 +49,11 @@ export const useMediaAnalysis = ({
             batches.push(pendingIndices.slice(i, i + BATCH_SIZE));
         }
 
-        console.log(`[Stage 2] Split into ${batches.length} batches (Max 2 concurrent).`);
+        console.log(`[Stage 2] Split into ${batches.length} batches (Max ${CONCURRENCY} concurrent).`);
 
         let workingData = JSON.parse(JSON.stringify(transcript));
         let totalSuccessCount = 0;
 
-        // 배치 순차 처리 (병렬성 제어)
         for (let i = 0; i < batches.length; i += CONCURRENCY) {
             if (signal.aborted) break;
 
@@ -96,11 +78,13 @@ export const useMediaAnalysis = ({
                             }
                         });
                         totalSuccessCount += groupSuccess;
-                        // 중간 결과 반영 및 저장
                         updateGlobalState(workingData);
-                        saveToCache(fileInfo, workingData, i + (currentBatchGroup.length * BATCH_SIZE) >= pendingIndices.length ? 'completed' : 'analyzing');
+                        const isLast = i + (currentBatchGroup.length * BATCH_SIZE) >= pendingIndices.length;
+                        saveCacheEntry(fileInfo, workingData, isLast ? 'completed' : 'analyzing');
+                        if (refreshCacheKeys) refreshCacheKeys();
                     }
                 } catch (e) {
+                    if (e.name === 'AbortError') return;
                     console.error(`[Stage 2] Batch failed:`, e);
                 }
             });
@@ -109,18 +93,44 @@ export const useMediaAnalysis = ({
         }
 
         if (!signal.aborted && totalSuccessCount === 0 && pendingIndices.length > 0) {
-            console.error('[Stage 2] All batches failed — no sentences analyzed.');
+            console.error('[Stage 2] All batches failed.');
             if (showToast) showToast({ message: '분석 실패: API 오류가 발생했습니다. 설정에서 모델을 확인해주세요.', type: 'error' });
         }
 
-        console.log(`[Stage 2] Full Batch processing finished. Analyzed: ${totalSuccessCount}/${pendingIndices.length}`);
+        console.log(`[Stage 2] Finished. Analyzed: ${totalSuccessCount}/${pendingIndices.length}`);
+    };
+
+    /**
+     * Stage 1 실행 공통 로직
+     */
+    const runStage1 = async (fileId, file) => {
+        // 기존 Stage 1 중단
+        if (stage1AbortRef.current) stage1AbortRef.current.abort();
+        stage1AbortRef.current = new AbortController();
+        const { signal } = stage1AbortRef.current;
+
+        let fileDuration = 0;
+        try {
+            fileDuration = await getMediaDuration(file);
+            console.log(`[Stage 1] Real duration for ${file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
+        } catch (e) { console.warn("Failed to get media duration:", e); }
+
+        const rawData = await extractTranscript(file, apiKey, stage1Model, fileDuration, (incrementalData) => {
+            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: incrementalData } : p));
+        }, temperature, topP, signal);
+
+        if (!rawData) throw new Error("Received empty data from Stage 1 API");
+
+        const data = sanitizeData(rawData, fileDuration);
+        if (data.length === 0) throw new Error("Stage 1 extraction returned no valid text data.");
+
+        return data;
     };
 
     const processFiles = async (fileList) => {
         setIsDragging(false);
         if (!fileList || fileList.length === 0) return;
 
-        // Force Reset
         setIsSwitchingFile(true);
         if (resetPlayerState) resetPlayerState();
 
@@ -146,61 +156,24 @@ export const useMediaAnalysis = ({
             try {
                 if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-                // --- CACHE CHECK ---
                 const cacheKey = `gemini_analysis_${fItem.file.name}_${fItem.file.size}`;
-                const cached = localStorage.getItem(cacheKey);
+                const cacheEntry = parseCacheEntry(cacheKey);
 
-                if (cached) {
+                if (cacheEntry) {
                     console.log("Using cached analysis for", fItem.file.name);
-                    const parsed = JSON.parse(cached);
-                    const rawData = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed.data : parsed;
                     let cacheDuration = 0;
                     try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
-                    const data = sanitizeData(rawData, cacheDuration);
+                    const data = sanitizeData(cacheEntry.rawData, cacheDuration);
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false, isFromCache: true } : p));
                 } else {
-                    // API Call
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, isAnalyzing: true } : p));
 
-                    let rawData;
-                    let fileDuration = 0;
-                    try {
-                        fileDuration = await getMediaDuration(fItem.file);
-                        console.log(`[Stage 1] Real duration for ${fItem.file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
-
-                        rawData = await extractTranscript(fItem.file, apiKey, stage1Model, fileDuration, (incrementalData) => {
-                            setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: incrementalData } : p));
-                        }, temperature, topP);
-                    } catch (apiError) {
-                        throw new Error(`API Error (Stage 1): ${apiError.message}`);
-                    }
-
-                    if (!rawData) throw new Error("Received empty data from Stage 1 API");
-
-                    const data = sanitizeData(rawData, fileDuration);
-
-                    if (data.length === 0) {
-                        throw new Error("Stage 1 extraction returned no valid text data.");
-                    }
+                    const data = await runStage1(fItem.id, fItem.file);
 
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false } : p));
 
-                    // [Phase 4] 히스토리 미표시 수정: 1단계 완료 즉시 중간 저장
-                    try {
-                        const cacheData = {
-                            data: data,
-                            metadata: {
-                                name: fItem.file.name,
-                                size: fItem.file.size,
-                                type: fItem.file.type,
-                                lastModified: fItem.file.lastModified,
-                                savedAt: Date.now(),
-                                status: 'extracted'
-                            }
-                        };
-                        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-                        if (refreshCacheKeys) refreshCacheKeys();
-                    } catch (e) { console.warn("Failed to save Stage 1 cache:", e); }
+                    saveCacheEntry(fItem.file, data, 'extracted');
+                    if (refreshCacheKeys) refreshCacheKeys();
 
                     runStage2(fItem.id, fItem.file, data, apiKey, stage2Model);
 
@@ -211,12 +184,46 @@ export const useMediaAnalysis = ({
                     }
                 }
             } catch (err) {
+                if (err.name === 'AbortError') return;
                 console.error("Analysis Error", err);
                 setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, error: "Analysis failed: " + err.message, isAnalyzing: false } : p));
             }
         });
     };
 
+    const retryAnalysis = async (fileId) => {
+        // 기존 Stage 2 중단
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+
+        let targetFile = null;
+        setFiles(prev => {
+            const f = prev.find(p => p.id === fileId);
+            if (f) targetFile = f.file;
+            return prev.map(p => p.id === fileId ? { ...p, error: null, data: [], isAnalyzing: true } : p);
+        });
+
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile) return;
+
+        try {
+            if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
+
+            const data = await runStage1(fileId, targetFile);
+
+            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: data, isAnalyzing: false } : p));
+
+            saveCacheEntry(targetFile, data, 'extracted');
+            if (refreshCacheKeys) refreshCacheKeys();
+
+            runStage2(fileId, targetFile, data, apiKey, stage2Model);
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            console.error("Retry Analysis Error", err);
+            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, error: "Analysis failed: " + err.message, isAnalyzing: false } : p));
+        }
+    };
+
+    // 드래그앤드롭 핸들러
     const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
     const onDragLeave = (e) => {
         if (e.clientY <= 0 || e.clientX <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
@@ -228,5 +235,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };
