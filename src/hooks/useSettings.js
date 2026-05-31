@@ -8,7 +8,7 @@ const DEFAULTS = {
     temperature: 0.5,
     topP: 0.7,
     antiRecitation: false,
-    pitchSemitones: 2,
+    pitchSemitones: 0,
     chunkSplit: false,
 };
 

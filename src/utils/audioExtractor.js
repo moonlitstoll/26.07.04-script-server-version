@@ -159,7 +159,8 @@ export async function extractAudioSegments(file, {
 
     const inputExt = file.name.split('.').pop() || 'mp4';
     const inputName = `input_${Date.now()}.${inputExt}`;
-    const audioFilter = antiRecitation ? buildPitchFilter(pitchSemitones) : null;
+    // 피치 변조는 선택 사항 — semitones 0이면 필터 없이 정확 컷만 수행(분절 기호 삽입이 주력 회피 수단)
+    const audioFilter = (antiRecitation && pitchSemitones !== 0) ? buildPitchFilter(pitchSemitones) : null;
 
     const segments = [];
     try {

@@ -270,7 +270,7 @@ const SettingsModal = ({
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col pr-3">
                                 <label className="text-sm font-bold text-slate-700">RECITATION 방지 모드</label>
-                                <span className="text-[10px] text-slate-400 leading-relaxed">노래/연설 등 저작권 차단 회피. 켜면 피치 변조 + 재인코딩으로 처리 시간이 늘어납니다.</span>
+                                <span className="text-[10px] text-slate-400 leading-relaxed">노래/연설 등 저작권 차단 회피. 대사에 보이지 않는 분절 기호를 끼워 필터를 우회합니다. 최종 대본·타임라인엔 영향이 없습니다.</span>
                             </div>
                             <button
                                 type="button"
@@ -286,9 +286,9 @@ const SettingsModal = ({
                         {antiRecitation && (
                             <div className="space-y-3 pt-1">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-bold text-slate-700">피치 이동 (반음)</label>
+                                    <label className="text-sm font-bold text-slate-700">피치 이동 (선택, 보조)</label>
                                     <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
-                                        {pitchSemitones > 0 ? `+${pitchSemitones}` : pitchSemitones} 반음
+                                        {pitchSemitones === 0 ? '0 (끔)' : (pitchSemitones > 0 ? `+${pitchSemitones}` : pitchSemitones) + ' 반음'}
                                     </span>
                                 </div>
                                 <div className="px-1">
@@ -303,12 +303,12 @@ const SettingsModal = ({
                                     />
                                     <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
                                         <span>낮춤 (-5)</span>
-                                        <span>+2</span>
+                                        <span>0 (끔)</span>
                                         <span>높임 (+5)</span>
                                     </div>
                                 </div>
                                 <p className="text-[10px] text-slate-400 leading-relaxed">
-                                    ±2 반음 정도면 전사 품질에 거의 영향 없이 핑거프린팅을 방해합니다. 너무 크게(±5 이상) 올리면 발음 인식이 흔들릴 수 있습니다.
+                                    기본값 0(끔). 분절 기호만으로 회피가 안 될 때 ±2 반음 정도 보조로 켜세요. 0이 아니면 재인코딩으로 전처리 시간이 늘어납니다.
                                 </p>
 
                                 {/* 청크 분할 (피치 시프트로도 회피 안 될 때) */}
