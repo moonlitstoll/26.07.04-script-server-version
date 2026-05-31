@@ -42,7 +42,9 @@ const formatTime = (seconds) => {
 };
 
 
-// Blob → Gemini inlineData 파트 (base64) 변환 공통 헬퍼
+const FILE_API_THRESHOLD_MB = 15;
+
+// Blob → Gemini inlineData 파트 (base64) 변환
 function blobToGenerativePart(blob, fallbackMime = 'audio/aac') {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -57,35 +59,85 @@ function blobToGenerativePart(blob, fallbackMime = 'audio/aac') {
     });
 }
 
-async function fileToGenerativePart(file) {
-    // [FFmpeg 단일 스레드 오디오 적출]
-    // 100% 무변환 적출(Demuxing) — 피치/타임라인 0.1%도 왜곡 없음.
-    // RECITATION 회피는 오디오가 아니라 프롬프트(분절 기호 삽입)로 처리한다.
-    try {
-        console.log(`[Stage 1] Extracting demuxed original audio from ${file.type} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
-        const audioBlob = await extractOriginalAudio(file);
-        console.log(`[Stage 1] Demuxing complete: ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB`);
+// Gemini File API: 브라우저에서 REST 직접 호출로 대용량 파일 업로드
+async function uploadToGemini(blob, apiKey, displayName = 'audio') {
+    const mimeType = blob.type || 'audio/aac';
+    const boundary = 'GEMINI_UPLOAD_' + Date.now();
+    const metadata = JSON.stringify({ file: { displayName } });
 
-        return await blobToGenerativePart(audioBlob, 'audio/aac');
-    } catch (err) {
-        console.warn('[Stage 1] Native audio extraction failed, falling back to original:', err.message);
+    const encoder = new TextEncoder();
+    const preamble = encoder.encode(
+        `--${boundary}\r\nContent-Type: application/json; charset=utf-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`
+    );
+    const postamble = encoder.encode(`\r\n--${boundary}--\r\n`);
+    const fileBuffer = await blob.arrayBuffer();
+
+    const body = new Uint8Array(preamble.length + fileBuffer.byteLength + postamble.length);
+    body.set(preamble, 0);
+    body.set(new Uint8Array(fileBuffer), preamble.length);
+    body.set(postamble, preamble.length + fileBuffer.byteLength);
+
+    console.log(`[Stage 1] Uploading ${(blob.size / 1024 / 1024).toFixed(1)}MB via File API...`);
+
+    const uploadRes = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+            body: body,
+        }
+    );
+
+    if (!uploadRes.ok) {
+        const errorText = await uploadRes.text();
+        throw new Error(`Upload failed (${uploadRes.status}): ${errorText}`);
     }
 
-    // [폴백] -> 원본 그대로 전송
-    console.log(`[Stage 1] Sending original fallback (${(file.size / 1024 / 1024).toFixed(1)}MB, ${file.type})`);
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            resolve({
-                inlineData: {
-                    data: reader.result.split(',')[1],
-                    mimeType: file.type || 'audio/mpeg'
-                }
-            });
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+    let fileInfo = (await uploadRes.json()).file;
+
+    while (fileInfo.state === 'PROCESSING') {
+        console.log('[Stage 1] File processing on server, waiting...');
+        await new Promise(r => setTimeout(r, 2000));
+        const statusRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/${fileInfo.name}?key=${apiKey}`
+        );
+        if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.status}`);
+        fileInfo = await statusRes.json();
+    }
+
+    if (fileInfo.state !== 'ACTIVE') {
+        throw new Error(`File not ready: state=${fileInfo.state}`);
+    }
+
+    console.log(`[Stage 1] File API upload complete: ${fileInfo.uri}`);
+    return fileInfo;
+}
+
+async function fileToGenerativePart(file, apiKey) {
+    let audioBlob;
+    try {
+        console.log(`[Stage 1] Extracting demuxed original audio from ${file.type} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+        audioBlob = await extractOriginalAudio(file);
+        console.log(`[Stage 1] Demuxing complete: ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB`);
+    } catch (err) {
+        console.warn('[Stage 1] Audio extraction failed, using original:', err.message);
+        audioBlob = file;
+    }
+
+    const sizeMB = audioBlob.size / 1024 / 1024;
+
+    // 대용량 파일: File API 업로드 → URI 참조
+    if (sizeMB > FILE_API_THRESHOLD_MB) {
+        try {
+            const uploaded = await uploadToGemini(audioBlob, apiKey, file.name);
+            return { fileData: { fileUri: uploaded.uri, mimeType: uploaded.mimeType } };
+        } catch (err) {
+            console.warn('[Stage 1] File API failed, falling back to inline:', err.message);
+        }
+    }
+
+    // 소용량 파일 또는 File API 폴백: base64 inlineData
+    return await blobToGenerativePart(audioBlob, audioBlob.type || 'audio/aac');
 }
 
 
@@ -335,7 +387,7 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
             safetySettings
         }, { apiVersion: "v1beta" });
 
-        const mediaData = await fileToGenerativePart(file);
+        const mediaData = await fileToGenerativePart(file, apiKey);
         const dynamicPrompt = buildStage1Prompt(totalDuration, antiRecitation, markerChar, markerInterval);
         // antiRecitation일 때만 분절 기호 제거(임의 문자 오제거 방지)
         const stripMarker = antiRecitation ? makeMarkerStripper(markerChar) : null;
