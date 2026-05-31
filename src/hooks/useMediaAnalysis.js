@@ -47,7 +47,7 @@ export const useMediaAnalysis = ({
 
         if (pendingIndices.length === 0) return;
 
-        const BATCH_SIZE = 20;
+        const BATCH_SIZE = 35;
         const CONCURRENCY = currentModelId === 'gemini-2.5-pro' ? 2 : 3;
         const batches = [];
         for (let i = 0; i < pendingIndices.length; i += BATCH_SIZE) {

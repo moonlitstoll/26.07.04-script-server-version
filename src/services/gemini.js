@@ -497,12 +497,16 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
     const resolvedModel = modelId || "gemini-2.5-flash";
     const model = genAI.getGenerativeModel({
         model: resolvedModel,
-        generationConfig: { temperature: 0.3 },
-        safetySettings
+        generationConfig: {
+            temperature: 0.3,
+            ...(resolvedModel.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+        },
+        safetySettings,
+        systemInstruction: STAGE2_BATCH_PROMPT,
     });
 
     const inputContent = items.map(item => `문장(INDEX: ${item.index}): ${item.text} `).join('\n');
-    const prompt = `${STAGE2_BATCH_PROMPT} \n\n분석할 문장 목록: \n${inputContent} `;
+    const prompt = `분석할 문장 목록:\n${inputContent}`;
 
     try {
         const result = await model.generateContent({
