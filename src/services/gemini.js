@@ -501,12 +501,11 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
             temperature: 0.3,
             ...(resolvedModel.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
         },
-        safetySettings,
-        systemInstruction: STAGE2_BATCH_PROMPT,
+        safetySettings
     });
 
     const inputContent = items.map(item => `문장(INDEX: ${item.index}): ${item.text} `).join('\n');
-    const prompt = `분석할 문장 목록:\n${inputContent}`;
+    const prompt = `${STAGE2_BATCH_PROMPT}\n\n분석할 문장 목록:\n${inputContent}`;
 
     try {
         const result = await model.generateContent({
