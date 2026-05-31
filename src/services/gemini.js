@@ -173,8 +173,9 @@ async function transcribeStream(model, parts, {
         if (BRACKET_DESCRIPTION_PATTERN.test(content)) return null;
 
         const analysisResult = analyzeIntraLineRepetition(content);
-        if (analysisResult.status === "BLOCKED" || analysisResult.status === "TRUNCATED") {
-            content = analysisResult.refined_text;
+        if (analysisResult.status === "BLOCKED") return null; // 답 없는 거대 환각 줄은 폐기
+        if (analysisResult.status === "TRUNCATED") {
+            content = analysisResult.refined_text; // 반복 축약된 깔끔한 텍스트 채택
         }
         if (!content) return null;
 
