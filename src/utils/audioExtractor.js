@@ -31,6 +31,51 @@ async function getFFmpeg() {
 }
 
 /**
+ * 오디오 Blob을 시간 기준으로 청크 분할 (무변환 copy)
+ */
+export async function splitAudio(audioBlob, totalDuration, chunkDurationSec, overlapSec = 30) {
+    const ffmpeg = await getFFmpeg();
+    const inputName = `split_input_${Date.now()}.aac`;
+    await ffmpeg.writeFile(inputName, await fetchFile(audioBlob));
+
+    const step = chunkDurationSec - overlapSec;
+    const chunks = [];
+    let startSec = 0;
+    let index = 0;
+
+    try {
+        while (startSec < totalDuration) {
+            const duration = Math.min(chunkDurationSec + overlapSec, totalDuration - startSec);
+            const outputName = `chunk_${index}_${Date.now()}.aac`;
+
+            await ffmpeg.exec([
+                '-i', inputName,
+                '-ss', String(startSec),
+                '-t', String(duration),
+                '-acodec', 'copy',
+                outputName
+            ]);
+
+            const data = await ffmpeg.readFile(outputName);
+            chunks.push({
+                blob: new Blob([data.buffer], { type: 'audio/aac' }),
+                offsetSec: startSec,
+                durationSec: duration,
+            });
+
+            await ffmpeg.deleteFile(outputName);
+            startSec += step;
+            index++;
+        }
+    } finally {
+        try { await ffmpeg.deleteFile(inputName); } catch (e) { /* cleanup */ }
+    }
+
+    console.log(`[Split] ${chunks.length} chunks (${chunkDurationSec}s each, ${overlapSec}s overlap)`);
+    return chunks;
+}
+
+/**
  * 미디어 파일에서 오디오 트랙을 디코딩/재인코딩 없이 원본 그대로 복사 적출(Demuxing)합니다.
  * 타임스탬프 왜곡 및 리샘플링 음질 변형 0% 보장.
  * 

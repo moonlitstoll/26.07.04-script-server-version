@@ -20,7 +20,7 @@ import Toast from './components/Toast';
 
 const App = () => {
   const { config, updateField } = useSettings();
-  const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval } = config;
+  const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes } = config;
 
   // Multi-file state
   const [files, setFiles] = useState([]);
@@ -60,7 +60,7 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, markerChar, markerInterval, stage2AbortRef,
+    apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, stage2AbortRef,
     showToast
   });
 

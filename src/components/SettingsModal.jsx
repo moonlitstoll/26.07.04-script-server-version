@@ -246,6 +246,54 @@ const SettingsModal = ({ config, updateField, onClose }) => {
                         </div>
                     </div>
 
+                    {/* Chunk Transcription */}
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col pr-3">
+                                <label className="text-sm font-bold text-slate-700">청크 분할 전사</label>
+                                <span className="text-[10px] text-slate-400 leading-relaxed">긴 영상을 N분 단위로 나눠 전사합니다. 15분 이상 영상에서 전사 누락을 방지합니다.</span>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={config.chunkEnabled}
+                                onClick={() => updateField('chunkEnabled', !config.chunkEnabled)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${config.chunkEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                            >
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${config.chunkEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </button>
+                        </div>
+
+                        {config.chunkEnabled && (
+                            <div className="space-y-3 pt-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-bold text-slate-700">청크 길이</label>
+                                    <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{config.chunkMinutes}분</span>
+                                </div>
+                                <div className="px-1">
+                                    <input
+                                        type="range"
+                                        min="5"
+                                        max="30"
+                                        step="5"
+                                        value={config.chunkMinutes}
+                                        onChange={(e) => updateField('chunkMinutes', parseInt(e.target.value, 10))}
+                                        className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                    />
+                                    <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
+                                        <span>5분</span>
+                                        <span>10분</span>
+                                        <span>20분</span>
+                                        <span>30분</span>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                    짧을수록 전사 정확도↑, 길수록 API 호출 횟수↓. 10분을 권장합니다.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Anti-Recitation */}
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">

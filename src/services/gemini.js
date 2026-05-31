@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { extractOriginalAudio } from "../utils/audioExtractor";
-import { STAGE1_PROMPT, STAGE2_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
+import { extractOriginalAudio, splitAudio } from "../utils/audioExtractor";
+import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 
 const VALID_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2-flash", "gemini-3.5-flash"];
@@ -12,6 +12,7 @@ const resolveModel = (modelId) =>
 const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;
 const SCREEN_TEXT_PATTERNS = /^(Phim:|Film:|Movie:|Sub:|Subtitle:|Ngu\u1ed3n:|Source:|[[({]?(Music|Nh\u1ea1c|\uc74c\uc545|Sound|Effect|Laughter|Applause|Noise|Silence|ti\u1ebfng|background|audio|\u0111\u1ed9ng|thanh)[[)}]?)[:\s-]*$/i;
 const BRACKET_DESCRIPTION_PATTERN = /^[[({][^\]})]+[\]})]$/i;
+const ANALYSIS_PREFIX_STRIP = /^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i;
 
 // [RECITATION 회피] 분절 기호: 출력 단어 사이에 삽입했다가 파싱 시 제거해
 // "연속 일치"를 끊어 저작권/표절 필터를 우회한다. 실제 음성엔 없는 희귀 기호 권장.
@@ -113,31 +114,54 @@ async function uploadToGemini(blob, apiKey, displayName = 'audio') {
     return fileInfo;
 }
 
-async function fileToGenerativePart(file, apiKey) {
-    let audioBlob;
+// 파일에서 오디오 Blob 추출 (FFmpeg demux, 실패 시 원본 반환)
+async function extractAudioBlob(file) {
     try {
-        console.log(`[Stage 1] Extracting demuxed original audio from ${file.type} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
-        audioBlob = await extractOriginalAudio(file);
+        console.log(`[Stage 1] Extracting audio from ${file.type} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+        const audioBlob = await extractOriginalAudio(file);
         console.log(`[Stage 1] Demuxing complete: ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB`);
+        return audioBlob;
     } catch (err) {
         console.warn('[Stage 1] Audio extraction failed, using original:', err.message);
-        audioBlob = file;
+        return file;
     }
+}
 
-    const sizeMB = audioBlob.size / 1024 / 1024;
-
-    // 대용량 파일: File API 업로드 → URI 참조
+// Blob → Gemini 파트 변환 (크기에 따라 inlineData 또는 File API 자동 선택)
+async function blobToGeminiPart(blob, apiKey) {
+    const sizeMB = blob.size / 1024 / 1024;
     if (sizeMB > FILE_API_THRESHOLD_MB) {
         try {
-            const uploaded = await uploadToGemini(audioBlob, apiKey, file.name);
+            const uploaded = await uploadToGemini(blob, apiKey, 'audio');
             return { fileData: { fileUri: uploaded.uri, mimeType: uploaded.mimeType } };
         } catch (err) {
             console.warn('[Stage 1] File API failed, falling back to inline:', err.message);
         }
     }
+    return await blobToGenerativePart(blob, blob.type || 'audio/aac');
+}
 
-    // 소용량 파일 또는 File API 폴백: base64 inlineData
-    return await blobToGenerativePart(audioBlob, audioBlob.type || 'audio/aac');
+// 청크 경계 오버랩 구간 중복 제거
+function deduplicateOverlap(matches) {
+    if (matches.length < 2) return matches;
+    matches.sort((a, b) => a.seconds - b.seconds);
+
+    const result = [matches[0]];
+    for (let i = 1; i < matches.length; i++) {
+        const curr = matches[i];
+        const prev = result[result.length - 1];
+        if (Math.abs(curr.seconds - prev.seconds) < 3) {
+            const normCurr = curr.text.toLowerCase().replace(/\s+/g, '');
+            const normPrev = prev.text.toLowerCase().replace(/\s+/g, '');
+            if (normCurr === normPrev ||
+                normCurr.startsWith(normPrev.substring(0, 15)) ||
+                normPrev.startsWith(normCurr.substring(0, 15))) {
+                continue;
+            }
+        }
+        result.push(curr);
+    }
+    return result;
 }
 
 
@@ -365,15 +389,19 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
     antiRecitation = false,
     markerChar = DEFAULT_RECITATION_MARKER,
     markerInterval = 2,
+    chunkEnabled = false,
+    chunkMinutes = 10,
 } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = resolveModel(modelId);
 
-    console.log(`[Stage 1] Streaming Analysis, model: ${modelName}${antiRecitation ? ` [AntiRecitation: marker "${markerChar}", every ${markerInterval} words]` : ''} `);
+    const chunkDurationSec = (chunkMinutes || 10) * 60;
+    const shouldChunk = chunkEnabled && totalDuration > chunkDurationSec;
+
+    console.log(`[Stage 1] model: ${modelName}${shouldChunk ? ` [Chunked: ${chunkMinutes}min]` : ''}${antiRecitation ? ` [AntiRecitation]` : ''}`);
 
     try {
-        // Stage 1 취소 요청 시 즉시 중단
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
         const model = genAI.getGenerativeModel({
@@ -387,21 +415,57 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
             safetySettings
         }, { apiVersion: "v1beta" });
 
-        const mediaData = await fileToGenerativePart(file, apiKey);
-        const dynamicPrompt = buildStage1Prompt(totalDuration, antiRecitation, markerChar, markerInterval);
-        // antiRecitation일 때만 분절 기호 제거(임의 문자 오제거 방지)
         const stripMarker = antiRecitation ? makeMarkerStripper(markerChar) : null;
+        const audioBlob = await extractAudioBlob(file);
 
-        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        let allMatches;
 
-        const allMatches = await transcribeStream(model, [mediaData, dynamicPrompt], {
-            segDuration: totalDuration,
-            offset: 0,
-            hardLimit: totalDuration,
-            onPartial: onProgress,
-            signal,
-            stripMarker
-        });
+        if (shouldChunk) {
+            // --- 청크 분할 전사 ---
+            const OVERLAP_SEC = 30;
+            console.log(`[Stage 1] Splitting ${totalDuration.toFixed(0)}s audio into ${chunkMinutes}min chunks...`);
+            const chunks = await splitAudio(audioBlob, totalDuration, chunkDurationSec, OVERLAP_SEC);
+            allMatches = [];
+
+            for (let i = 0; i < chunks.length; i++) {
+                if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+                console.log(`[Stage 1] Chunk ${i + 1}/${chunks.length} (offset: ${chunks[i].offsetSec}s, duration: ${chunks[i].durationSec.toFixed(0)}s)`);
+
+                const mediaPart = await blobToGeminiPart(chunks[i].blob, apiKey);
+                const prompt = buildStage1Prompt(chunks[i].durationSec, antiRecitation, markerChar, markerInterval);
+
+                const chunkMatches = await transcribeStream(model, [mediaPart, prompt], {
+                    segDuration: chunks[i].durationSec,
+                    offset: chunks[i].offsetSec,
+                    hardLimit: totalDuration,
+                    onPartial: (partial) => {
+                        if (onProgress) onProgress([...allMatches, ...partial]);
+                    },
+                    signal,
+                    stripMarker,
+                });
+
+                allMatches = [...allMatches, ...chunkMatches];
+                if (onProgress) onProgress([...allMatches]);
+            }
+
+            allMatches = deduplicateOverlap(allMatches);
+        } else {
+            // --- 단일 패스 전사 (기존 동작) ---
+            const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
+            const dynamicPrompt = buildStage1Prompt(totalDuration, antiRecitation, markerChar, markerInterval);
+
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+            allMatches = await transcribeStream(model, [mediaPart, dynamicPrompt], {
+                segDuration: totalDuration,
+                offset: 0,
+                hardLimit: totalDuration,
+                onPartial: onProgress,
+                signal,
+                stripMarker
+            });
+        }
 
         if (!allMatches || allMatches.length === 0) {
             console.error("[Stage 1] Analysis failed: no valid data found.");
@@ -461,7 +525,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
                 const subText = text.substring(startIndex + startMarker.length, endIndex);
                 const translationMatch = subText.match(/\[번역\]\s*(.*)/);
                 const analysisLines = [...subText.matchAll(/\[분석\]\s*(.*)/g)]
-                    .map(m => m[1].replace(/^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i, '').trim());
+                    .map(m => m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim());
 
                 results.push({
                     index: item.index,
@@ -481,41 +545,3 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
     }
 }
 
-/**
- * [Stage 2] 단일 문장 정밀 분석
- */
-export async function analyzeSingleSentence(item, index, apiKey, modelId, signal) {
-    if (!apiKey) throw new Error("API Key is required");
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const resolvedModel = modelId || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({
-        model: resolvedModel,
-        generationConfig: { temperature: 0.3 },
-        safetySettings
-    });
-
-    const prompt = `${STAGE2_PROMPT} \n\n분석할 문장(번호: ${index}): \n${item.text} `;
-
-    try {
-        const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-        }, { signal });
-
-        const response = await result.response;
-        const text = response.text();
-
-        const translationMatch = text.match(/\[번역\]\s*(.*)/);
-        const analysisLines = [...text.matchAll(/\[분석\]\s*(.*)/g)]
-            .map(m => m[1].replace(/^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i, '').trim());
-
-        return {
-            index,
-            translation: translationMatch ? translationMatch[1].trim() : "",
-            analysis: analysisLines.join("\n").trim()
-        };
-    } catch (error) {
-        if (error.name === 'AbortError') throw error;
-        console.error(`[Stage 2] Failed sentence ${index}: `, error);
-        return null;
-    }
-}

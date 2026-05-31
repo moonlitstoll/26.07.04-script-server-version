@@ -10,6 +10,8 @@ const DEFAULTS = {
     antiRecitation: false,
     markerChar: '\u203B', // ※
     markerInterval: 2,
+    chunkEnabled: false,
+    chunkMinutes: 10,
 };
 
 const STORAGE_KEYS = {
@@ -22,6 +24,8 @@ const STORAGE_KEYS = {
     antiRecitation: 'miniapp_anti_recitation',
     markerChar: 'miniapp_marker_char',
     markerInterval: 'miniapp_marker_interval',
+    chunkEnabled: 'miniapp_chunk_enabled',
+    chunkMinutes: 'miniapp_chunk_minutes',
 };
 
 function loadFromStorage() {
@@ -37,24 +41,15 @@ function loadFromStorage() {
         markerInterval: localStorage.getItem(STORAGE_KEYS.markerInterval) !== null
             ? parseInt(localStorage.getItem(STORAGE_KEYS.markerInterval), 10)
             : DEFAULTS.markerInterval,
+        chunkEnabled: localStorage.getItem(STORAGE_KEYS.chunkEnabled) === 'true',
+        chunkMinutes: localStorage.getItem(STORAGE_KEYS.chunkMinutes) !== null
+            ? parseInt(localStorage.getItem(STORAGE_KEYS.chunkMinutes), 10)
+            : DEFAULTS.chunkMinutes,
     };
 }
 
 export const useSettings = () => {
     const [config, setConfig] = useState(loadFromStorage);
-
-    const saveConfiguration = useCallback((newConfig) => {
-        localStorage.setItem(STORAGE_KEYS.apiKey, newConfig.apiKey);
-        localStorage.setItem(STORAGE_KEYS.stage1Model, newConfig.stage1Model);
-        localStorage.setItem(STORAGE_KEYS.stage2Model, newConfig.stage2Model);
-        localStorage.setItem(STORAGE_KEYS.bufferTime, newConfig.bufferTime.toString());
-        localStorage.setItem(STORAGE_KEYS.temperature, newConfig.temperature.toString());
-        localStorage.setItem(STORAGE_KEYS.topP, newConfig.topP.toString());
-        localStorage.setItem(STORAGE_KEYS.antiRecitation, newConfig.antiRecitation.toString());
-        localStorage.setItem(STORAGE_KEYS.markerChar, newConfig.markerChar);
-        localStorage.setItem(STORAGE_KEYS.markerInterval, newConfig.markerInterval.toString());
-        setConfig(newConfig);
-    }, []);
 
     const updateField = useCallback((field, value) => {
         setConfig(prev => {
@@ -66,5 +61,5 @@ export const useSettings = () => {
         });
     }, []);
 
-    return { config, saveConfiguration, updateField };
+    return { config, updateField };
 };

@@ -18,6 +18,8 @@ export const useMediaAnalysis = ({
     antiRecitation,
     markerChar,
     markerInterval,
+    chunkEnabled,
+    chunkMinutes,
     stage2AbortRef,
     showToast
 }) => {
@@ -129,6 +131,8 @@ export const useMediaAnalysis = ({
             antiRecitation,
             markerChar,
             markerInterval,
+            chunkEnabled,
+            chunkMinutes,
         });
 
         if (!rawData) throw new Error("Received empty data from Stage 1 API");
