@@ -88,7 +88,12 @@ const TranscriptItem = memo(({
             ${isActive ? 'text-black' : 'text-slate-900'}
           `}
                 >
-                    {item.text}
+                    {item.text.split(/(?<=[.!?])\s+/).filter(Boolean).map((segment, i, arr) => (
+                        <span key={i}>
+                            {segment}
+                            {i < arr.length - 1 && <br />}
+                        </span>
+                    ))}
                 </div>
 
                 {/* Detailed Analysis Section */}
