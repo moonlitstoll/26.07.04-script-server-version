@@ -7,6 +7,9 @@ const DEFAULTS = {
     bufferTime: 0.3,
     temperature: 0.5,
     topP: 0.7,
+    antiRecitation: false,
+    pitchSemitones: 2,
+    chunkSplit: false,
 };
 
 const STORAGE_KEYS = {
@@ -16,6 +19,9 @@ const STORAGE_KEYS = {
     bufferTime: 'miniapp_buffer_time',
     temperature: 'miniapp_temperature',
     topP: 'miniapp_top_p',
+    antiRecitation: 'miniapp_anti_recitation',
+    pitchSemitones: 'miniapp_pitch_semitones',
+    chunkSplit: 'miniapp_chunk_split',
 };
 
 function loadFromStorage() {
@@ -26,6 +32,11 @@ function loadFromStorage() {
         bufferTime: parseFloat(localStorage.getItem(STORAGE_KEYS.bufferTime)) || DEFAULTS.bufferTime,
         temperature: parseFloat(localStorage.getItem(STORAGE_KEYS.temperature)) || DEFAULTS.temperature,
         topP: parseFloat(localStorage.getItem(STORAGE_KEYS.topP)) || DEFAULTS.topP,
+        antiRecitation: localStorage.getItem(STORAGE_KEYS.antiRecitation) === 'true',
+        pitchSemitones: localStorage.getItem(STORAGE_KEYS.pitchSemitones) !== null
+            ? parseInt(localStorage.getItem(STORAGE_KEYS.pitchSemitones), 10)
+            : DEFAULTS.pitchSemitones,
+        chunkSplit: localStorage.getItem(STORAGE_KEYS.chunkSplit) === 'true',
     };
 }
 
@@ -39,6 +50,9 @@ export const useSettings = () => {
         localStorage.setItem(STORAGE_KEYS.bufferTime, newConfig.bufferTime.toString());
         localStorage.setItem(STORAGE_KEYS.temperature, newConfig.temperature.toString());
         localStorage.setItem(STORAGE_KEYS.topP, newConfig.topP.toString());
+        localStorage.setItem(STORAGE_KEYS.antiRecitation, newConfig.antiRecitation.toString());
+        localStorage.setItem(STORAGE_KEYS.pitchSemitones, newConfig.pitchSemitones.toString());
+        localStorage.setItem(STORAGE_KEYS.chunkSplit, newConfig.chunkSplit.toString());
         setConfig(newConfig);
     }, []);
 

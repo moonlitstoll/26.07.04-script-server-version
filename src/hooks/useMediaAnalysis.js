@@ -15,6 +15,9 @@ export const useMediaAnalysis = ({
     stage2Model,
     temperature,
     topP,
+    antiRecitation,
+    pitchSemitones,
+    chunkSplit,
     stage2AbortRef,
     showToast
 }) => {
@@ -117,7 +120,7 @@ export const useMediaAnalysis = ({
 
         const rawData = await extractTranscript(file, apiKey, stage1Model, fileDuration, (incrementalData) => {
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: incrementalData } : p));
-        }, temperature, topP, signal);
+        }, temperature, topP, signal, antiRecitation, pitchSemitones, chunkSplit);
 
         if (!rawData) throw new Error("Received empty data from Stage 1 API");
 

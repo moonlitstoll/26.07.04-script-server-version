@@ -14,6 +14,9 @@ const EmptyState = ({
     temperature, setTemperature,
     topP, setTopP,
     bufferTime, setBufferTime,
+    antiRecitation, setAntiRecitation,
+    pitchSemitones, setPitchSemitones,
+    chunkSplit, setChunkSplit,
     saveConfiguration,
     cacheKeys, loadCache, deleteCache, clearAllCache
 }) => {
@@ -48,6 +51,12 @@ const EmptyState = ({
                     setTemperature={setTemperature}
                     topP={topP}
                     setTopP={setTopP}
+                    antiRecitation={antiRecitation}
+                    setAntiRecitation={setAntiRecitation}
+                    pitchSemitones={pitchSemitones}
+                    setPitchSemitones={setPitchSemitones}
+                    chunkSplit={chunkSplit}
+                    setChunkSplit={setChunkSplit}
                     saveConfiguration={saveConfiguration}
                     onClose={() => setShowSettings(false)}
                 />

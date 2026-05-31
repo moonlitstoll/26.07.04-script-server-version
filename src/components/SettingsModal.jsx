@@ -26,6 +26,9 @@ const SettingsModal = ({
     bufferTime, setBufferTime,
     temperature, setTemperature,
     topP, setTopP,
+    antiRecitation, setAntiRecitation,
+    pitchSemitones, setPitchSemitones,
+    chunkSplit, setChunkSplit,
     saveConfiguration, onClose
 }) => {
     const [saveState, setSaveState] = useState('idle');
@@ -261,6 +264,72 @@ const SettingsModal = ({
                             </div>
                         </div>
                     </div>
+
+                    {/* Anti-Recitation (RECITATION 필터 회피) */}
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col pr-3">
+                                <label className="text-sm font-bold text-slate-700">RECITATION 방지 모드</label>
+                                <span className="text-[10px] text-slate-400 leading-relaxed">노래/연설 등 저작권 차단 회피. 켜면 피치 변조 + 재인코딩으로 처리 시간이 늘어납니다.</span>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={antiRecitation}
+                                onClick={() => setAntiRecitation(!antiRecitation)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${antiRecitation ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                            >
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${antiRecitation ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </button>
+                        </div>
+
+                        {antiRecitation && (
+                            <div className="space-y-3 pt-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-bold text-slate-700">피치 이동 (반음)</label>
+                                    <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
+                                        {pitchSemitones > 0 ? `+${pitchSemitones}` : pitchSemitones} 반음
+                                    </span>
+                                </div>
+                                <div className="px-1">
+                                    <input
+                                        type="range"
+                                        min="-5"
+                                        max="5"
+                                        step="1"
+                                        value={pitchSemitones}
+                                        onChange={(e) => setPitchSemitones(parseInt(e.target.value, 10))}
+                                        className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                    />
+                                    <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
+                                        <span>낮춤 (-5)</span>
+                                        <span>+2</span>
+                                        <span>높임 (+5)</span>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                    ±2 반음 정도면 전사 품질에 거의 영향 없이 핑거프린팅을 방해합니다. 너무 크게(±5 이상) 올리면 발음 인식이 흔들릴 수 있습니다.
+                                </p>
+
+                                {/* 청크 분할 (피치 시프트로도 회피 안 될 때) */}
+                                <div className="flex items-center justify-between pt-3 mt-1 border-t border-slate-100">
+                                    <div className="flex flex-col pr-3">
+                                        <label className="text-sm font-bold text-slate-700">청크 분할 전사</label>
+                                        <span className="text-[10px] text-slate-400 leading-relaxed">긴 영상을 60초 조각으로 잘라 병렬 전사. 회피력↑·장애 내성↑, 전처리 시간이 늘어납니다. 타임라인은 그대로 유지됩니다.</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={chunkSplit}
+                                        onClick={() => setChunkSplit(!chunkSplit)}
+                                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${chunkSplit ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                    >
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${chunkSplit ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="p-6 bg-slate-50 flex gap-3">
@@ -272,7 +341,7 @@ const SettingsModal = ({
                     </button>
                     <button
                         onClick={() => {
-                            saveConfiguration(apiKey, stage1Model, stage2Model, bufferTime, temperature, topP);
+                            saveConfiguration(apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, pitchSemitones, chunkSplit);
                             setSaveState('saved');
                         }}
                         className={`flex-[2] py-3 text-white font-bold rounded-2xl transition-all shadow-lg ${

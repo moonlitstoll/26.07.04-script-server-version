@@ -20,7 +20,7 @@ import Toast from './components/Toast';
 
 const App = () => {
   const { config, saveConfiguration, updateField } = useSettings();
-  const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP } = config;
+  const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, pitchSemitones, chunkSplit } = config;
 
   // Multi-file state
   const [files, setFiles] = useState([]);
@@ -60,7 +60,7 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, stage1Model, stage2Model, temperature, topP, stage2AbortRef,
+    apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, pitchSemitones, chunkSplit, stage2AbortRef,
     showToast
   });
 
@@ -74,14 +74,17 @@ const App = () => {
   }, [refreshCacheKeys]);
 
   // SettingsModal 호환용 래퍼: 개별 인자 → config 객체로 변환
-  const handleSaveConfiguration = (key, s1Model, s2Model, buffer, temp, p) => {
+  const handleSaveConfiguration = (key, s1Model, s2Model, buffer, temp, p, anti, pitch, chunk) => {
     saveConfiguration({
       apiKey: key,
       stage1Model: s1Model,
       stage2Model: s2Model,
       bufferTime: buffer,
       temperature: temp,
-      topP: p
+      topP: p,
+      antiRecitation: anti,
+      pitchSemitones: pitch,
+      chunkSplit: chunk
     });
     setShowSettings(false);
   };
@@ -207,6 +210,12 @@ const App = () => {
         setTemperature={(v) => updateField('temperature', v)}
         topP={topP}
         setTopP={(v) => updateField('topP', v)}
+        antiRecitation={antiRecitation}
+        setAntiRecitation={(v) => updateField('antiRecitation', v)}
+        pitchSemitones={pitchSemitones}
+        setPitchSemitones={(v) => updateField('pitchSemitones', v)}
+        chunkSplit={chunkSplit}
+        setChunkSplit={(v) => updateField('chunkSplit', v)}
         saveConfiguration={handleSaveConfiguration}
         cacheKeys={cacheKeys}
         loadCache={loadCache}
@@ -420,6 +429,12 @@ const App = () => {
           setTemperature={(v) => updateField('temperature', v)}
           topP={topP}
           setTopP={(v) => updateField('topP', v)}
+          antiRecitation={antiRecitation}
+          setAntiRecitation={(v) => updateField('antiRecitation', v)}
+          pitchSemitones={pitchSemitones}
+          setPitchSemitones={(v) => updateField('pitchSemitones', v)}
+          chunkSplit={chunkSplit}
+          setChunkSplit={(v) => updateField('chunkSplit', v)}
           saveConfiguration={handleSaveConfiguration}
           onClose={() => setShowSettings(false)}
         />
