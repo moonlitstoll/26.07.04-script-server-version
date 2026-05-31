@@ -304,7 +304,16 @@ async function transcribeStream(model, parts, {
     return matches;
 }
 
-export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", totalDuration = 0, onProgress = null, temperature = 0.5, topP = 0.7, signal = null, antiRecitation = false, markerChar = DEFAULT_RECITATION_MARKER, markerInterval = 2) {
+export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", {
+    totalDuration = 0,
+    onProgress = null,
+    temperature = 0.5,
+    topP = 0.7,
+    signal = null,
+    antiRecitation = false,
+    markerChar = DEFAULT_RECITATION_MARKER,
+    markerInterval = 2,
+} = {}) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = resolveModel(modelId);

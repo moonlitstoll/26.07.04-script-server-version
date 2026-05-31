@@ -19,7 +19,7 @@ import Toast from './components/Toast';
 
 
 const App = () => {
-  const { config, saveConfiguration, updateField } = useSettings();
+  const { config, updateField } = useSettings();
   const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval } = config;
 
   // Multi-file state
@@ -73,21 +73,6 @@ const App = () => {
     refreshCacheKeysRef.current = refreshCacheKeys;
   }, [refreshCacheKeys]);
 
-  // SettingsModal 호환용 래퍼: 개별 인자 → config 객체로 변환
-  const handleSaveConfiguration = (key, s1Model, s2Model, buffer, temp, p, anti, mChar, mInterval) => {
-    saveConfiguration({
-      apiKey: key,
-      stage1Model: s1Model,
-      stage2Model: s2Model,
-      bufferTime: buffer,
-      temperature: temp,
-      topP: p,
-      antiRecitation: anti,
-      markerChar: mChar,
-      markerInterval: mInterval
-    });
-    setShowSettings(false);
-  };
 
   useEffect(() => {
     if (showSettings || showCacheHistory) refreshCacheKeys();
@@ -198,25 +183,8 @@ const App = () => {
         processFiles={processFiles}
         showSettings={showSettings}
         setShowSettings={setShowSettings}
-        apiKey={apiKey}
-        setApiKey={(v) => updateField('apiKey', v)}
-        stage1Model={stage1Model}
-        setStage1Model={(v) => updateField('stage1Model', v)}
-        stage2Model={stage2Model}
-        setStage2Model={(v) => updateField('stage2Model', v)}
-        bufferTime={bufferTime}
-        setBufferTime={(v) => updateField('bufferTime', v)}
-        temperature={temperature}
-        setTemperature={(v) => updateField('temperature', v)}
-        topP={topP}
-        setTopP={(v) => updateField('topP', v)}
-        antiRecitation={antiRecitation}
-        setAntiRecitation={(v) => updateField('antiRecitation', v)}
-        markerChar={markerChar}
-        setMarkerChar={(v) => updateField('markerChar', v)}
-        markerInterval={markerInterval}
-        setMarkerInterval={(v) => updateField('markerInterval', v)}
-        saveConfiguration={handleSaveConfiguration}
+        config={config}
+        updateField={updateField}
         cacheKeys={cacheKeys}
         loadCache={loadCache}
         deleteCache={deleteCache}
@@ -417,25 +385,8 @@ const App = () => {
       {/* Settings Modal */}
       {showSettings && (
         <SettingsModal
-          apiKey={apiKey}
-          setApiKey={(v) => updateField('apiKey', v)}
-          stage1Model={stage1Model}
-          setStage1Model={(v) => updateField('stage1Model', v)}
-          stage2Model={stage2Model}
-          setStage2Model={(v) => updateField('stage2Model', v)}
-          bufferTime={bufferTime}
-          setBufferTime={(v) => updateField('bufferTime', v)}
-          temperature={temperature}
-          setTemperature={(v) => updateField('temperature', v)}
-          topP={topP}
-          setTopP={(v) => updateField('topP', v)}
-          antiRecitation={antiRecitation}
-          setAntiRecitation={(v) => updateField('antiRecitation', v)}
-          markerChar={markerChar}
-          setMarkerChar={(v) => updateField('markerChar', v)}
-          markerInterval={markerInterval}
-          setMarkerInterval={(v) => updateField('markerInterval', v)}
-          saveConfiguration={handleSaveConfiguration}
+          config={config}
+          updateField={updateField}
           onClose={() => setShowSettings(false)}
         />
       )}

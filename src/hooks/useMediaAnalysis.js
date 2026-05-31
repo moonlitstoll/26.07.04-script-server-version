@@ -118,9 +118,18 @@ export const useMediaAnalysis = ({
             console.log(`[Stage 1] Real duration for ${file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
         } catch (e) { console.warn("Failed to get media duration:", e); }
 
-        const rawData = await extractTranscript(file, apiKey, stage1Model, fileDuration, (incrementalData) => {
-            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: incrementalData } : p));
-        }, temperature, topP, signal, antiRecitation, markerChar, markerInterval);
+        const rawData = await extractTranscript(file, apiKey, stage1Model, {
+            totalDuration: fileDuration,
+            onProgress: (incrementalData) => {
+                setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: incrementalData } : p));
+            },
+            temperature,
+            topP,
+            signal,
+            antiRecitation,
+            markerChar,
+            markerInterval,
+        });
 
         if (!rawData) throw new Error("Received empty data from Stage 1 API");
 
@@ -155,6 +164,7 @@ export const useMediaAnalysis = ({
         }
         setIsSwitchingFile(false);
 
+        // fire-and-forget: 각 파일을 병렬로 독립 처리 (개별 try/catch로 에러 격리)
         newFiles.forEach(async (fItem) => {
             try {
                 if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");

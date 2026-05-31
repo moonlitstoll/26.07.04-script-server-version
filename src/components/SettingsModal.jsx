@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
     Settings, X, Check, Info
 } from 'lucide-react';
@@ -11,8 +11,7 @@ const MODELS = [
     { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', badge: '최신' },
 ];
 
-// 분절 기호 프리셋 — 실제 음성/자막에 거의 안 나오는 기호 위주
-const MARKER_PRESETS = ['\u203B', '#', '|', '\u00B7', '\u2756', '\u2202', '\u00A4'];
+const MARKER_PRESETS = ['※', '#', '|', '·', '❖', '∂', '¤'];
 
 const MODEL_INFO = [
     { name: '2.5 Flash', s1: 'A', s2: 'A', rpm: '1K', rpd: '10K', desc: '만능형 기본값. 전사/분석 균형' },
@@ -22,37 +21,18 @@ const MODEL_INFO = [
     { name: '3.5 Flash', s1: '?', s2: 'A+', rpm: '1K', rpd: '10K', desc: '최신 모델. 전사 안정성 미검증' },
 ];
 
-const SettingsModal = ({
-    apiKey, setApiKey,
-    stage1Model, setStage1Model,
-    stage2Model, setStage2Model,
-    bufferTime, setBufferTime,
-    temperature, setTemperature,
-    topP, setTopP,
-    antiRecitation, setAntiRecitation,
-    markerChar, setMarkerChar,
-    markerInterval, setMarkerInterval,
-    saveConfiguration, onClose
-}) => {
-    const [saveState, setSaveState] = useState('idle');
+const SettingsModal = ({ config, updateField, onClose }) => {
     const [showModelInfo, setShowModelInfo] = useState(false);
 
-    useEffect(() => {
-        if (saveState === 'saved') {
-            const timer = setTimeout(() => setSaveState('idle'), 2000);
-            return () => clearTimeout(timer);
-        }
-    }, [saveState]);
-
-    const renderModelSelector = (label, colorClass, value, onChange) => (
+    const renderModelSelector = (label, colorClass, field) => (
         <div className="space-y-2">
             <label className={`text-sm font-bold ${colorClass}`}>{label}</label>
             <div className="grid grid-cols-1 gap-1.5">
                 {MODELS.map(m => (
                     <button
                         key={m.id}
-                        onClick={() => onChange(m.id)}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${value === m.id
+                        onClick={() => updateField(field, m.id)}
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${config[field] === m.id
                             ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm'
                             : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'
                             }`}
@@ -69,7 +49,7 @@ const SettingsModal = ({
                                 }`}>{m.badge}</span>
                             )}
                         </div>
-                        {value === m.id && <Check size={14} className="text-indigo-600" />}
+                        {config[field] === m.id && <Check size={14} className="text-indigo-600" />}
                     </button>
                 ))}
             </div>
@@ -106,12 +86,12 @@ const SettingsModal = ({
                         <div className="relative group">
                             <input
                                 type="password"
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
+                                value={config.apiKey}
+                                onChange={(e) => updateField('apiKey', e.target.value)}
                                 placeholder="Enter your API key..."
                                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
                             />
-                            <Check className={`absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 transition-all ${apiKey.length > 20 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} size={18} />
+                            <Check className={`absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 transition-all ${config.apiKey.length > 20 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} size={18} />
                         </div>
                     </div>
 
@@ -172,8 +152,7 @@ const SettingsModal = ({
                         {renderModelSelector(
                             'Stage 1 — 음성 전사 (Transcription)',
                             'text-indigo-700',
-                            stage1Model,
-                            setStage1Model
+                            'stage1Model'
                         )}
                     </div>
 
@@ -182,8 +161,7 @@ const SettingsModal = ({
                         {renderModelSelector(
                             'Stage 2 — 번역/분석 (Translation & Analysis)',
                             'text-purple-700',
-                            stage2Model,
-                            setStage2Model
+                            'stage2Model'
                         )}
                     </div>
 
@@ -191,7 +169,7 @@ const SettingsModal = ({
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">
                             <label className="text-sm font-bold text-slate-700">재생 여유 시간 (Buffer)</label>
-                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{bufferTime.toFixed(1)}초</span>
+                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{config.bufferTime.toFixed(1)}초</span>
                         </div>
                         <div className="px-1">
                             <input
@@ -199,8 +177,8 @@ const SettingsModal = ({
                                 min="0.0"
                                 max="2.0"
                                 step="0.1"
-                                value={bufferTime}
-                                onChange={(e) => setBufferTime(parseFloat(e.target.value))}
+                                value={config.bufferTime}
+                                onChange={(e) => updateField('bufferTime', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                             />
                             <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
@@ -221,7 +199,7 @@ const SettingsModal = ({
                                 <label className="text-sm font-bold text-slate-700">전사 창의성 (Temperature)</label>
                                 <span className="text-[10px] text-slate-400">높을수록 유연한 해석</span>
                             </div>
-                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{temperature.toFixed(2)}</span>
+                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{config.temperature.toFixed(2)}</span>
                         </div>
                         <div className="px-1">
                             <input
@@ -229,8 +207,8 @@ const SettingsModal = ({
                                 min="0.0"
                                 max="1.0"
                                 step="0.05"
-                                value={temperature}
-                                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                                value={config.temperature}
+                                onChange={(e) => updateField('temperature', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                             />
                             <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
@@ -248,7 +226,7 @@ const SettingsModal = ({
                                 <label className="text-sm font-bold text-slate-700">단어 선택 범위 (TopP)</label>
                                 <span className="text-[10px] text-slate-400">높을수록 풍부한 표현</span>
                             </div>
-                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{topP.toFixed(2)}</span>
+                            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{config.topP.toFixed(2)}</span>
                         </div>
                         <div className="px-1">
                             <input
@@ -256,8 +234,8 @@ const SettingsModal = ({
                                 min="0.0"
                                 max="1.0"
                                 step="0.05"
-                                value={topP}
-                                onChange={(e) => setTopP(parseFloat(e.target.value))}
+                                value={config.topP}
+                                onChange={(e) => updateField('topP', parseFloat(e.target.value))}
                                 className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                             />
                             <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
@@ -268,7 +246,7 @@ const SettingsModal = ({
                         </div>
                     </div>
 
-                    {/* Anti-Recitation (RECITATION 필터 회피) */}
+                    {/* Anti-Recitation */}
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">
                             <div className="flex flex-col pr-3">
@@ -278,17 +256,16 @@ const SettingsModal = ({
                             <button
                                 type="button"
                                 role="switch"
-                                aria-checked={antiRecitation}
-                                onClick={() => setAntiRecitation(!antiRecitation)}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${antiRecitation ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                aria-checked={config.antiRecitation}
+                                onClick={() => updateField('antiRecitation', !config.antiRecitation)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${config.antiRecitation ? 'bg-indigo-600' : 'bg-slate-200'}`}
                             >
-                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${antiRecitation ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${config.antiRecitation ? 'translate-x-5' : 'translate-x-0.5'}`} />
                             </button>
                         </div>
 
-                        {antiRecitation && (
+                        {config.antiRecitation && (
                             <div className="space-y-4 pt-1">
-                                {/* 분절 기호 선택 — 프리셋 + 자유 입력 */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold text-slate-700">분절 기호</label>
                                     <div className="flex flex-wrap gap-1.5">
@@ -296,8 +273,8 @@ const SettingsModal = ({
                                             <button
                                                 key={mk}
                                                 type="button"
-                                                onClick={() => setMarkerChar(mk)}
-                                                className={`w-9 h-9 rounded-xl border text-base font-bold transition-all ${markerChar === mk
+                                                onClick={() => updateField('markerChar', mk)}
+                                                className={`w-9 h-9 rounded-xl border text-base font-bold transition-all ${config.markerChar === mk
                                                     ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-sm'
                                                     : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                                             >
@@ -307,8 +284,8 @@ const SettingsModal = ({
                                     </div>
                                     <input
                                         type="text"
-                                        value={markerChar}
-                                        onChange={(e) => setMarkerChar(e.target.value)}
+                                        value={config.markerChar}
+                                        onChange={(e) => updateField('markerChar', e.target.value)}
                                         maxLength={8}
                                         placeholder="직접 입력 (예: ※)"
                                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
@@ -318,11 +295,10 @@ const SettingsModal = ({
                                     </p>
                                 </div>
 
-                                {/* 삽입 간격 슬라이더 (1~10단어) */}
                                 <div className="space-y-3 pt-1">
                                     <div className="flex items-center justify-between">
                                         <label className="text-sm font-bold text-slate-700">삽입 간격 (단어)</label>
-                                        <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{markerInterval}단어마다</span>
+                                        <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{config.markerInterval}단어마다</span>
                                     </div>
                                     <div className="px-1">
                                         <input
@@ -330,8 +306,8 @@ const SettingsModal = ({
                                             min="1"
                                             max="10"
                                             step="1"
-                                            value={markerInterval}
-                                            onChange={(e) => setMarkerInterval(parseInt(e.target.value, 10))}
+                                            value={config.markerInterval}
+                                            onChange={(e) => updateField('markerInterval', parseInt(e.target.value, 10))}
                                             className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                                         />
                                         <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
@@ -357,17 +333,10 @@ const SettingsModal = ({
                         Cancel
                     </button>
                     <button
-                        onClick={() => {
-                            saveConfiguration(apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval);
-                            setSaveState('saved');
-                        }}
-                        className={`flex-[2] py-3 text-white font-bold rounded-2xl transition-all shadow-lg ${
-                            saveState === 'saved'
-                                ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'
-                                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
-                        }`}
+                        onClick={onClose}
+                        className="flex-[2] py-3 text-white font-bold rounded-2xl transition-all shadow-lg bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
                     >
-                        {saveState === 'saved' ? '저장 완료!' : '현재 AI 설정값을 기본값으로 저장'}
+                        현재 AI 설정값을 기본값으로 저장
                     </button>
                 </div>
             </div>

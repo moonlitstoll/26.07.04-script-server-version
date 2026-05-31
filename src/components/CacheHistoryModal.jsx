@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import {
     X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2
 } from 'lucide-react';
-import { getCacheStatus } from '../utils/cacheStatus';
+import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
 
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
@@ -139,7 +139,7 @@ const CacheHistoryModal = ({
 
                             {/* 2. Cached Files */}
                             {sortedFilteredCacheKeys.map(key => {
-                                    const name = key.replace('gemini_analysis_', '');
+                                    const name = getCacheDisplayName(key);
                                     const isActiveCached = activeFile?.file?.name === name;
                                     const { statusText, badgeColor, progressText } = getCacheStatus(key);
 

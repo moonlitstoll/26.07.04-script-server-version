@@ -8,16 +8,7 @@ const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
     processFiles,
     showSettings, setShowSettings,
-    apiKey, setApiKey,
-    stage1Model, setStage1Model,
-    stage2Model, setStage2Model,
-    temperature, setTemperature,
-    topP, setTopP,
-    bufferTime, setBufferTime,
-    antiRecitation, setAntiRecitation,
-    markerChar, setMarkerChar,
-    markerInterval, setMarkerInterval,
-    saveConfiguration,
+    config, updateField,
     cacheKeys, loadCache, deleteCache, clearAllCache
 }) => {
     return (
@@ -39,25 +30,8 @@ const EmptyState = ({
 
             {showSettings && (
                 <SettingsModal
-                    apiKey={apiKey}
-                    setApiKey={setApiKey}
-                    stage1Model={stage1Model}
-                    setStage1Model={setStage1Model}
-                    stage2Model={stage2Model}
-                    setStage2Model={setStage2Model}
-                    bufferTime={bufferTime}
-                    setBufferTime={setBufferTime}
-                    temperature={temperature}
-                    setTemperature={setTemperature}
-                    topP={topP}
-                    setTopP={setTopP}
-                    antiRecitation={antiRecitation}
-                    setAntiRecitation={setAntiRecitation}
-                    markerChar={markerChar}
-                    setMarkerChar={setMarkerChar}
-                    markerInterval={markerInterval}
-                    setMarkerInterval={setMarkerInterval}
-                    saveConfiguration={saveConfiguration}
+                    config={config}
+                    updateField={updateField}
                     onClose={() => setShowSettings(false)}
                 />
             )}

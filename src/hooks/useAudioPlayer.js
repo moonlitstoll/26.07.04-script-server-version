@@ -112,18 +112,10 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     // INVINCIBLE TRACKING ENGINE (Mathematical Absolute Comparison)
     const findActiveIndex = useCallback((currentSeconds, data) => {
         if (!data || data.length === 0) return 0;
-
-        // 1. Filter: Find all items that have started (Time <= T)
-        const candidates = data
-            .map((item, idx) => ({ ...item, idx }))
-            .filter(item => item.startSeconds <= currentSeconds);
-
-        // 2. Determine: The LATEST (largest startSeconds) started item is our active card
-        if (candidates.length === 0) return 0;
-
-        // Sort by startSeconds Descending -> Top item is the current active lyric
-        const sorted = candidates.sort((a, b) => b.startSeconds - a.startSeconds);
-        return sorted[0].idx;
+        for (let i = data.length - 1; i >= 0; i--) {
+            if (data[i].startSeconds <= currentSeconds) return i;
+        }
+        return 0;
     }, []);
 
     // High-Resolution Sync Engine (Absolute Tracking)
