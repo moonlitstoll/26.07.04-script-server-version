@@ -11,6 +11,9 @@ const MODELS = [
     { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', badge: '최신' },
 ];
 
+// 분절 기호 프리셋 — 실제 음성/자막에 거의 안 나오는 기호 위주
+const MARKER_PRESETS = ['\u203B', '#', '|', '\u00B7', '\u2756', '\u2202', '\u00A4'];
+
 const MODEL_INFO = [
     { name: '2.5 Flash', s1: 'A', s2: 'A', rpm: '1K', rpd: '10K', desc: '만능형 기본값. 전사/분석 균형' },
     { name: '2.5 Pro', s1: 'S', s2: 'S', rpm: '150', rpd: '1K', desc: '최고 품질. 긴 영상엔 한도 주의' },
@@ -27,8 +30,8 @@ const SettingsModal = ({
     temperature, setTemperature,
     topP, setTopP,
     antiRecitation, setAntiRecitation,
-    pitchSemitones, setPitchSemitones,
-    chunkSplit, setChunkSplit,
+    markerChar, setMarkerChar,
+    markerInterval, setMarkerInterval,
     saveConfiguration, onClose
 }) => {
     const [saveState, setSaveState] = useState('idle');
@@ -284,48 +287,62 @@ const SettingsModal = ({
                         </div>
 
                         {antiRecitation && (
-                            <div className="space-y-3 pt-1">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-sm font-bold text-slate-700">피치 이동 (선택, 보조)</label>
-                                    <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
-                                        {pitchSemitones === 0 ? '0 (끔)' : (pitchSemitones > 0 ? `+${pitchSemitones}` : pitchSemitones) + ' 반음'}
-                                    </span>
-                                </div>
-                                <div className="px-1">
+                            <div className="space-y-4 pt-1">
+                                {/* 분절 기호 선택 — 프리셋 + 자유 입력 */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-slate-700">분절 기호</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {MARKER_PRESETS.map((mk) => (
+                                            <button
+                                                key={mk}
+                                                type="button"
+                                                onClick={() => setMarkerChar(mk)}
+                                                className={`w-9 h-9 rounded-xl border text-base font-bold transition-all ${markerChar === mk
+                                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-sm'
+                                                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                            >
+                                                {mk}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <input
-                                        type="range"
-                                        min="-5"
-                                        max="5"
-                                        step="1"
-                                        value={pitchSemitones}
-                                        onChange={(e) => setPitchSemitones(parseInt(e.target.value, 10))}
-                                        className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        type="text"
+                                        value={markerChar}
+                                        onChange={(e) => setMarkerChar(e.target.value)}
+                                        maxLength={8}
+                                        placeholder="직접 입력 (예: ※)"
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-mono"
                                     />
-                                    <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
-                                        <span>낮춤 (-5)</span>
-                                        <span>0 (끔)</span>
-                                        <span>높임 (+5)</span>
-                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        실제 가사/대사에 안 나오는 희귀 기호를 권장합니다. 흔한 글자(예: a, 1)를 넣으면 그 글자가 대본에서 지워질 수 있습니다.
+                                    </p>
                                 </div>
-                                <p className="text-[10px] text-slate-400 leading-relaxed">
-                                    기본값 0(끔). 분절 기호만으로 회피가 안 될 때 ±2 반음 정도 보조로 켜세요. 0이 아니면 재인코딩으로 전처리 시간이 늘어납니다.
-                                </p>
 
-                                {/* 청크 분할 (피치 시프트로도 회피 안 될 때) */}
-                                <div className="flex items-center justify-between pt-3 mt-1 border-t border-slate-100">
-                                    <div className="flex flex-col pr-3">
-                                        <label className="text-sm font-bold text-slate-700">청크 분할 전사</label>
-                                        <span className="text-[10px] text-slate-400 leading-relaxed">긴 영상을 60초 조각으로 잘라 병렬 전사. 회피력↑·장애 내성↑, 전처리 시간이 늘어납니다. 타임라인은 그대로 유지됩니다.</span>
+                                {/* 삽입 간격 슬라이더 (1~10단어) */}
+                                <div className="space-y-3 pt-1">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-bold text-slate-700">삽입 간격 (단어)</label>
+                                        <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{markerInterval}단어마다</span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={chunkSplit}
-                                        onClick={() => setChunkSplit(!chunkSplit)}
-                                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${chunkSplit ? 'bg-indigo-600' : 'bg-slate-200'}`}
-                                    >
-                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${chunkSplit ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                                    </button>
+                                    <div className="px-1">
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="10"
+                                            step="1"
+                                            value={markerInterval}
+                                            onChange={(e) => setMarkerInterval(parseInt(e.target.value, 10))}
+                                            className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        />
+                                        <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
+                                            <span>촘촘 (1)</span>
+                                            <span>2~3</span>
+                                            <span>듬성 (10)</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                        간격이 좁을수록 회피력↑(연속 일치를 더 잘게 끊음), 넓을수록 토큰 절약. 1~3단어를 권장합니다.
+                                    </p>
                                 </div>
                             </div>
                         )}
@@ -341,7 +358,7 @@ const SettingsModal = ({
                     </button>
                     <button
                         onClick={() => {
-                            saveConfiguration(apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, pitchSemitones, chunkSplit);
+                            saveConfiguration(apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval);
                             setSaveState('saved');
                         }}
                         className={`flex-[2] py-3 text-white font-bold rounded-2xl transition-all shadow-lg ${

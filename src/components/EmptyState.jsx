@@ -15,8 +15,8 @@ const EmptyState = ({
     topP, setTopP,
     bufferTime, setBufferTime,
     antiRecitation, setAntiRecitation,
-    pitchSemitones, setPitchSemitones,
-    chunkSplit, setChunkSplit,
+    markerChar, setMarkerChar,
+    markerInterval, setMarkerInterval,
     saveConfiguration,
     cacheKeys, loadCache, deleteCache, clearAllCache
 }) => {
@@ -53,10 +53,10 @@ const EmptyState = ({
                     setTopP={setTopP}
                     antiRecitation={antiRecitation}
                     setAntiRecitation={setAntiRecitation}
-                    pitchSemitones={pitchSemitones}
-                    setPitchSemitones={setPitchSemitones}
-                    chunkSplit={chunkSplit}
-                    setChunkSplit={setChunkSplit}
+                    markerChar={markerChar}
+                    setMarkerChar={setMarkerChar}
+                    markerInterval={markerInterval}
+                    setMarkerInterval={setMarkerInterval}
                     saveConfiguration={saveConfiguration}
                     onClose={() => setShowSettings(false)}
                 />

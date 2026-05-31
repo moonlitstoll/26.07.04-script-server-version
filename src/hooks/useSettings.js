@@ -8,8 +8,8 @@ const DEFAULTS = {
     temperature: 0.5,
     topP: 0.7,
     antiRecitation: false,
-    pitchSemitones: 0,
-    chunkSplit: false,
+    markerChar: '\u203B', // ※
+    markerInterval: 2,
 };
 
 const STORAGE_KEYS = {
@@ -20,8 +20,8 @@ const STORAGE_KEYS = {
     temperature: 'miniapp_temperature',
     topP: 'miniapp_top_p',
     antiRecitation: 'miniapp_anti_recitation',
-    pitchSemitones: 'miniapp_pitch_semitones',
-    chunkSplit: 'miniapp_chunk_split',
+    markerChar: 'miniapp_marker_char',
+    markerInterval: 'miniapp_marker_interval',
 };
 
 function loadFromStorage() {
@@ -33,10 +33,10 @@ function loadFromStorage() {
         temperature: parseFloat(localStorage.getItem(STORAGE_KEYS.temperature)) || DEFAULTS.temperature,
         topP: parseFloat(localStorage.getItem(STORAGE_KEYS.topP)) || DEFAULTS.topP,
         antiRecitation: localStorage.getItem(STORAGE_KEYS.antiRecitation) === 'true',
-        pitchSemitones: localStorage.getItem(STORAGE_KEYS.pitchSemitones) !== null
-            ? parseInt(localStorage.getItem(STORAGE_KEYS.pitchSemitones), 10)
-            : DEFAULTS.pitchSemitones,
-        chunkSplit: localStorage.getItem(STORAGE_KEYS.chunkSplit) === 'true',
+        markerChar: localStorage.getItem(STORAGE_KEYS.markerChar) || DEFAULTS.markerChar,
+        markerInterval: localStorage.getItem(STORAGE_KEYS.markerInterval) !== null
+            ? parseInt(localStorage.getItem(STORAGE_KEYS.markerInterval), 10)
+            : DEFAULTS.markerInterval,
     };
 }
 
@@ -51,8 +51,8 @@ export const useSettings = () => {
         localStorage.setItem(STORAGE_KEYS.temperature, newConfig.temperature.toString());
         localStorage.setItem(STORAGE_KEYS.topP, newConfig.topP.toString());
         localStorage.setItem(STORAGE_KEYS.antiRecitation, newConfig.antiRecitation.toString());
-        localStorage.setItem(STORAGE_KEYS.pitchSemitones, newConfig.pitchSemitones.toString());
-        localStorage.setItem(STORAGE_KEYS.chunkSplit, newConfig.chunkSplit.toString());
+        localStorage.setItem(STORAGE_KEYS.markerChar, newConfig.markerChar);
+        localStorage.setItem(STORAGE_KEYS.markerInterval, newConfig.markerInterval.toString());
         setConfig(newConfig);
     }, []);
 
