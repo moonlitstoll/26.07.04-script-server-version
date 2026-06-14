@@ -83,7 +83,7 @@ const EmptyState = ({
                                             <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover/item:bg-indigo-50 group-hover/item:text-indigo-500 transition-colors shrink-0">
                                                 <Volume2 size={18} />
                                             </div>
-                                            <span className="text-sm font-bold text-slate-700 line-clamp-2 break-all">{name}</span>
+                                            <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{name}</span>
                                         </div>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); deleteCache(key); }}

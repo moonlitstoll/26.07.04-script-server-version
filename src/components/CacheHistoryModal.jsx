@@ -110,7 +110,7 @@ const CacheHistoryModal = ({
                                                 <FileVideo size={20} />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className={`text-base font-bold truncate ${isActive ? 'text-indigo-900' : 'text-indigo-900'}`}>{f.file.name}</p>
+                                                <p className="text-base font-bold line-clamp-3 break-all text-indigo-900">{f.file.name.replace(/\.[^.]+$/, '')}</p>
                                                 <p className={`text-xs font-medium mt-0.5 animate-pulse ${isActive ? 'text-indigo-700' : 'text-indigo-600'}`}>
                                                     {f.data && f.data.length > 0
                                                         ? `Analyzing (${f.data.filter(d => d.isAnalyzed).length}/${f.data.length})...`
@@ -159,7 +159,7 @@ const CacheHistoryModal = ({
                                                     {isActiveCached ? <Check size={20} /> : <BookOpen size={20} />}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className={`text-base font-bold truncate ${isActiveCached ? 'text-indigo-900' : 'text-slate-700'}`}>{name}</p>
+                                                    <p className={`text-base font-bold line-clamp-3 break-all ${isActiveCached ? 'text-indigo-900' : 'text-slate-700'}`}>{name.replace(/\.[^.]+$/, '')}</p>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${badgeColor}`}>
                                                             {statusText}
