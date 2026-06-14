@@ -72,7 +72,7 @@ const EmptyState = ({
                             </div>
                         ) : (
                             cacheKeys.map(key => {
-                                const name = getCacheDisplayName(key);
+                                const name = getCacheDisplayName(key).replace(/\.[^.]+$/, '');
                                 return (
                                     <div
                                         key={key}
@@ -80,10 +80,10 @@ const EmptyState = ({
                                         className="flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-50 transition-all cursor-pointer group/item"
                                     >
                                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                                            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover/item:bg-indigo-50 group-hover/item:text-indigo-500 transition-colors">
+                                            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover/item:bg-indigo-50 group-hover/item:text-indigo-500 transition-colors shrink-0">
                                                 <Volume2 size={18} />
                                             </div>
-                                            <span className="text-sm font-bold text-slate-700 truncate" title={key}>{name}</span>
+                                            <span className="text-sm font-bold text-slate-700 line-clamp-2 break-all">{name}</span>
                                         </div>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
