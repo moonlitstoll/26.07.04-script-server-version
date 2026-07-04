@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
-import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem } from '../services/cloudSync';
+import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 
 // Content-Length 기반으로 진행률을 보고하며 Blob 다운로드.
 // 길이를 모르거나 스트림을 못 읽으면 onProgress(null)로 폴백하고 통째로 받는다.
@@ -50,6 +50,10 @@ export const useMediaCache = ({
     // 로컬에 영상이 저장된 항목 id 집합 ("{name}_{size}") — 초록 테두리/로컬 삭제 표시용
     const [localVideoIds, setLocalVideoIds] = useState(() => new Set());
 
+    const cacheKeysRef = useRef([]);              // retry에서 최신 로컬 키 참조
+    const attemptedUploadsRef = useRef(new Set()); // 세션 내 재업로드 시도한 id (중복 방지)
+    const retryingRef = useRef(false);             // 재업로드 동시 실행 방지
+
     const refreshCacheKeys = useCallback(() => {
         setCacheKeys(Object.keys(localStorage).filter(k => k.startsWith('gemini_analysis_')));
     }, []);
@@ -62,19 +66,78 @@ export const useMediaCache = ({
         } catch (e) { console.warn('[Cache] 로컬 목록 조회 실패:', e); }
     }, []);
 
-    // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort
+    // 미업로드(로컬에만 있는) 항목을 온라인일 때 클라우드로 자동 재업로드.
+    // cloudList: 방금 조회한 클라우드 목록(어떤 게 이미 서버에 있는지 판단).
+    const retryPendingUploads = useCallback(async (cloudList) => {
+        if (retryingRef.current || !navigator.onLine) return;
+        const cloudIds = new Set((cloudList || []).map(it => `${it.name}_${it.size}`));
+        const pending = cacheKeysRef.current.filter(k => {
+            const id = k.replace('gemini_analysis_', '');
+            return !cloudIds.has(id) && !attemptedUploadsRef.current.has(id);
+        });
+        if (pending.length === 0) return;
+
+        retryingRef.current = true;
+        try {
+            for (const key of pending) {
+                const id = key.replace('gemini_analysis_', '');
+                attemptedUploadsRef.current.add(id); // 세션 내 1회만 시도 (성공/실패 무관 표시 후, 실패 시 아래서 해제)
+                const entry = parseCacheEntry(key);
+                const metadata = entry?.metadata;
+                if (!entry || !metadata?.name) continue;
+                try {
+                    const blob = await mediaStore.getFile(metadata.name, metadata.size);
+                    let mediaUrl = null;
+                    let dur = metadata.duration || 0;
+                    if (blob) {
+                        if (!dur) { try { dur = await getMediaDuration(blob); } catch { /* noop */ } }
+                        const file = new File([blob], metadata.name, { type: metadata.type || blob.type || 'application/octet-stream' });
+                        try { mediaUrl = await cloudUploadMedia(file); } catch (e) { console.warn('[Sync] 영상 업로드 실패:', e); }
+                    }
+                    await cloudSaveMeta(
+                        { name: metadata.name, size: metadata.size, type: metadata.type || '' },
+                        entry.rawData,
+                        metadata.status || 'extracted',
+                        mediaUrl,
+                        dur
+                    );
+                    console.log('[Sync] 미업로드 항목 재업로드 완료:', metadata.name);
+                } catch (e) {
+                    console.warn('[Sync] 재업로드 실패 (다음 기회에 재시도):', e);
+                    attemptedUploadsRef.current.delete(id); // 실패분은 다시 시도 가능하도록 해제
+                }
+            }
+        } finally {
+            retryingRef.current = false;
+        }
+    }, []);
+
+    // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort. 조회 후 미업로드분 자동 재업로드.
     const refreshCloud = useCallback(async () => {
         try {
             const items = await cloudListItems();
             setCloudItems(items);
+            retryPendingUploads(items);
         } catch (e) {
             console.warn('[Cloud] 목록 조회 실패:', e);
         }
-    }, []);
+    }, [retryPendingUploads]);
 
     useEffect(() => {
         refreshCacheKeys();
     }, [refreshCacheKeys]);
+
+    // cacheKeys를 ref로 미러링 (retry가 최신값 참조)
+    useEffect(() => {
+        cacheKeysRef.current = cacheKeys;
+    }, [cacheKeys]);
+
+    // 온라인 복귀 시 목록 새로고침 → 미업로드분 재업로드
+    useEffect(() => {
+        const onOnline = () => { refreshCloud(); };
+        window.addEventListener('online', onOnline);
+        return () => window.removeEventListener('online', onOnline);
+    }, [refreshCloud]);
 
     // 최초 1회 로컬 영상 목록 로드
     useEffect(() => {
