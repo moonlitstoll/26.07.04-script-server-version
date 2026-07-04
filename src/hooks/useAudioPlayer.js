@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { getLastPos } from '../utils/viewPosition';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -17,6 +18,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     const isGlobalLoopActiveRef = useRef(isGlobalLoopActive);
     const loopTargetIdxRef = useRef(null); // [Phase 4] 루프 고정 타겟 인덱스
     const lastActionTimeRef = useRef(0); // [4차 수정] 시간 기반 의도 보호 가드
+    const restoredForRef = useRef(null); // 위치 복원을 이미 처리한 activeFile.id
 
     const triggerManualScroll = useCallback(() => setManualScrollNonce(Date.now()), []);
 
@@ -235,7 +237,29 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         };
         const handlePlay = () => { runSync(); managePulse(); };
         const handlePause = () => { managePulse(); };
-        const handleLoadedMetadata = () => { setDuration(v.duration); };
+
+        // [위치 복원] 대본을 다시 열면 마지막으로 보던 문장으로 이동(정지 상태).
+        // activeFile.id는 로드마다 새로 발급되므로 파일당 한 번만 복원한다.
+        const maybeRestore = () => {
+            const f = activeFile;
+            if (!f?.file?.name || restoredForRef.current === f.id) return;
+            restoredForRef.current = f.id;
+            const pos = getLastPos(f.file.name, f.file.size);
+            const item = pos && f.data ? f.data[pos.idx] : null;
+            if (!item) return;
+
+            // 재생 커서를 해당 문장으로. 액션 가드 + 타겟 고정으로 하이라이트가 그 문장에 걸리게 함.
+            loopTargetIdxRef.current = pos.idx;
+            lastActionTimeRef.current = Date.now();
+            const t = Math.max(0, item.seconds - bufferTime);
+            try { v.currentTime = t; } catch { /* 아직 seek 불가 */ }
+            setCurrentTime(t);
+            activeIdxRef.current = pos.idx;
+            setActiveSentenceIdx(pos.idx);
+            triggerManualScroll(); // 스크롤 유도
+        };
+
+        const handleLoadedMetadata = () => { setDuration(v.duration); maybeRestore(); };
 
         // 1. Event Listeners (Optimized)
         v.addEventListener('timeupdate', runSync);
@@ -248,7 +272,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         // Init pulse based on current state
         managePulse();
         // Fallback for already loaded metadata
-        if (v.readyState >= 1) setDuration(v.duration);
+        if (v.readyState >= 1) { setDuration(v.duration); maybeRestore(); }
 
         return () => {
             v.removeEventListener('timeupdate', runSync);
@@ -259,7 +283,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             v.removeEventListener('loadedmetadata', handleLoadedMetadata);
             if (pulseId) clearInterval(pulseId);
         };
-    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime]);
+    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, triggerManualScroll]);
 
     const resetPlayerState = useCallback(() => {
         setActiveSentenceIdx(-1);

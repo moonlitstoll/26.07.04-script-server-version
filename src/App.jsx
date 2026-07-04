@@ -23,6 +23,7 @@ import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
+import { setLastPos } from './utils/viewPosition';
 
 
 const App = () => {
@@ -110,6 +111,15 @@ const App = () => {
   useEffect(() => {
     if (passphrase) refreshCloud();
   }, [passphrase, refreshCloud]);
+
+  // [위치 기억] 보던 문장이 바뀔 때마다 대본별 마지막 위치를 저장 → 재열람 시 복원
+  useEffect(() => {
+    if (activeSentenceIdx < 0) return;
+    if (!activeFile || activeFile.isAnalyzing || !activeFile.file?.name) return;
+    const item = activeFile.data?.[activeSentenceIdx];
+    if (!item) return;
+    setLastPos(activeFile.file.name, activeFile.file.size, activeSentenceIdx, item.seconds);
+  }, [activeSentenceIdx, activeFile]);
 
   // Keyboard Shortcuts
   useKeyboardShortcuts({
