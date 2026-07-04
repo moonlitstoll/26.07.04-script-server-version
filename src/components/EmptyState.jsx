@@ -28,36 +28,39 @@ const EmptyState = ({
     // id → 클라우드 항목 (로컬 행에서 서버 삭제 버튼 표시 여부 판단)
     const cloudById = new Map((cloudItems || []).map(it => [favIdFromItem(it), it]));
 
-    // 로컬/서버 삭제 버튼 (행 우측 공통)
-    const renderDeleteButtons = (recForDelete, localHere, cloudItem) => (
-        <>
-            {localHere && (
-                <button
-                    onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
-                    className="p-2 text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                    title="이 기기에서 삭제 (로컬 캐시)"
-                >
-                    <HardDrive size={17} />
-                </button>
-            )}
-            {cloudItem && (
-                <button
-                    onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
-                    className="p-2 text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                    title="서버에서 삭제 (모든 기기)"
-                >
-                    <Cloud size={17} />
-                </button>
-            )}
-        </>
-    );
+    // 로컬/서버 삭제 버튼 (카드 하단 공통 — 라벨 포함, 모바일에서도 항상 보임)
+    const renderDeleteButtons = (recForDelete, localHere, cloudItem) => {
+        if (!localHere && !cloudItem) return null;
+        return (
+            <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                {localHere && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        title="이 기기에서 삭제 (로컬 캐시)"
+                    >
+                        <HardDrive size={14} /> 기기에서 삭제
+                    </button>
+                )}
+                {cloudItem && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        title="서버에서 삭제 (모든 기기)"
+                    >
+                        <Cloud size={14} /> 서버에서 삭제
+                    </button>
+                )}
+            </div>
+        );
+    };
 
     const renderStar = (id) => {
         const fav = isFavorite(id);
         return (
             <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
-                className={`p-2 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-amber-400 hover:bg-amber-50'}`}
+                className={`shrink-0 p-2 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-400 hover:bg-amber-50'}`}
                 title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
             >
                 <Star size={18} className={fav ? 'fill-current' : ''} />
@@ -75,18 +78,16 @@ const EmptyState = ({
             <div
                 key={key}
                 onClick={() => loadCache(key)}
-                className="flex items-center justify-between bg-white border border-emerald-300 p-4 rounded-2xl shadow-sm hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-50 transition-all cursor-pointer group/item"
+                className="flex flex-col bg-white border border-emerald-300 p-3 rounded-2xl shadow-sm hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-50 transition-all cursor-pointer text-left"
             >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 shrink-0">
-                        <Volume2 size={18} />
+                <div className="flex items-start gap-3 min-w-0">
+                    <div className="shrink-0 w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500">
+                        <Volume2 size={17} />
                     </div>
-                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{display}</span>
-                </div>
-                <div className="flex items-center shrink-0">
+                    <span className="flex-1 min-w-0 text-sm font-bold text-slate-700 break-words leading-snug">{display}</span>
                     {renderStar(id)}
-                    {renderDeleteButtons(recForDelete, true, cloudItem)}
                 </div>
+                {renderDeleteButtons(recForDelete, true, cloudItem)}
             </div>
         );
     };
@@ -104,18 +105,16 @@ const EmptyState = ({
             <div
                 key={item.folder}
                 onClick={() => loadCloud && loadCloud(item)}
-                className={`flex items-center justify-between bg-white border p-4 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group/item ${borderCls}`}
+                className={`flex flex-col bg-white border p-3 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer text-left ${borderCls}`}
             >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${localHere ? 'bg-emerald-50 text-emerald-500' : 'bg-sky-50 text-sky-500'}`}>
-                        {localHere ? <Volume2 size={18} /> : <Smartphone size={18} />}
+                <div className="flex items-start gap-3 min-w-0">
+                    <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${localHere ? 'bg-emerald-50 text-emerald-500' : 'bg-sky-50 text-sky-500'}`}>
+                        {localHere ? <Volume2 size={17} /> : <Smartphone size={17} />}
                     </div>
-                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{display}</span>
-                </div>
-                <div className="flex items-center shrink-0">
+                    <span className="flex-1 min-w-0 text-sm font-bold text-slate-700 break-words leading-snug">{display}</span>
                     {renderStar(id)}
-                    {renderDeleteButtons(recForDelete, localHere, item)}
                 </div>
+                {renderDeleteButtons(recForDelete, localHere, item)}
             </div>
         );
     };
