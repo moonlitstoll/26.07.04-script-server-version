@@ -7,6 +7,7 @@ import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useFavorites } from './hooks/useFavorites';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -91,6 +92,9 @@ const App = () => {
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
   });
+
+  // 즐겨찾기 (기기 간 동기화)
+  const { isFavorite, toggleFavorite } = useFavorites(passphrase);
 
   useEffect(() => {
     refreshCacheKeysRef.current = refreshCacheKeys;
@@ -359,6 +363,8 @@ const App = () => {
           cloudItems={cloudItems}
           loadCloud={loadCloud}
           deleteCloud={deleteCloud}
+          isFavorite={isFavorite}
+          toggleFavorite={toggleFavorite}
           onClose={() => setShowCacheHistory(false)}
         />
       )}

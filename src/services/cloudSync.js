@@ -95,6 +95,29 @@ export async function fetchData(dataUrl) {
     return res.json();
 }
 
+// ─── 즐겨찾기 (기기 간 동기화) ───
+// 즐겨찾기 ID는 "{name}_{size}" — 로컬 캐시/클라우드 항목 모두 동일 규칙으로 계산
+export async function getFavorites() {
+    const passphrase = getPassphrase();
+    if (!passphrase) return [];
+    const res = await fetch(`/api/favorites?passphrase=${encodeURIComponent(passphrase)}`);
+    if (!res.ok) throw new Error(`favorites ${res.status}`);
+    const { favorites } = await res.json();
+    return favorites || [];
+}
+
+export async function saveFavorites(favorites) {
+    const passphrase = getPassphrase();
+    if (!passphrase) return;
+    const res = await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passphrase, favorites }),
+    });
+    if (!res.ok) throw new Error(`favorites ${res.status}`);
+    return res.json();
+}
+
 // ─── 삭제 ───
 export async function deleteItem(fileInfo) {
     const passphrase = getPassphrase();

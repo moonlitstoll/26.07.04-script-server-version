@@ -1,13 +1,18 @@
 import { useMemo } from 'react';
 import {
-    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Cloud, Smartphone
+    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Cloud, Smartphone, Star
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
+
+// 즐겨찾기 식별자: "{name}_{size}" (로컬 캐시 키/클라우드 항목 공통)
+const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
+const favIdFromItem = (item) => `${item.name}_${item.size}`;
 
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
     loadCache, deleteCache, clearAllCache, processFiles, removeFile,
-    setActiveFileId, cloudItems = [], loadCloud, deleteCloud, onClose
+    setActiveFileId, cloudItems = [], loadCloud, deleteCloud,
+    isFavorite = () => false, toggleFavorite = () => {}, onClose
 }) => {
     const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
     const sortedFilteredCacheKeys = useMemo(() =>
@@ -29,6 +34,110 @@ const CacheHistoryModal = ({
             .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)),
         [cloudItems, localKeySet, searchQuery]
     );
+
+    // 즐겨찾기 / 일반 분리
+    const favLocalKeys = useMemo(() => sortedFilteredCacheKeys.filter(k => isFavorite(favIdFromKey(k))), [sortedFilteredCacheKeys, isFavorite]);
+    const restLocalKeys = useMemo(() => sortedFilteredCacheKeys.filter(k => !isFavorite(favIdFromKey(k))), [sortedFilteredCacheKeys, isFavorite]);
+    const favCloudItems = useMemo(() => cloudOnlyItems.filter(it => isFavorite(favIdFromItem(it))), [cloudOnlyItems, isFavorite]);
+    const restCloudItems = useMemo(() => cloudOnlyItems.filter(it => !isFavorite(favIdFromItem(it))), [cloudOnlyItems, isFavorite]);
+    const hasFavorites = favLocalKeys.length > 0 || favCloudItems.length > 0;
+
+    // 별표 버튼 (행 우측 공통)
+    const renderStar = (id) => {
+        const fav = isFavorite(id);
+        return (
+            <button
+                onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
+                className={`p-2.5 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-400 hover:bg-amber-50'}`}
+                title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
+            >
+                <Star size={20} className={fav ? 'fill-current' : ''} />
+            </button>
+        );
+    };
+
+    // 로컬 캐시 항목 1행
+    const renderCachedRow = (key) => {
+        const name = getCacheDisplayName(key);
+        const isActiveCached = activeFile?.file?.name === name;
+        const { statusText, badgeColor, progressText } = getCacheStatus(key);
+        return (
+            <div
+                key={key}
+                className={`group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 ${isActiveCached
+                    ? 'bg-indigo-50 border-indigo-200 shadow-md shadow-indigo-100'
+                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}
+                onClick={() => loadCache(key)}
+            >
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className={`p-2.5 rounded-xl ${isActiveCached ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        {isActiveCached ? <Check size={20} /> : <BookOpen size={20} />}
+                    </div>
+                    <div className="min-w-0">
+                        <p className={`text-base font-bold line-clamp-3 break-all ${isActiveCached ? 'text-indigo-900' : 'text-slate-700'}`}>{name.replace(/\.[^.]+$/, '')}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${badgeColor}`}>{statusText}</span>
+                            {progressText && (
+                                <span className="text-[10px] font-medium text-slate-400">{progressText}</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1 pl-2 border-l border-slate-100/50 ml-2">
+                    {renderStar(favIdFromKey(key))}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
+                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        title="Delete Analysis"
+                    >
+                        <Trash2 size={20} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // 클라우드(다른 기기) 항목 1행
+    const renderCloudRow = (item) => {
+        const displayName = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
+        const isDone = item.status === 'completed';
+        return (
+            <div
+                key={item.folder}
+                onClick={() => loadCloud && loadCloud(item)}
+                className="group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/40"
+            >
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <div className="p-2.5 rounded-xl bg-sky-50 text-sky-500">
+                        <Smartphone size={20} />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-base font-bold line-clamp-3 break-all text-slate-700">{displayName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                {isDone ? '분석 완료' : '전사 완료'}
+                            </span>
+                            <span className="text-[10px] font-medium text-slate-400">
+                                {item.mediaUrl ? '영상 포함' : '대본만'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1 pl-2 border-l border-slate-100/50 ml-2">
+                    {renderStar(favIdFromItem(item))}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteCloud && deleteCloud(item); }}
+                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        title="클라우드에서 삭제"
+                    >
+                        <Trash2 size={20} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
@@ -111,12 +220,9 @@ const CacheHistoryModal = ({
                                     <div
                                         key={f.id}
                                         onClick={() => { setActiveFileId(f.id); onClose(); }}
-                                        className={`
-                      group flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer
-                      ${isActive
-                                                ? 'bg-indigo-100 border-indigo-300 shadow-md'
-                                                : 'bg-indigo-50/50 border-indigo-200 hover:bg-indigo-100/50 hover:border-indigo-300'}
-                    `}
+                                        className={`group flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${isActive
+                                            ? 'bg-indigo-100 border-indigo-300 shadow-md'
+                                            : 'bg-indigo-50/50 border-indigo-200 hover:bg-indigo-100/50 hover:border-indigo-300'}`}
                                     >
                                         <div className="flex items-center gap-4 min-w-0 flex-1">
                                             <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'} animate-pulse`}>
@@ -150,58 +256,23 @@ const CacheHistoryModal = ({
                                 );
                             })}
 
-                            {/* 2. Cached Files */}
-                            {sortedFilteredCacheKeys.map(key => {
-                                    const name = getCacheDisplayName(key);
-                                    const isActiveCached = activeFile?.file?.name === name;
-                                    const { statusText, badgeColor, progressText } = getCacheStatus(key);
+                            {/* 2. 즐겨찾기 (로컬 + 클라우드) */}
+                            {hasFavorites && (
+                                <div className="pt-3 pb-1">
+                                    <div className="flex items-center gap-2 px-1 text-amber-500">
+                                        <Star size={14} className="fill-current" />
+                                        <span className="text-[11px] font-bold uppercase tracking-wider">즐겨찾기</span>
+                                    </div>
+                                </div>
+                            )}
+                            {favLocalKeys.map(renderCachedRow)}
+                            {favCloudItems.map(renderCloudRow)}
 
-                                    return (
-                                        <div
-                                            key={key}
-                                            className={`
-                        group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2
-                        ${isActiveCached
-                                                    ? 'bg-indigo-50 border-indigo-200 shadow-md shadow-indigo-100'
-                                                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}
-                      `}
-                                            onClick={() => loadCache(key)}
-                                        >
-                                            <div className="flex items-center gap-4 min-w-0 flex-1">
-                                                <div className={`p-2.5 rounded-xl ${isActiveCached ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                    {isActiveCached ? <Check size={20} /> : <BookOpen size={20} />}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className={`text-base font-bold line-clamp-3 break-all ${isActiveCached ? 'text-indigo-900' : 'text-slate-700'}`}>{name.replace(/\.[^.]+$/, '')}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${badgeColor}`}>
-                                                            {statusText}
-                                                        </span>
-                                                        {progressText && (
-                                                            <span className="text-[10px] font-medium text-slate-400">
-                                                                {progressText}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
+                            {/* 3. Cached Files (즐겨찾기 제외) */}
+                            {restLocalKeys.map(renderCachedRow)}
 
-                                            <div className="flex items-center gap-2 pl-4 border-l border-slate-100/50 ml-4">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
-                                                    className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                                    title="Delete Analysis"
-                                                >
-                                                    <Trash2 size={20} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            }
-
-                            {/* 3. Cloud Files (다른 기기에서 추출한 대본) */}
-                            {cloudOnlyItems.length > 0 && (
+                            {/* 4. Cloud Files (즐겨찾기 제외) */}
+                            {restCloudItems.length > 0 && (
                                 <div className="pt-3 pb-1">
                                     <div className="flex items-center gap-2 px-1 text-slate-400">
                                         <Cloud size={14} />
@@ -209,44 +280,7 @@ const CacheHistoryModal = ({
                                     </div>
                                 </div>
                             )}
-                            {cloudOnlyItems.map(item => {
-                                const displayName = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
-                                const isDone = item.status === 'completed';
-                                return (
-                                    <div
-                                        key={item.folder}
-                                        onClick={() => loadCloud && loadCloud(item)}
-                                        className="group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/40"
-                                    >
-                                        <div className="flex items-center gap-4 min-w-0 flex-1">
-                                            <div className="p-2.5 rounded-xl bg-sky-50 text-sky-500">
-                                                <Smartphone size={20} />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-base font-bold line-clamp-3 break-all text-slate-700">{displayName}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                        {isDone ? '분석 완료' : '전사 완료'}
-                                                    </span>
-                                                    <span className="text-[10px] font-medium text-slate-400">
-                                                        {item.mediaUrl ? '영상 포함' : '대본만'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 pl-4 border-l border-slate-100/50 ml-4">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); deleteCloud && deleteCloud(item); }}
-                                                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                                title="클라우드에서 삭제"
-                                            >
-                                                <Trash2 size={20} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {restCloudItems.map(renderCloudRow)}
                         </div>
                     )}
 
