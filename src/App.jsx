@@ -123,9 +123,9 @@ const App = () => {
   const saveScrollPos = () => {
     const c = scrollContainerRef.current;
     const f = activeFileRef.current;
-    if (!c || !f || f.isAnalyzing || !f.file?.name || !f.data?.length) return;
+    if (!c || !f || f.isAnalyzing || !f.file?.name || !f.data?.length) { console.log('[Save] skip', { c: !!c, f: !!f }); return; }
     const items = c.querySelectorAll('[data-idx]');
-    if (!items.length) return;
+    if (!items.length) { console.log('[Save] no items'); return; }
     const cTop = c.getBoundingClientRect().top;
     let topIdx = 0;
     for (const el of items) {
@@ -133,6 +133,7 @@ const App = () => {
       if (el.getBoundingClientRect().bottom > cTop + 8) { topIdx = Number(el.dataset.idx); break; }
     }
     const item = f.data[topIdx];
+    console.log('[Save] topIdx=', topIdx, 'items=', items.length, 'cTop=', Math.round(cTop), 'scrollTop=', Math.round(c.scrollTop));
     if (item) setLastPos(f.file.name, f.file.size, topIdx, item.seconds);
   };
 
