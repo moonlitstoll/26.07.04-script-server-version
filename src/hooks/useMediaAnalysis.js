@@ -118,17 +118,19 @@ export const useMediaAnalysis = ({
     /**
      * Stage 1 실행 공통 로직
      */
-    const runStage1 = async (fileId, file) => {
+    const runStage1 = async (fileId, file, precomputedDuration = null) => {
         // 기존 Stage 1 중단
         if (stage1AbortRef.current) stage1AbortRef.current.abort();
         stage1AbortRef.current = new AbortController();
         const { signal } = stage1AbortRef.current;
 
-        let fileDuration = 0;
-        try {
-            fileDuration = await getMediaDuration(file);
-            console.log(`[Stage 1] Real duration for ${file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
-        } catch (e) { console.warn("Failed to get media duration:", e); }
+        // 호출부에서 이미 계산했으면 재사용, 아니면 여기서 계산 (중복 계산 방지)
+        let fileDuration = precomputedDuration;
+        if (fileDuration == null) {
+            fileDuration = 0;
+            try { fileDuration = await getMediaDuration(file); } catch (e) { console.warn("Failed to get media duration:", e); }
+        }
+        console.log(`[Stage 1] Real duration for ${file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
 
         const rawData = await extractTranscript(file, apiKey, stage1Model, {
             totalDuration: fileDuration,
@@ -172,7 +174,11 @@ export const useMediaAnalysis = ({
             fileForAnalysis = sourceFile;
         }
 
-        const data = await runStage1(fileId, fileForAnalysis);
+        // 미디어 길이는 한 번만 계산해 Stage 1 전사와 클라우드 메타에서 공유 (중복 계산 제거)
+        let duration = 0;
+        try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn("Failed to get media duration:", e); }
+
+        const data = await runStage1(fileId, fileForAnalysis, duration);
 
         setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data, isAnalyzing: false } : p));
 
@@ -199,9 +205,7 @@ export const useMediaAnalysis = ({
                     } catch (e) {
                         console.warn('[Cloud] 영상 업로드 실패:', e);
                     }
-                    let dur = 0;
-                    try { dur = await getMediaDuration(sourceFile); } catch { /* noop */ }
-                    await cloudSaveMeta(sourceFile, data, 'extracted', mediaUrl, dur);
+                    await cloudSaveMeta(sourceFile, data, 'extracted', mediaUrl, duration);
                 } catch (e) {
                     console.warn('[Cloud] 대본 저장 실패:', e);
                 }
