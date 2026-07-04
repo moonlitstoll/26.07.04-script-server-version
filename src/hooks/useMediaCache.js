@@ -4,6 +4,9 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
 import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem } from '../services/cloudSync';
 
+// 로컬에 유지할 최근 영상 캐시 개수 (초과분은 클라우드에 있으면 자동 제거)
+const MAX_CACHED_VIDEOS = 20;
+
 // Content-Length 기반으로 진행률을 보고하며 Blob 다운로드.
 // 길이를 모르거나 스트림을 못 읽으면 onProgress(null)로 폴백하고 통째로 받는다.
 async function fetchBlobWithProgress(url, onProgress) {
@@ -52,15 +55,44 @@ export const useMediaCache = ({
         setCacheKeys(Object.keys(localStorage).filter(k => k.startsWith('gemini_analysis_')));
     }, []);
 
-    // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort
+    // 로컬 영상 캐시 자동 정리: 최근 사용 N개만 남기고, 그보다 오래된 로컬 사본은
+    // 클라우드에 안전히 있을 때만 제거(재열람 시 자동 재다운로드). 동기화 안 된 항목은 보존.
+    const enforceCacheLimit = useCallback(async (items) => {
+        try {
+            const src = items || cloudItems || [];
+            const cloudIds = new Set(src.map(it => `${it.name}_${it.size}`));
+            if (cloudIds.size === 0) return; // 클라우드 상태 모르면 안전하게 보류
+
+            const entries = await mediaStore.listEntries();
+            if (entries.length <= MAX_CACHED_VIDEOS) return;
+
+            entries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); // 최신순
+            const stale = entries.slice(MAX_CACHED_VIDEOS);
+            const toEvict = stale.filter(e => cloudIds.has(e.id)); // 클라우드에 있는 것만 제거
+            if (toEvict.length === 0) return;
+
+            for (const e of toEvict) {
+                try { await mediaStore.deleteFile(e.name, e.size); } catch { /* noop */ }
+                localStorage.removeItem(`gemini_analysis_${e.id}`);
+            }
+            const evictedKeys = new Set(toEvict.map(e => `gemini_analysis_${e.id}`));
+            setCacheKeys(prev => prev.filter(k => !evictedKeys.has(k)));
+            console.log(`[Cache] 자동 정리: 로컬 사본 ${toEvict.length}개 제거 (클라우드 유지)`);
+        } catch (e) {
+            console.warn('[Cache] 자동 정리 실패:', e);
+        }
+    }, [cloudItems]);
+
+    // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort. 조회 후 로컬 캐시 자동 정리.
     const refreshCloud = useCallback(async () => {
         try {
             const items = await cloudListItems();
             setCloudItems(items);
+            enforceCacheLimit(items);
         } catch (e) {
             console.warn('[Cloud] 목록 조회 실패:', e);
         }
-    }, []);
+    }, [enforceCacheLimit]);
 
     useEffect(() => {
         refreshCacheKeys();
@@ -191,6 +223,7 @@ export const useMediaCache = ({
                     if (mediaBlob) {
                         mediaUrl = URL.createObjectURL(mediaBlob);
                         fileForDuration = mediaBlob;
+                        mediaStore.touch(metadata.name, metadata.size).catch(() => {});
                     }
                 } catch (e) {
                     console.error("Failed to load media from store:", e);
@@ -254,6 +287,8 @@ export const useMediaCache = ({
                         const downloaded = await fetchBlobWithProgress(item.mediaUrl, (percent) => setCloudDownload({ percent }));
                         blob = new File([downloaded], item.name, { type: item.type || downloaded.type || 'video/mp4' });
                         try { await mediaStore.saveFile(blob); } catch (e) { console.warn('[Cloud] 영상 로컬 저장 실패:', e); }
+                    } else {
+                        mediaStore.touch(item.name, item.size).catch(() => {});
                     }
                     mediaUrl = URL.createObjectURL(blob);
                 } catch (e) {
@@ -289,6 +324,7 @@ export const useMediaCache = ({
         } finally {
             setCloudDownload(null);
             if (setIsSwitchingFile) setIsSwitchingFile(false);
+            enforceCacheLimit();
         }
     };
 
