@@ -186,7 +186,9 @@ export const useMediaAnalysis = ({
                 //    실패해도 절대 중단하지 않고 원본 파일로 그대로 진행 → 기존 동작 100% 보존
                 let file = fItem.file;
                 try {
-                    file = await materializeFile(fItem.file, { attempts: 3, delayMs: 1500 });
+                    file = await materializeFile(fItem.file, {
+                        onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (클라우드 다운로드 대기)', type: 'success' }); }
+                    });
                 } catch (e) {
                     console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
                     file = fItem.file;
@@ -271,7 +273,9 @@ export const useMediaAnalysis = ({
             // 가능하면 메모리에 적재. 실패해도 중단하지 않고 원본으로 진행 (기존 동작 보존)
             let file = targetFile;
             try {
-                file = await materializeFile(targetFile, { attempts: 3, delayMs: 1500 });
+                file = await materializeFile(targetFile, {
+                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (클라우드 다운로드 대기)', type: 'success' }); }
+                });
             } catch (e) {
                 console.warn('[Retry] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
                 file = targetFile;
