@@ -259,7 +259,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             v.removeEventListener('loadedmetadata', handleLoadedMetadata);
             if (pulseId) clearInterval(pulseId);
         };
-    }, [activeFile, findActiveIndex, isGlobalLoopActive]);
+    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime]);
 
     const resetPlayerState = useCallback(() => {
         setActiveSentenceIdx(-1);
