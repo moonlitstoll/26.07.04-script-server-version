@@ -12,6 +12,7 @@ const DEFAULTS = {
     markerInterval: 2,
     chunkEnabled: false,
     chunkMinutes: 10,
+    realignEnabled: true,
 };
 
 const STORAGE_KEYS = {
@@ -26,6 +27,7 @@ const STORAGE_KEYS = {
     markerInterval: 'miniapp_marker_interval',
     chunkEnabled: 'miniapp_chunk_enabled',
     chunkMinutes: 'miniapp_chunk_minutes',
+    realignEnabled: 'miniapp_realign_enabled',
 };
 
 function loadFromStorage() {
@@ -45,6 +47,9 @@ function loadFromStorage() {
         chunkMinutes: localStorage.getItem(STORAGE_KEYS.chunkMinutes) !== null
             ? parseInt(localStorage.getItem(STORAGE_KEYS.chunkMinutes), 10)
             : DEFAULTS.chunkMinutes,
+        realignEnabled: localStorage.getItem(STORAGE_KEYS.realignEnabled) !== null
+            ? localStorage.getItem(STORAGE_KEYS.realignEnabled) === 'true'
+            : DEFAULTS.realignEnabled,
     };
 }
 

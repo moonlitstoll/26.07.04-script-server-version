@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { extractOriginalAudio, extractAudioWav, splitAudio } from "../utils/audioExtractor";
+import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
-import { splitMergedSentences } from "../utils/sentenceSplitter";
+import { splitMergedSentences, splitIntoSentences, groupSentences } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
 
 const resolveModel = (modelId) =>
@@ -403,6 +403,85 @@ async function transcribeStream(model, parts, {
     return matches;
 }
 
+// replacements(Map: index→[items])를 반영해 새 배열을 만든다.
+function rebuildWithReplacements(sorted, replacements) {
+    if (!replacements.size) return sorted;
+    const out = [];
+    for (let i = 0; i < sorted.length; i++) {
+        if (replacements.has(i)) out.push(...replacements.get(i));
+        else out.push(sorted[i]);
+    }
+    return out;
+}
+
+/**
+ * [Stage 1 정밀화 - 재청취 정렬]
+ * 여러 문장이 한 타임스탬프로 뭉친 블록만, 그 구간 오디오를 잘라 다시 전사하여
+ * 문장별 '실제 타임스탬프'를 확보한다. 짧은 클립은 모델이 문장별로 잘 쪼개므로
+ * 평소 전사가 잘 됐을 때와 동일한 품질의 시각을 얻는다.
+ * 재정렬에 실패하거나 여전히 안 쪼개진 블록은 원본 그대로 두고, 이후 splitMergedSentences가
+ * '블록 시각 공유' 방식으로 최소한의 문장 분리를 보장한다. (시각을 지어내지 않음)
+ */
+async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
+    apiKey, antiRecitation, markerChar, markerInterval, stripMarker, signal, onProgress,
+} = {}) {
+    // 1) 뭉친 블록 탐지 (문장 2개 이상)
+    const targets = [];
+    for (let i = 0; i < sorted.length; i++) {
+        const groups = groupSentences(splitIntoSentences(sorted[i].text ?? sorted[i].o ?? ''));
+        if (groups.length > 1) targets.push(i);
+    }
+    if (targets.length === 0) return sorted;
+
+    const MAX_REALIGN = 40; // 폭주 방지: 초과분은 블록 시각 공유 분리로 폴백
+    if (targets.length > MAX_REALIGN) {
+        console.warn(`[Realign] 뭉친 블록 ${targets.length}개 중 ${MAX_REALIGN}개만 재청취 정렬(나머지는 블록 시각 공유)`);
+    }
+    const doTargets = targets.slice(0, MAX_REALIGN);
+
+    const PAD_START = 0.3;
+    const replacements = new Map();
+
+    for (const i of doTargets) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+        const blockStart = sorted[i].seconds;
+        // 다음(시각이 더 큰) 항목 시작 = 블록 끝
+        let blockEnd = totalDuration > blockStart ? totalDuration : blockStart + 8;
+        for (let j = i + 1; j < sorted.length; j++) {
+            if (sorted[j].seconds > blockStart) { blockEnd = sorted[j].seconds; break; }
+        }
+        const winStart = Math.max(0, blockStart - PAD_START);
+        const winDur = Math.max(1, blockEnd - winStart);
+
+        try {
+            const segBlob = await extractSegmentWav(audioBlob, winStart, winDur);
+            const segPart = await blobToGeminiPart(segBlob, apiKey);
+            const prompt = buildStage1Prompt(winDur, antiRecitation, markerChar, markerInterval);
+            const segMatches = await transcribeStream(model, [segPart, prompt], {
+                segDuration: winDur,
+                offset: winStart,
+                hardLimit: totalDuration,
+                signal,
+                stripMarker,
+            });
+            // 다음 블록 침범분 제거: 블록 끝 이전 것만 채택
+            const clean = (segMatches || []).filter(m => m.seconds < blockEnd - 0.05);
+            // 2개 이상으로 실제 분리됐을 때만 채택(= 진짜 시각 확보). 아니면 폴백.
+            if (clean.length >= 2) replacements.set(i, clean);
+            console.log(`[Realign] 블록 @${blockStart.toFixed(1)}s → ${clean.length}문장 ${clean.length >= 2 ? '재정렬' : '폴백'}`);
+        } catch (err) {
+            if (err.name === 'AbortError') throw err;
+            console.warn(`[Realign] 블록 @${blockStart.toFixed(1)}s 재정렬 실패, 폴백:`, err && err.message);
+        }
+
+        // 부분 진행 반영 (UI 피드백)
+        if (onProgress) onProgress(rebuildWithReplacements(sorted, replacements));
+    }
+
+    return rebuildWithReplacements(sorted, replacements);
+}
+
 export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", {
     totalDuration = 0,
     onProgress = null,
@@ -414,6 +493,7 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
     markerInterval = 2,
     chunkEnabled = false,
     chunkMinutes = 10,
+    realignEnabled = true,
 } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -496,8 +576,21 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
         }
 
         // [후처리] 모델이 여러 문장을 한 줄에 뭉쳐 출력한 경우 문장별로 분할
-        // (짧은 문장은 인접과 병합, 쪼갠 문장은 블록의 실제 시각을 공유 — 시각 추정 안 함)
-        const sorted = allMatches.sort((a, b) => a.seconds - b.seconds);
+        let sorted = allMatches.sort((a, b) => a.seconds - b.seconds);
+
+        // [정밀 타임스탬프] 뭉친 블록만 오디오를 재청취(재전사)하여 문장별 실제 시각 확보
+        if (realignEnabled) {
+            try {
+                sorted = await realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
+                    apiKey, antiRecitation, markerChar, markerInterval, stripMarker, signal, onProgress,
+                });
+            } catch (err) {
+                if (err.name === 'AbortError') throw err;
+                console.warn('[Realign] 재정렬 단계 실패, 블록 시각 공유 분리로 폴백:', err && err.message);
+            }
+        }
+
+        // 재정렬로 처리 못 한 뭉친 블록은 '블록 시각 공유'로 최소 분리 보장(시각 추정 없음)
         return splitMergedSentences(sorted);
     } catch (err) {
         if (err.name === 'AbortError') throw err;

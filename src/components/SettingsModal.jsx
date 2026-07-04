@@ -320,6 +320,25 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         )}
                     </div>
 
+                    {/* Realign (정밀 타임스탬프) */}
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col pr-3">
+                                <label className="text-sm font-bold text-slate-700">정밀 타임스탬프 (재청취 정렬)</label>
+                                <span className="text-[10px] text-slate-400 leading-relaxed">여러 문장이 한 타임스탬프로 뭉친 경우, 그 구간만 오디오를 다시 들어 문장별 실제 시각을 확보합니다. 문장별 하이라이트·구간반복이 정확해집니다. 뭉친 블록마다 API 호출이 한 번 더 들어갑니다.</span>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={config.realignEnabled}
+                                onClick={() => updateField('realignEnabled', !config.realignEnabled)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${config.realignEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                            >
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${config.realignEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Anti-Recitation */}
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">

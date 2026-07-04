@@ -147,6 +147,36 @@ export async function splitAudio(audioBlob, totalDuration, chunkDurationSec, ove
 }
 
 /**
+ * 오디오 Blob에서 [startSec, startSec+durationSec] 한 구간만 16kHz 모노 WAV로 적출한다.
+ * (재청취 정렬용 — 뭉친 블록 구간만 잘라 다시 전사) 어떤 입력 코덱이든 PCM 재인코딩하여 성공.
+ * @param {Blob} audioBlob 원본 오디오
+ * @param {number} startSec 구간 시작(초)
+ * @param {number} durationSec 구간 길이(초)
+ * @returns {Promise<Blob>} audio/wav Blob
+ */
+export async function extractSegmentWav(audioBlob, startSec, durationSec) {
+    const ffmpeg = await getFFmpeg();
+    const inputName = `seg_in_${Date.now()}.dat`;
+    const outputName = `seg_out_${Date.now()}.wav`;
+    try {
+        await ffmpeg.writeFile(inputName, await fetchFile(audioBlob));
+        // -ss(입력 전): 빠른 탐색, -t: 길이, PCM 16kHz 모노 재인코딩
+        await ffmpeg.exec([
+            '-ss', String(Math.max(0, startSec)),
+            '-i', inputName,
+            '-t', String(Math.max(0.1, durationSec)),
+            '-vn', '-ac', '1', '-ar', String(TARGET_SAMPLE_RATE), '-c:a', 'pcm_s16le',
+            outputName
+        ]);
+        const data = await ffmpeg.readFile(outputName);
+        return new Blob([data.buffer], { type: 'audio/wav' });
+    } finally {
+        try { await ffmpeg.deleteFile(inputName); } catch { /* noop */ }
+        try { await ffmpeg.deleteFile(outputName); } catch { /* noop */ }
+    }
+}
+
+/**
  * 미디어 파일에서 오디오 트랙을 디코딩/재인코딩 없이 원본 그대로 복사 적출(Demuxing)합니다.
  * 타임스탬프 왜곡 및 리샘플링 음질 변형 0% 보장.
  * 
