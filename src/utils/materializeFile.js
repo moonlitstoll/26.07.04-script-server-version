@@ -51,52 +51,6 @@ const STRATEGIES = [
     ['objectURL', viaObjectUrl],
 ];
 
-async function readableFromFile(file) {
-    let lastErr;
-    for (const [name, strat] of STRATEGIES) {
-        try {
-            const buf = await strat(file);
-            return { buf, name };
-        } catch (e) {
-            lastErr = e;
-            console.warn(`[Materialize] ${name} 실패: ${e && e.message}`);
-        }
-    }
-    throw lastErr || new Error('읽기 실패');
-}
-
-/**
- * File System Access API 핸들 기반 적재.
- * 매 라운드 handle.getFile()로 '새 참조'를 재획득하므로, 클라우드 스트리밍 파일이
- * 백그라운드 다운로드로 갱신되면 다음 라운드에서 성공한다. (참조 고정 문제 해결)
- */
-export async function materializeFromHandle(handle, { attempts = 10, delayMs = 2000, onWait } = {}) {
-    let lastErr;
-    for (let round = 0; round < attempts; round++) {
-        try {
-            const file = await handle.getFile(); // 새 스냅샷 재획득
-            const { buf, name } = await readableFromFile(file);
-            console.log(`[Materialize] 핸들 성공: ${name} (${(buf.byteLength / 1024 / 1024).toFixed(1)}MB, ${round + 1}회차)`);
-            return new File([buf], file.name, {
-                type: file.type || 'application/octet-stream',
-                lastModified: file.lastModified || Date.now(),
-            });
-        } catch (e) {
-            lastErr = e;
-            console.warn(`[Materialize] 핸들 ${round + 1}회차 실패: ${e && e.message}`);
-        }
-        if (round < attempts - 1) {
-            if (onWait) onWait(round + 1, attempts);
-            await new Promise(r => setTimeout(r, delayMs));
-        }
-    }
-    const detail = (lastErr && lastErr.message) ? lastErr.message : String(lastErr);
-    throw new Error(
-        `파일을 읽을 수 없습니다. 클라우드 파일 다운로드가 오래 걸리거나 실패했습니다. ` +
-        `파일을 우클릭해 "오프라인 사용 가능"으로 받은 뒤 다시 시도하세요. (${detail})`
-    );
-}
-
 /**
  * 원본과 동일한 name/type을 가진 '읽기 가능한' 메모리 File 반환.
  * 모든 시도가 실패하면 예외를 던진다(호출부에서 원본 폴백 처리).

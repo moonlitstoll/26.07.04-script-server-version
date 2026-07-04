@@ -146,7 +146,7 @@ export const useMediaCache = ({
             }
             const data = sanitizeData(rawData, cacheDuration);
 
-            const id = 'cached-' + Date.now();
+            const id = 'cached-' + crypto.randomUUID();
 
             const newFileEntry = {
                 id,
@@ -206,7 +206,7 @@ export const useMediaCache = ({
                 }
             }
 
-            const id = 'cloud-' + Date.now();
+            const id = 'cloud-' + crypto.randomUUID();
             const newFileEntry = {
                 id,
                 file: { name: item.name, type: item.type || 'video/unknown', size: item.size },

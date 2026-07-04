@@ -4,7 +4,7 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
-import { materializeFile, materializeFromHandle } from '../utils/materializeFile';
+import { materializeFile } from '../utils/materializeFile';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -161,16 +161,10 @@ export const useMediaAnalysis = ({
 
         console.log("[Upload] Processing files...", fileList);
 
-        // 입력 정규화: File(기존 <input>/드래그) 또는 { file, handle }(File System Access API)
-        const items = Array.from(fileList).map(src =>
-            (src instanceof File) ? { file: src, handle: null } : { file: src.file, handle: src.handle || null }
-        );
-
-        const newFiles = items.map(it => ({
-            id: Math.random().toString(36).substr(2, 9),
-            file: it.file,
-            handle: it.handle,
-            url: URL.createObjectURL(it.file), // 재생은 항상 원본 파일로 (원래 동작 보존)
+        const newFiles = Array.from(fileList).map(file => ({
+            id: crypto.randomUUID(),
+            file,
+            url: URL.createObjectURL(file), // 재생은 항상 원본 파일로 (원래 동작 보존)
             data: [],
             isAnalyzing: true,
             error: null
@@ -194,9 +188,7 @@ export const useMediaAnalysis = ({
                 const onWait = (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); };
                 let fileForAnalysis = fItem.file;
                 try {
-                    fileForAnalysis = fItem.handle
-                        ? await materializeFromHandle(fItem.handle, { onWait })
-                        : await materializeFile(fItem.file, { onWait });
+                    fileForAnalysis = await materializeFile(fItem.file, { onWait });
                 } catch (e) {
                     console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
                     fileForAnalysis = fItem.file;

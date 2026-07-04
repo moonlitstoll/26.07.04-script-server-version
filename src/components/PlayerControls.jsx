@@ -53,7 +53,7 @@ const PlayerControls = ({
                     {/* Row 1: Progress Bar */}
                     <div className="w-full px-3 pt-2 pb-1 flex items-center gap-2 text-[10px] sm:text-xs font-mono font-bold text-slate-500">
                         <span className="w-9 shrink-0 text-indigo-600 text-right">
-                            {new Date(Math.max(0, currentTime) * 1000).toISOString().substr(14, 5)}
+                            {new Date(Math.max(0, currentTime) * 1000).toISOString().slice(14, 19)}
                         </span>
 
                         <div
@@ -72,7 +72,7 @@ const PlayerControls = ({
                             />
                         </div>
 
-                        <span className="w-9 shrink-0 text-left">{duration ? new Date(duration * 1000).toISOString().substr(14, 5) : "00:00"}</span>
+                        <span className="w-9 shrink-0 text-left">{duration ? new Date(duration * 1000).toISOString().slice(14, 19) : "00:00"}</span>
                     </div>
 
                     {/* Row 2: Control Buttons */}
