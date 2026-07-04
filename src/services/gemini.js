@@ -496,9 +496,9 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
         }
 
         // [후처리] 모델이 여러 문장을 한 줄에 뭉쳐 출력한 경우 문장별로 분할
-        // (짧은 문장은 인접과 병합, 시각은 다음 항목까지 글자 수 비례로 배분)
+        // (짧은 문장은 인접과 병합, 쪼갠 문장은 블록의 실제 시각을 공유 — 시각 추정 안 함)
         const sorted = allMatches.sort((a, b) => a.seconds - b.seconds);
-        return splitMergedSentences(sorted, totalDuration);
+        return splitMergedSentences(sorted);
     } catch (err) {
         if (err.name === 'AbortError') throw err;
         console.error(`Stage 1 Error: `, err);
