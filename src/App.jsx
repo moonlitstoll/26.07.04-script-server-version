@@ -87,8 +87,8 @@ const App = () => {
     showToast
   });
 
-  const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys,
-    cloudItems, refreshCloud, loadCloud, deleteCloud, cloudDownload } = useMediaCache({
+  const { cacheKeys, deleteCache, deleteRecording, clearAllCache, loadCache, refreshCacheKeys,
+    cloudItems, refreshCloud, loadCloud, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
   });
@@ -366,7 +366,7 @@ const App = () => {
           setActiveFileId={setActiveFileId}
           cloudItems={cloudItems}
           loadCloud={loadCloud}
-          deleteCloud={deleteCloud}
+          deleteRecording={deleteRecording}
           isFavorite={isFavorite}
           toggleFavorite={toggleFavorite}
           onClose={() => setShowCacheHistory(false)}

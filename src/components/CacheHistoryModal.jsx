@@ -1,48 +1,57 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
-    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Cloud, Smartphone, Star
+    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Smartphone, Star, MoreVertical
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
 
-// 즐겨찾기 식별자: "{name}_{size}" (로컬 캐시 키/클라우드 항목 공통)
+// 즐겨찾기/통합 식별자: "{name}_{size}" (로컬 캐시 키/클라우드 항목 공통)
 const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
 const favIdFromItem = (item) => `${item.name}_${item.size}`;
+const stripExt = (n) => (n || '').replace(/\.[^.]+$/, '');
 
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
-    loadCache, deleteCache, clearAllCache, processFiles, removeFile,
-    setActiveFileId, cloudItems = [], loadCloud, deleteCloud,
+    loadCache, deleteRecording, clearAllCache, processFiles, removeFile,
+    setActiveFileId, cloudItems = [], loadCloud,
     isFavorite = () => false, toggleFavorite = () => {}, onClose
 }) => {
+    const [menuOpenId, setMenuOpenId] = useState(null);
+
     const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
-    const sortedFilteredCacheKeys = useMemo(() =>
-        cacheKeys
-            .filter(key => key.toLowerCase().includes(searchQuery.toLowerCase()))
-            .sort().reverse(),
-        [cacheKeys, searchQuery]
-    );
 
-    // 로컬에 이미 있는 항목은 클라우드 섹션에서 제외 (중복 방지)
-    const localKeySet = useMemo(() =>
-        new Set(cacheKeys.map(k => k.replace('gemini_analysis_', ''))),
-        [cacheKeys]
-    );
-    const cloudOnlyItems = useMemo(() =>
-        (cloudItems || [])
-            .filter(it => !localKeySet.has(`${it.name}_${it.size}`))
-            .filter(it => (it.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
-            .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)),
-        [cloudItems, localKeySet, searchQuery]
-    );
+    // 로컬 + 클라우드를 "{name}_{size}" 기준으로 하나로 병합 (같은 녹음은 한 줄)
+    const records = useMemo(() => {
+        const q = searchQuery.toLowerCase();
+        const map = new Map();
+        cacheKeys.forEach(key => {
+            const id = favIdFromKey(key);
+            map.set(id, { id, localKey: key, cloudItem: null });
+        });
+        (cloudItems || []).forEach(it => {
+            const id = favIdFromItem(it);
+            const ex = map.get(id);
+            if (ex) ex.cloudItem = it;
+            else map.set(id, { id, localKey: null, cloudItem: it });
+        });
 
-    // 즐겨찾기 / 일반 분리
-    const favLocalKeys = useMemo(() => sortedFilteredCacheKeys.filter(k => isFavorite(favIdFromKey(k))), [sortedFilteredCacheKeys, isFavorite]);
-    const restLocalKeys = useMemo(() => sortedFilteredCacheKeys.filter(k => !isFavorite(favIdFromKey(k))), [sortedFilteredCacheKeys, isFavorite]);
-    const favCloudItems = useMemo(() => cloudOnlyItems.filter(it => isFavorite(favIdFromItem(it))), [cloudOnlyItems, isFavorite]);
-    const restCloudItems = useMemo(() => cloudOnlyItems.filter(it => !isFavorite(favIdFromItem(it))), [cloudOnlyItems, isFavorite]);
-    const hasFavorites = favLocalKeys.length > 0 || favCloudItems.length > 0;
+        const arr = [];
+        for (const rec of map.values()) {
+            const name = rec.localKey ? getCacheDisplayName(rec.localKey) : (rec.cloudItem?.name || 'Untitled');
+            if (q && !name.toLowerCase().includes(q)) continue;
+            arr.push({ ...rec, name });
+        }
+        // 로컬에 있는 것 우선 → 이름순
+        arr.sort((a, b) => {
+            const al = a.localKey ? 0 : 1, bl = b.localKey ? 0 : 1;
+            if (al !== bl) return al - bl;
+            return a.name.localeCompare(b.name);
+        });
+        return arr;
+    }, [cacheKeys, cloudItems, searchQuery]);
 
-    // 별표 버튼 (행 우측 공통)
+    const favRecords = useMemo(() => records.filter(r => isFavorite(r.id)), [records, isFavorite]);
+    const restRecords = useMemo(() => records.filter(r => !isFavorite(r.id)), [records, isFavorite]);
+
     const renderStar = (id) => {
         const fav = isFavorite(id);
         return (
@@ -56,84 +65,87 @@ const CacheHistoryModal = ({
         );
     };
 
-    // 로컬 캐시 항목 1행
-    const renderCachedRow = (key) => {
-        const name = getCacheDisplayName(key);
-        const isActiveCached = activeFile?.file?.name === name;
-        const { statusText, badgeColor, progressText } = getCacheStatus(key);
+    // 통합 항목 1행
+    const renderRecordRow = (rec) => {
+        const hasLocal = !!rec.localKey;
+        const hasCloud = !!rec.cloudItem;
+        const display = stripExt(rec.name);
+        const isActive = activeFile?.file?.name === rec.name;
+
+        // 상태 뱃지
+        let statusText, statusCls, progressText = null;
+        if (hasLocal) {
+            const s = getCacheStatus(rec.localKey);
+            statusText = s.statusText; statusCls = s.badgeColor; progressText = s.progressText;
+        } else {
+            const done = rec.cloudItem.status === 'completed';
+            statusText = done ? '분석 완료' : '전사 완료';
+            statusCls = done ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
+        }
+
+        // 저장 위치 뱃지
+        const where = hasLocal && hasCloud
+            ? { text: '이 기기 · 클라우드', cls: 'bg-indigo-50 text-indigo-500' }
+            : hasCloud
+                ? { text: '클라우드', cls: 'bg-sky-50 text-sky-500' }
+                : { text: '이 기기만', cls: 'bg-amber-50 text-amber-600' };
+
+        const open = () => { if (hasLocal) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); };
+
         return (
             <div
-                key={key}
-                className={`group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 ${isActiveCached
+                key={rec.id}
+                onClick={open}
+                className={`group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 ${isActive
                     ? 'bg-indigo-50 border-indigo-200 shadow-md shadow-indigo-100'
                     : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}
-                onClick={() => loadCache(key)}
             >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className={`p-2.5 rounded-xl ${isActiveCached ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        {isActiveCached ? <Check size={20} /> : <BookOpen size={20} />}
+                    <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : hasLocal ? 'bg-slate-100 text-slate-500' : 'bg-sky-50 text-sky-500'}`}>
+                        {isActive ? <Check size={20} /> : hasLocal ? <BookOpen size={20} /> : <Smartphone size={20} />}
                     </div>
                     <div className="min-w-0">
-                        <p className={`text-base font-bold line-clamp-3 break-all ${isActiveCached ? 'text-indigo-900' : 'text-slate-700'}`}>{name.replace(/\.[^.]+$/, '')}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${badgeColor}`}>{statusText}</span>
-                            {progressText && (
-                                <span className="text-[10px] font-medium text-slate-400">{progressText}</span>
-                            )}
+                        <p className={`text-base font-bold line-clamp-3 break-all ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{display}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
+                            {progressText && <span className="text-[10px] font-medium text-slate-400">{progressText}</span>}
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${where.cls}`}>{where.text}</span>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-1 pl-2 border-l border-slate-100/50 ml-2">
-                    {renderStar(favIdFromKey(key))}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
-                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                        title="Delete Analysis"
-                    >
-                        <Trash2 size={20} />
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    // 클라우드(다른 기기) 항목 1행
-    const renderCloudRow = (item) => {
-        const displayName = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
-        const isDone = item.status === 'completed';
-        return (
-            <div
-                key={item.folder}
-                onClick={() => loadCloud && loadCloud(item)}
-                className="group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/40"
-            >
-                <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className="p-2.5 rounded-xl bg-sky-50 text-sky-500">
-                        <Smartphone size={20} />
+                    {renderStar(rec.id)}
+                    <div className="relative">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === rec.id ? null : rec.id); }}
+                            className="p-2.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
+                            title="삭제 옵션"
+                        >
+                            <MoreVertical size={20} />
+                        </button>
+                        {menuOpenId === rec.id && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); }} />
+                                <div className="absolute right-0 top-full mt-1 z-20 w-52 bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden">
+                                    {hasLocal && hasCloud && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); deleteRecording({ displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem }, 'local'); }}
+                                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 text-left"
+                                        >
+                                            <Trash2 size={15} /> 이 기기에서 내리기
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); deleteRecording({ displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem }, hasCloud ? 'all' : 'local'); }}
+                                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 text-left"
+                                    >
+                                        <Trash2 size={15} /> {hasCloud ? '완전 삭제 (모든 기기)' : '삭제'}
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-base font-bold line-clamp-3 break-all text-slate-700">{displayName}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                {isDone ? '분석 완료' : '전사 완료'}
-                            </span>
-                            <span className="text-[10px] font-medium text-slate-400">
-                                {item.mediaUrl ? '영상 포함' : '대본만'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-1 pl-2 border-l border-slate-100/50 ml-2">
-                    {renderStar(favIdFromItem(item))}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteCloud && deleteCloud(item); }}
-                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                        title="클라우드에서 삭제"
-                    >
-                        <Trash2 size={20} />
-                    </button>
                 </div>
             </div>
         );
@@ -158,10 +170,8 @@ const CacheHistoryModal = ({
                 </div>
 
                 <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50">
-
                     {/* Controls Area */}
                     <div className="p-3 sm:p-4 space-y-3">
-                        {/* Upload Button */}
                         <div className="relative">
                             <label
                                 htmlFor="manager-file-upload"
@@ -192,7 +202,6 @@ const CacheHistoryModal = ({
                             />
                         </div>
 
-                        {/* Search Bar */}
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                             <input
@@ -205,7 +214,7 @@ const CacheHistoryModal = ({
                         </div>
                     </div>
 
-                    {analyzingFiles.length === 0 && sortedFilteredCacheKeys.length === 0 && cloudOnlyItems.length === 0 ? (
+                    {analyzingFiles.length === 0 && records.length === 0 ? (
                         <div className="text-center py-20 text-slate-400">
                             <Clock size={48} className="mx-auto mb-4 opacity-20" />
                             <p className="text-lg font-medium">No history found</p>
@@ -229,7 +238,7 @@ const CacheHistoryModal = ({
                                                 <FileVideo size={20} />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-base font-bold line-clamp-3 break-all text-indigo-900">{f.file.name.replace(/\.[^.]+$/, '')}</p>
+                                                <p className="text-base font-bold line-clamp-3 break-all text-indigo-900">{stripExt(f.file.name)}</p>
                                                 <p className={`text-xs font-medium mt-0.5 animate-pulse ${isActive ? 'text-indigo-700' : 'text-indigo-600'}`}>
                                                     {f.data && f.data.length > 0
                                                         ? `Analyzing (${f.data.filter(d => d.isAnalyzed).length}/${f.data.length})...`
@@ -238,7 +247,6 @@ const CacheHistoryModal = ({
                                                 </p>
                                             </div>
                                         </div>
-
                                         <div className="flex items-center gap-2 pl-4 border-l border-indigo-100 ml-4">
                                             <div className="hidden sm:flex items-center gap-2 mr-2">
                                                 <div className={`w-2 h-2 rounded-full animate-ping ${isActive ? 'bg-indigo-700' : 'bg-indigo-500'}`} />
@@ -256,8 +264,8 @@ const CacheHistoryModal = ({
                                 );
                             })}
 
-                            {/* 2. 즐겨찾기 (로컬 + 클라우드) */}
-                            {hasFavorites && (
+                            {/* 2. 즐겨찾기 */}
+                            {favRecords.length > 0 && (
                                 <div className="pt-3 pb-1">
                                     <div className="flex items-center gap-2 px-1 text-amber-500">
                                         <Star size={14} className="fill-current" />
@@ -265,25 +273,17 @@ const CacheHistoryModal = ({
                                     </div>
                                 </div>
                             )}
-                            {favLocalKeys.map(renderCachedRow)}
-                            {favCloudItems.map(renderCloudRow)}
+                            {favRecords.map(renderRecordRow)}
 
-                            {/* 3. Cached Files (즐겨찾기 제외) */}
-                            {restLocalKeys.map(renderCachedRow)}
-
-                            {/* 4. Cloud Files (즐겨찾기 제외) */}
-                            {restCloudItems.length > 0 && (
+                            {/* 3. 라이브러리 (즐겨찾기 제외) */}
+                            {favRecords.length > 0 && restRecords.length > 0 && (
                                 <div className="pt-3 pb-1">
-                                    <div className="flex items-center gap-2 px-1 text-slate-400">
-                                        <Cloud size={14} />
-                                        <span className="text-[11px] font-bold uppercase tracking-wider">다른 기기 (클라우드)</span>
-                                    </div>
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">라이브러리</span>
                                 </div>
                             )}
-                            {restCloudItems.map(renderCloudRow)}
+                            {restRecords.map(renderRecordRow)}
                         </div>
                     )}
-
                 </div>
             </div>
         </div>

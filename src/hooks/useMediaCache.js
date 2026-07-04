@@ -66,51 +66,82 @@ export const useMediaCache = ({
         refreshCacheKeys();
     }, [refreshCacheKeys]);
 
+    // \ub85c\uceec(localStorage \ub300\ubcf8 + IndexedDB \uc601\uc0c1 + \uc5f4\ub824\uc788\ub294 \ud30c\uc77c) \uc81c\uac70 \u2014 \ud655\uc778\ucc3d \uc5c6\uc74c(\ud638\ucd9c\ubd80\uc5d0\uc11c \ucc98\ub9ac)
+    const purgeLocalByKey = async (key) => {
+        const cacheEntry = parseCacheEntry(key);
+        let deletedName = null;
+        let deletedSize = null;
+        if (cacheEntry && cacheEntry.metadata) {
+            deletedName = cacheEntry.metadata.name;
+            deletedSize = cacheEntry.metadata.size;
+            if (deletedName) {
+                try { await mediaStore.deleteFile(deletedName, deletedSize); } catch (e) { console.warn("Failed to delete media file:", e); }
+            }
+        }
+
+        localStorage.removeItem(key);
+        setCacheKeys(prev => prev.filter(k => k !== key));
+
+        // \uc0ad\uc81c\ub41c \uce90\uc2dc\uc5d0 \ud574\ub2f9\ud558\ub294 \ud65c\uc131 \ud30c\uc77c\uc774 \uc788\uc73c\uba74 Stage 2 \uc911\ub2e8 \ubc0f \ud30c\uc77c \uc81c\uac70
+        if (deletedName) {
+            const matchingFile = files.find(f =>
+                f.file?.name === deletedName && (deletedSize == null || f.file?.size === deletedSize)
+            );
+            if (matchingFile) {
+                if (stage2AbortRef && stage2AbortRef.current) stage2AbortRef.current.abort();
+                if (setFiles) {
+                    setFiles(prev => {
+                        const fileToRemove = prev.find(f => f.id === matchingFile.id);
+                        if (fileToRemove && fileToRemove.url) URL.revokeObjectURL(fileToRemove.url);
+                        const newFiles = prev.filter(f => f.id !== matchingFile.id);
+                        if (setActiveFileId && matchingFile.id === files.find(f => f.id)?.id) {
+                            setActiveFileId(newFiles.length > 0 ? newFiles[0].id : null);
+                        }
+                        return newFiles;
+                    });
+                }
+            }
+        }
+    };
+
+    // \ud074\ub77c\uc6b0\ub4dc(\uc11c\ubc84) \uc81c\uac70 \u2014 \ud655\uc778\ucc3d \uc5c6\uc74c
+    const purgeCloud = async (item) => {
+        await cloudDeleteItem({ name: item.name, size: item.size });
+        setCloudItems(prev => prev.filter(i => i.folder !== item.folder));
+    };
+
     const deleteCache = async (key) => {
         showConfirm({
             message: "\uc774 \ubd84\uc11d \uae30\ub85d\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
             onConfirm: async () => {
-                const cacheEntry = parseCacheEntry(key);
-
-                let deletedName = null;
-                let deletedSize = null;
-                if (cacheEntry && cacheEntry.metadata) {
-                    deletedName = cacheEntry.metadata.name;
-                    deletedSize = cacheEntry.metadata.size;
-                    if (deletedName) {
-                        try {
-                            await mediaStore.deleteFile(deletedName, deletedSize);
-                        } catch (e) { console.warn("Failed to delete media file:", e); }
-                    }
-                }
-
-                localStorage.removeItem(key);
-                setCacheKeys(prev => prev.filter(k => k !== key));
-
-                // \uc0ad\uc81c\ub41c \uce90\uc2dc\uc5d0 \ud574\ub2f9\ud558\ub294 \ud65c\uc131 \ud30c\uc77c\uc774 \uc788\uc73c\uba74 Stage 2 \uc911\ub2e8 \ubc0f \ud30c\uc77c \uc81c\uac70
-                if (deletedName) {
-                    const matchingFile = files.find(f =>
-                        f.file?.name === deletedName && (deletedSize == null || f.file?.size === deletedSize)
-                    );
-                    if (matchingFile) {
-                        if (stage2AbortRef && stage2AbortRef.current) {
-                            stage2AbortRef.current.abort();
-                        }
-                        if (setFiles) {
-                            setFiles(prev => {
-                                const fileToRemove = prev.find(f => f.id === matchingFile.id);
-                                if (fileToRemove && fileToRemove.url) URL.revokeObjectURL(fileToRemove.url);
-                                const newFiles = prev.filter(f => f.id !== matchingFile.id);
-                                if (setActiveFileId && matchingFile.id === files.find(f => f.id)?.id) {
-                                    setActiveFileId(newFiles.length > 0 ? newFiles[0].id : null);
-                                }
-                                return newFiles;
-                            });
-                        }
-                    }
-                }
-
+                await purgeLocalByKey(key);
                 showToast({ message: "\uc0ad\uc81c \uc644\ub8cc", type: "success" });
+            }
+        });
+    };
+
+    // \ud1b5\ud569 \uc0ad\uc81c: \ud55c \ub179\uc74c\uc744 \ubc94\uc704(scope)\uc5d0 \ub530\ub77c \uc0ad\uc81c
+    //  - scope 'local': \uc774 \uae30\uae30\uc5d0\uc11c\ub9cc \ub0b4\ub9bc (\ud074\ub77c\uc6b0\ub4dc \uc720\uc9c0)
+    //  - scope 'all'  : \ub85c\uceec + \ud074\ub77c\uc6b0\ub4dc(\ubaa8\ub4e0 \uae30\uae30) \uc644\uc804 \uc0ad\uc81c
+    // rec = { displayName, localKey, cloudItem }
+    const deleteRecording = (rec, scope) => {
+        const { displayName, localKey, cloudItem } = rec;
+        const removeCloud = scope === 'all' && !!cloudItem;
+        const message = removeCloud
+            ? `"${displayName}"\uc744(\ub97c) \ubaa8\ub4e0 \uae30\uae30(\uc11c\ubc84)\uc5d0\uc11c \uc644\uc804\ud788 \uc0ad\uc81c\ud560\uae4c\uc694? \ub418\ub3cc\ub9b4 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.`
+            : (cloudItem
+                ? `"${displayName}"\uc744(\ub97c) \uc774 \uae30\uae30\uc5d0\uc11c\ub9cc \ub0b4\ub9b4\uae4c\uc694? (\ud074\ub77c\uc6b0\ub4dc\u00b7\ub2e4\ub978 \uae30\uae30\uc5d4 \ub0a8\uc2b5\ub2c8\ub2e4)`
+                : `"${displayName}"\uc744(\ub97c) \uc0ad\uc81c\ud560\uae4c\uc694?`);
+        showConfirm({
+            message,
+            onConfirm: async () => {
+                if (localKey) {
+                    try { await purgeLocalByKey(localKey); } catch (e) { console.warn('[Delete] \ub85c\uceec \uc81c\uac70 \uc2e4\ud328:', e); }
+                }
+                if (removeCloud) {
+                    try { await purgeCloud(cloudItem); } catch (e) { console.warn('[Delete] \ud074\ub77c\uc6b0\ub4dc \uc81c\uac70 \uc2e4\ud328:', e); }
+                }
+                showToast({ message: removeCloud ? "\uc0ad\uc81c \uc644\ub8cc" : "\uc774 \uae30\uae30\uc5d0\uc11c \ub0b4\ub838\uc2b5\ub2c8\ub2e4", type: "success" });
             }
         });
     };
@@ -267,13 +298,12 @@ export const useMediaCache = ({
             message: "이 대본과 영상을 클라우드에서 삭제하시겠습니까?",
             onConfirm: async () => {
                 try {
-                    await cloudDeleteItem({ name: item.name, size: item.size });
+                    await purgeCloud(item);
                 } catch (e) {
                     console.warn('[Cloud] 삭제 실패:', e);
                     showToast({ message: '클라우드 삭제에 실패했습니다.', type: 'error' });
                     return;
                 }
-                setCloudItems(prev => prev.filter(i => i.folder !== item.folder));
                 showToast({ message: "삭제 완료", type: "success" });
             }
         });
@@ -283,6 +313,7 @@ export const useMediaCache = ({
         cacheKeys,
         setCacheKeys,
         deleteCache,
+        deleteRecording,
         clearAllCache,
         loadCache,
         refreshCacheKeys,
