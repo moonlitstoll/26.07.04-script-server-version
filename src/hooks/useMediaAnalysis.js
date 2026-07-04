@@ -182,13 +182,16 @@ export const useMediaAnalysis = ({
             try {
                 if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-                // ① OneDrive 등 클라우드 파일도 확실히 읽히도록 메모리에 적재 (실패 시 재시도)
-                const file = await materializeFile(fItem.file, {
-                    onWait: (n) => {
-                        if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (OneDrive 다운로드 대기)', type: 'success' });
-                    }
-                });
-                // 읽기 가능한 메모리 파일로 교체 + 재생용 URL 생성
+                // ① 가능하면 메모리에 적재(OneDrive/Drive 온디맨드 대응).
+                //    실패해도 절대 중단하지 않고 원본 파일로 그대로 진행 → 기존 동작 100% 보존
+                let file = fItem.file;
+                try {
+                    file = await materializeFile(fItem.file, { attempts: 3, delayMs: 1500 });
+                } catch (e) {
+                    console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
+                    file = fItem.file;
+                }
+                // 재생용 URL 생성 (메모리 파일 우선, 실패 시 원본)
                 const objectUrl = URL.createObjectURL(file);
                 setFiles(prev => prev.map(p => {
                     if (p.id !== fItem.id) return p;
@@ -265,12 +268,14 @@ export const useMediaAnalysis = ({
         try {
             if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-            // OneDrive 등 클라우드 파일도 확실히 읽히도록 메모리에 적재 (실패 시 재시도)
-            const file = await materializeFile(targetFile, {
-                onWait: (n) => {
-                    if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (OneDrive 다운로드 대기)', type: 'success' });
-                }
-            });
+            // 가능하면 메모리에 적재. 실패해도 중단하지 않고 원본으로 진행 (기존 동작 보존)
+            let file = targetFile;
+            try {
+                file = await materializeFile(targetFile, { attempts: 3, delayMs: 1500 });
+            } catch (e) {
+                console.warn('[Retry] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
+                file = targetFile;
+            }
             const objectUrl = URL.createObjectURL(file);
             setFiles(prev => prev.map(p => {
                 if (p.id !== fileId) return p;
