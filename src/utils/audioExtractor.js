@@ -4,9 +4,9 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util';
 let ffmpegInstance = null;
 let isLoading = false;
 
-// 싱글스레드 코어 (SharedArrayBuffer 불필요). CDN에서 받아 blob URL로 로드해
-// 배포 환경(Vercel 등)에서 코어 미해석으로 인한 FS error를 방지한다.
-const FFMPEG_CORE_VERSION = '0.12.6';
+// public/ffmpeg 에 복사해 둔 싱글스레드 코어 (same-origin, 항상 로드 가능)
+const FFMPEG_CORE_JS = `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.js`;
+const FFMPEG_CORE_WASM = `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.wasm`;
 
 /**
  * FFmpeg 싱글 스레드 인스턴스 반환
@@ -21,11 +21,10 @@ async function getFFmpeg() {
     isLoading = true;
     try {
         const ffmpeg = new FFmpeg();
-        const baseURL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`;
-        // 코어/wasm을 명시적으로 로드 (toBlobURL로 same-origin blob 변환 → CSP/코어 해석 문제 회피)
+        // same-origin 코어를 blob URL로 변환해 로드 (CDN/CORS/코어 미해석 문제 회피)
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            coreURL: await toBlobURL(FFMPEG_CORE_JS, 'text/javascript'),
+            wasmURL: await toBlobURL(FFMPEG_CORE_WASM, 'application/wasm'),
         });
         ffmpegInstance = ffmpeg;
         return ffmpeg;
@@ -156,21 +155,21 @@ export async function extractOriginalAudio(file) {
     // 파일명에서 확장자 유추 (비디오 등)
     const inputExt = file.name.split('.').pop() || 'mp4';
     const inputName = `input_${Date.now()}.${inputExt}`;
-    // 원본이 주로 AAC를 포함하므로, 컨테이너만 m4a 또는 aac로 변경하여 빼냅니다.
-    const outputName = `output_${Date.now()}.aac`;
+    // 16kHz 모노 WAV로 출력 (PCM 인코더는 항상 포함 → 어떤 소스 코덱이든 성공)
+    const outputName = `output_${Date.now()}.wav`;
 
     try {
         // 1. 메모리에 파일 쓰기
         await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-        // 2. 무변환(Demuxing) 추출 실행 
-        // -vn : 비디오 트랙 무시
-        // -acodec copy : 오디오 트랙 압축 해제 없이(재인코딩 없이) 그냥 복사해서 빼냄
-        await ffmpeg.exec(['-i', inputName, '-vn', '-acodec', 'copy', outputName]);
+        // 2. 오디오만 디코드 → 16kHz 모노 WAV 재인코딩
+        // -vn: 비디오 무시, -ac 1: 모노, -ar 16000: 16kHz, -c:a pcm_s16le: 16-bit PCM
+        // (H.265 등 브라우저가 못 읽는 코덱도 FFmpeg는 디코드 가능 → Gemini 호환 오디오 생성)
+        await ffmpeg.exec(['-i', inputName, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', outputName]);
 
         // 3. 적출된 결과 읽기
         const data = await ffmpeg.readFile(outputName);
-        return new Blob([data.buffer], { type: 'audio/aac' });
+        return new Blob([data.buffer], { type: 'audio/wav' });
     } catch (err) {
         console.error('FFmpeg extraction error:', err);
         throw new Error(`오디오 트랙 적출 실패: ${err.message}`);
