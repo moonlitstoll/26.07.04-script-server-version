@@ -1,5 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { fetchFile } from '@ffmpeg/util';
 
 let ffmpegInstance = null;
 let isLoading = false;
@@ -21,10 +21,11 @@ async function getFFmpeg() {
     isLoading = true;
     try {
         const ffmpeg = new FFmpeg();
-        // same-origin 코어를 blob URL로 변환해 로드 (CDN/CORS/코어 미해석 문제 회피)
+        // same-origin 직접 경로로 로드 (blob URL 사용 시 emscripten 경로 처리 오류로 FS error 발생)
+        // 모듈 워커가 import(coreURL) 하며, import.meta.url 기준으로 wasm 경로도 정확히 해석된다.
         await ffmpeg.load({
-            coreURL: await toBlobURL(FFMPEG_CORE_JS, 'text/javascript'),
-            wasmURL: await toBlobURL(FFMPEG_CORE_WASM, 'application/wasm'),
+            coreURL: FFMPEG_CORE_JS,
+            wasmURL: FFMPEG_CORE_WASM,
         });
         ffmpegInstance = ffmpeg;
         return ffmpeg;
