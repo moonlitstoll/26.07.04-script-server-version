@@ -1,13 +1,54 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-    Settings, X, Check, Info, Lock
+    Settings, X, Check, Info, Lock, HardDrive, Trash2
 } from 'lucide-react';
 import { MODELS } from '../constants/models';
+import { mediaStore } from '../utils/MediaStore';
 
 const MARKER_PRESETS = ['※', '#', '|', '·', '❖', '∂', '¤'];
 
+const formatBytes = (b) => {
+    if (!b || b <= 0) return '0 MB';
+    const mb = b / (1024 * 1024);
+    return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(0)} MB`;
+};
+
 const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
     const [showModelInfo, setShowModelInfo] = useState(false);
+
+    // 저장공간 사용량 + 영상 캐시 비우기
+    const [usage, setUsage] = useState(null);
+    const [confirmClear, setConfirmClear] = useState(false);
+    const [clearing, setClearing] = useState(false);
+
+    const refreshUsage = async () => {
+        try {
+            if (navigator.storage?.estimate) {
+                const { usage: used, quota } = await navigator.storage.estimate();
+                setUsage({ used, quota });
+            }
+        } catch { /* 미지원 브라우저 */ }
+    };
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                if (navigator.storage?.estimate) {
+                    const { usage: used, quota } = await navigator.storage.estimate();
+                    if (alive) setUsage({ used, quota });
+                }
+            } catch { /* 미지원 브라우저 */ }
+        })();
+        return () => { alive = false; };
+    }, []);
+
+    const handleClearVideoCache = async () => {
+        setClearing(true);
+        try { await mediaStore.clearAll(); } catch (e) { console.warn('영상 캐시 비우기 실패:', e); }
+        setClearing(false);
+        setConfirmClear(false);
+        refreshUsage();
+    };
 
     const renderModelSelector = (label, colorClass, field) => (
         <div className="space-y-2">
@@ -355,6 +396,50 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* 저장공간 */}
+                    <div className="space-y-2 pt-4 border-t border-slate-50">
+                        <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700">
+                                <HardDrive size={14} className="text-slate-400" /> 저장공간
+                            </label>
+                            {usage && (
+                                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                    {formatBytes(usage.used)}{usage.quota ? ` / ${formatBytes(usage.quota)}` : ''} 사용
+                                </span>
+                            )}
+                        </div>
+                        {!confirmClear ? (
+                            <button
+                                type="button"
+                                onClick={() => setConfirmClear(true)}
+                                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:border-amber-300 hover:bg-amber-50 hover:text-amber-600 transition-all"
+                            >
+                                <Trash2 size={16} /> 영상 캐시 비우기
+                            </button>
+                        ) : (
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setConfirmClear(false)}
+                                    className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearVideoCache}
+                                    disabled={clearing}
+                                    className="flex-[2] px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold rounded-xl transition-all"
+                                >
+                                    {clearing ? '비우는 중...' : '정말 비우기 (되돌릴 수 없음)'}
+                                </button>
+                            </div>
+                        )}
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                            기기에 저장된 영상 캐시를 모두 비웁니다. 대본·분석 기록은 유지되며, 클라우드 항목은 다시 열 때 재다운로드됩니다.
+                        </p>
                     </div>
 
                     {/* 보관함 잠그기 / 암호 변경 */}

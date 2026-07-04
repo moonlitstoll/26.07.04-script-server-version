@@ -13,11 +13,16 @@ export const useKeyboardShortcuts = ({
     activeIdxRef,
     lastActionTimeRef,
     videoRef,
+    onToggleHelp,
 }) => {
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (!mediaUrl || !activeFile?.data?.length) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            // '?' (Shift+/) : 단축키 도움말 토글 — 파일이 없어도 동작
+            if (e.key === '?') { e.preventDefault(); if (onToggleHelp) onToggleHelp(); return; }
+
+            if (!mediaUrl || !activeFile?.data?.length) return;
 
             const data = activeFile.data;
 
@@ -68,5 +73,5 @@ export const useKeyboardShortcuts = ({
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis, jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef]);
+    }, [mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis, jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef, onToggleHelp]);
 };

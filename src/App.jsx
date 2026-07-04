@@ -20,6 +20,7 @@ import Toast from './components/Toast';
 import PassphraseGate from './components/PassphraseGate';
 import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
+import ShortcutsHelp from './components/ShortcutsHelp';
 import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
 
 
@@ -39,6 +40,7 @@ const App = () => {
   const [showAnalysis, setShowAnalysis] = useState(true);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showCacheHistory, setShowCacheHistory] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSwitchingFile, setIsSwitchingFile] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
@@ -109,6 +111,7 @@ const App = () => {
   useKeyboardShortcuts({
     mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis,
     jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef,
+    onToggleHelp: () => setShowShortcuts(s => !s),
   });
 
   const removeFile = (id, e) => {
@@ -125,6 +128,19 @@ const App = () => {
       }
       return newFiles;
     });
+  };
+
+  // 홈으로: 분석 중이면 실수로 작업을 날리지 않도록 확인
+  const handleHome = () => {
+    const doHome = () => { setFiles([]); setActiveFileId(null); resetPlayerState(); };
+    if (files.some(f => f.isAnalyzing)) {
+      showConfirm({
+        message: "분석이 진행 중입니다. 홈으로 나가면 현재 화면의 작업이 사라집니다. 계속할까요? (완료된 대본은 히스토리에 저장됩니다)",
+        onConfirm: doHome,
+      });
+    } else {
+      doHome();
+    }
   };
 
   // Shared overlays for both Empty and Main states
@@ -152,6 +168,7 @@ const App = () => {
           </span>
         </div>
       )}
+      {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
     </>
   );
 
@@ -207,9 +224,10 @@ const App = () => {
         activeFile={activeFile}
         isAnalyzing={isAnalyzing}
         isSwitchingFile={isSwitchingFile}
-        onHome={() => { setFiles([]); setActiveFileId(null); resetPlayerState(); }}
+        onHome={handleHome}
         onOpenHistory={() => setShowCacheHistory(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
       />
 
       {/* Content Area */}

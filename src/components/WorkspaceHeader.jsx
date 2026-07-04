@@ -1,6 +1,6 @@
-import { Home, Settings, FileVideo, FileAudio } from 'lucide-react';
+import { Home, Settings, FileVideo, FileAudio, HelpCircle } from 'lucide-react';
 
-// 작업 화면 상단 헤더: 홈 버튼 · 현재 파일명(클릭 시 히스토리) · 설정 버튼
+// 작업 화면 상단 헤더: 홈 버튼 · 현재 파일명(클릭 시 히스토리) · 도움말 · 설정 버튼
 const WorkspaceHeader = ({
     activeFile,
     isAnalyzing,
@@ -8,6 +8,7 @@ const WorkspaceHeader = ({
     onHome,
     onOpenHistory,
     onOpenSettings,
+    onShowShortcuts,
 }) => {
     const busy = isAnalyzing || isSwitchingFile;
 
@@ -50,12 +51,23 @@ const WorkspaceHeader = ({
                 </div>
             </div>
 
-            <button
-                onClick={onOpenSettings}
-                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-            >
-                <Settings size={20} />
-            </button>
+            <div className="flex items-center">
+                {onShowShortcuts && (
+                    <button
+                        onClick={onShowShortcuts}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        title="키보드 단축키 (?)"
+                    >
+                        <HelpCircle size={20} />
+                    </button>
+                )}
+                <button
+                    onClick={onOpenSettings}
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                >
+                    <Settings size={20} />
+                </button>
+            </div>
         </header>
     );
 };
