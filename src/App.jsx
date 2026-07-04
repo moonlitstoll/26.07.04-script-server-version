@@ -204,6 +204,8 @@ const App = () => {
         clearAllCache={clearAllCache}
         isFavorite={isFavorite}
         toggleFavorite={toggleFavorite}
+        cloudItems={cloudItems}
+        loadCloud={loadCloud}
       />
       {overlays}
       </>

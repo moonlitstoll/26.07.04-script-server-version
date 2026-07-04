@@ -1,10 +1,11 @@
 import {
-    Upload, Volume2, Settings, Trash2, Star
+    Upload, Volume2, Settings, Trash2, Star, Smartphone
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { getCacheDisplayName } from '../utils/cacheStatus';
 
 const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
+const favIdFromItem = (item) => `${item.name}_${item.size}`;
 
 const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
@@ -12,11 +13,18 @@ const EmptyState = ({
     showSettings, setShowSettings,
     config, updateField, onLockVault,
     cacheKeys, loadCache, deleteCache, clearAllCache,
-    isFavorite = () => false, toggleFavorite = () => {}
+    isFavorite = () => false, toggleFavorite = () => {},
+    cloudItems = [], loadCloud
 }) => {
     // 즐겨찾기 우선 정렬: 별표한 항목을 맨 위로
     const favKeys = cacheKeys.filter(k => isFavorite(favIdFromKey(k)));
     const restKeys = cacheKeys.filter(k => !isFavorite(favIdFromKey(k)));
+
+    // 클라우드 즐겨찾기 (로컬에 이미 있는 건 로컬 즐겨찾기로 표시되므로 제외)
+    const localIdSet = new Set(cacheKeys.map(favIdFromKey));
+    const favCloudItems = (cloudItems || []).filter(
+        it => isFavorite(favIdFromItem(it)) && !localIdSet.has(favIdFromItem(it))
+    );
 
     const renderRow = (key) => {
         const name = getCacheDisplayName(key).replace(/\.[^.]+$/, '');
@@ -47,6 +55,34 @@ const EmptyState = ({
                         title="Delete"
                     >
                         <Trash2 size={18} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // 클라우드 즐겨찾기 항목 1행 (다른 기기에서 별표한 것 — 처음 화면 즐겨찾기에만 노출)
+    const renderCloudRow = (item) => {
+        const name = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
+        return (
+            <div
+                key={item.folder}
+                onClick={() => loadCloud && loadCloud(item)}
+                className="flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:border-sky-300 hover:shadow-md hover:shadow-sky-50 transition-all cursor-pointer group/item"
+            >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500 shrink-0">
+                        <Smartphone size={18} />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{name}</span>
+                </div>
+                <div className="flex items-center shrink-0">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(favIdFromItem(item)); }}
+                        className="p-2 text-amber-400 hover:bg-amber-50 rounded-xl transition-all"
+                        title="즐겨찾기 해제"
+                    >
+                        <Star size={18} className="fill-current" />
                     </button>
                 </div>
             </div>
@@ -109,19 +145,20 @@ const EmptyState = ({
                         최근 작업 히스토리
                     </h4>
                     <div className="space-y-2 max-h-60 overflow-y-auto mb-4 pr-1 scrollbar-thin scrollbar-thumb-slate-200">
-                        {cacheKeys.length === 0 ? (
+                        {cacheKeys.length === 0 && favCloudItems.length === 0 ? (
                             <div className="bg-slate-50/50 rounded-2xl p-8 border border-slate-100">
                                 <p className="text-sm text-slate-400">저장된 기록이 없습니다.</p>
                             </div>
                         ) : (
                             <>
-                                {favKeys.length > 0 && (
+                                {(favKeys.length > 0 || favCloudItems.length > 0) && (
                                     <div className="flex items-center justify-center gap-1.5 text-amber-500 pt-1 pb-0.5">
                                         <Star size={12} className="fill-current" />
                                         <span className="text-[11px] font-bold uppercase tracking-wider">즐겨찾기</span>
                                     </div>
                                 )}
                                 {favKeys.map(renderRow)}
+                                {favCloudItems.map(renderCloudRow)}
                                 {restKeys.map(renderRow)}
                             </>
                         )}
