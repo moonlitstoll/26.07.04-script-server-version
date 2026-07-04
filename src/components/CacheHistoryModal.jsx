@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Star
+    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Star, HardDrive, Cloud
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
 
@@ -11,7 +11,8 @@ const stripExt = (n) => (n || '').replace(/\.[^.]+$/, '');
 
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
-    loadCache, deleteRecording, clearAllCache, processFiles, removeFile,
+    loadCache, deleteLocal, deleteServer, clearLocalCache, localVideoIds = new Set(),
+    processFiles, removeFile,
     setActiveFileId, cloudItems = [], loadCloud,
     isFavorite = () => false, toggleFavorite = () => {}, onClose
 }) => {
@@ -65,13 +66,15 @@ const CacheHistoryModal = ({
 
     // 통합 항목 1행
     const renderRecordRow = (rec) => {
-        const hasLocal = !!rec.localKey;
+        const hasCloud = !!rec.cloudItem;
         const display = stripExt(rec.name);
         const isActive = activeFile?.file?.name === rec.name;
+        // 로컬에 영상(또는 로컬 대본)이 있으면 = 이 기기에 다운로드됨 → 초록 테두리
+        const localHere = localVideoIds.has(rec.id) || !!rec.localKey;
 
-        // 상태 뱃지 (분석/전사 진행 상태 — 저장 위치와 무관)
+        // 상태 뱃지 (분석/전사 진행 상태)
         let statusText, statusCls, progressText = null;
-        if (hasLocal) {
+        if (rec.localKey) {
             const s = getCacheStatus(rec.localKey);
             statusText = s.statusText; statusCls = s.badgeColor; progressText = s.progressText;
         } else {
@@ -80,15 +83,22 @@ const CacheHistoryModal = ({
             statusCls = done ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
         }
 
-        const open = () => { if (hasLocal) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); };
+        const open = () => { if (rec.localKey) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); };
+
+        // 테두리: 활성 > 로컬(초록) > 기본
+        const borderCls = isActive
+            ? 'bg-indigo-50 border-indigo-300 shadow-md shadow-indigo-100'
+            : localHere
+                ? 'bg-white border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50/30'
+                : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50';
+
+        const recForDelete = { displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem };
 
         return (
             <div
                 key={rec.id}
                 onClick={open}
-                className={`group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 ${isActive
-                    ? 'bg-indigo-50 border-indigo-200 shadow-md shadow-indigo-100'
-                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}
+                className={`group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 ${borderCls}`}
             >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
                     <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
@@ -99,19 +109,35 @@ const CacheHistoryModal = ({
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
                             {progressText && <span className="text-[10px] font-medium text-slate-400">{progressText}</span>}
+                            {localHere && (
+                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] tracking-tight bg-emerald-50 text-emerald-600">
+                                    <HardDrive size={10} /> 이 기기에 저장됨
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1 pl-2 border-l border-slate-100/50 ml-2">
+                <div className="flex items-center gap-0.5 pl-2 border-l border-slate-100/50 ml-2">
                     {renderStar(rec.id)}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteRecording({ displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem }, 'all'); }}
-                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                        title="삭제"
-                    >
-                        <Trash2 size={20} />
-                    </button>
+                    {localHere && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
+                            className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                            title="이 기기에서 삭제 (로컬 캐시)"
+                        >
+                            <HardDrive size={19} />
+                        </button>
+                    )}
+                    {hasCloud && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
+                            className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                            title="서버에서 삭제 (모든 기기)"
+                        >
+                            <Cloud size={19} />
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -123,11 +149,11 @@ const CacheHistoryModal = ({
                 <div className="p-3 px-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-10">
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={clearAllCache}
-                            aria-label="전체 기록 삭제"
-                            className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors text-sm font-bold"
+                            onClick={clearLocalCache}
+                            aria-label="이 기기 캐시 비우기"
+                            className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors text-sm font-bold"
                         >
-                            <Trash2 size={16} /> Clear All History
+                            <HardDrive size={16} /> 이 기기 캐시 비우기
                         </button>
                     </div>
                     <button onClick={onClose} aria-label="닫기" className="p-2 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
