@@ -1,5 +1,5 @@
 import {
-    Upload, Volume2, Settings, Trash2, Star, Smartphone
+    Upload, Volume2, Settings, Star, Smartphone, HardDrive, Cloud
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { getCacheDisplayName } from '../utils/cacheStatus';
@@ -12,7 +12,7 @@ const EmptyState = ({
     processFiles,
     showSettings, setShowSettings,
     config, updateField, onLockVault,
-    cacheKeys, loadCache, deleteCache, clearAllCache,
+    cacheKeys, loadCache, deleteLocal, deleteServer, clearLocalCache, localVideoIds = new Set(),
     isFavorite = () => false, toggleFavorite = () => {},
     cloudItems = [], loadCloud
 }) => {
@@ -25,37 +25,67 @@ const EmptyState = ({
     const favCloudItems = (cloudItems || []).filter(
         it => isFavorite(favIdFromItem(it)) && !localIdSet.has(favIdFromItem(it))
     );
+    // id → 클라우드 항목 (로컬 행에서 서버 삭제 버튼 표시 여부 판단)
+    const cloudById = new Map((cloudItems || []).map(it => [favIdFromItem(it), it]));
 
+    // 로컬/서버 삭제 버튼 (행 우측 공통)
+    const renderDeleteButtons = (recForDelete, localHere, cloudItem) => (
+        <>
+            {localHere && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
+                    className="p-2 text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                    title="이 기기에서 삭제 (로컬 캐시)"
+                >
+                    <HardDrive size={17} />
+                </button>
+            )}
+            {cloudItem && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
+                    className="p-2 text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                    title="서버에서 삭제 (모든 기기)"
+                >
+                    <Cloud size={17} />
+                </button>
+            )}
+        </>
+    );
+
+    const renderStar = (id) => {
+        const fav = isFavorite(id);
+        return (
+            <button
+                onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
+                className={`p-2 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-amber-400 hover:bg-amber-50'}`}
+                title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
+            >
+                <Star size={18} className={fav ? 'fill-current' : ''} />
+            </button>
+        );
+    };
+
+    // 로컬 캐시 항목 1행 (이 기기에 저장됨 → 초록 테두리)
     const renderRow = (key) => {
-        const name = getCacheDisplayName(key).replace(/\.[^.]+$/, '');
-        const fav = isFavorite(favIdFromKey(key));
+        const id = favIdFromKey(key);
+        const display = getCacheDisplayName(key).replace(/\.[^.]+$/, '');
+        const cloudItem = cloudById.get(id) || null;
+        const recForDelete = { displayName: display, localKey: key, cloudItem };
         return (
             <div
                 key={key}
                 onClick={() => loadCache(key)}
-                className="flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-50 transition-all cursor-pointer group/item"
+                className="flex items-center justify-between bg-white border border-emerald-300 p-4 rounded-2xl shadow-sm hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-50 transition-all cursor-pointer group/item"
             >
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover/item:bg-indigo-50 group-hover/item:text-indigo-500 transition-colors shrink-0">
+                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 shrink-0">
                         <Volume2 size={18} />
                     </div>
-                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{name}</span>
+                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{display}</span>
                 </div>
                 <div className="flex items-center shrink-0">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(favIdFromKey(key)); }}
-                        className={`p-2 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-amber-400 hover:bg-amber-50'}`}
-                        title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                    >
-                        <Star size={18} className={fav ? 'fill-current' : ''} />
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
-                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover/item:opacity-100"
-                        title="Delete"
-                    >
-                        <Trash2 size={18} />
-                    </button>
+                    {renderStar(id)}
+                    {renderDeleteButtons(recForDelete, true, cloudItem)}
                 </div>
             </div>
         );
@@ -63,27 +93,28 @@ const EmptyState = ({
 
     // 클라우드 즐겨찾기 항목 1행 (다른 기기에서 별표한 것 — 처음 화면 즐겨찾기에만 노출)
     const renderCloudRow = (item) => {
-        const name = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
+        const id = favIdFromItem(item);
+        const display = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
+        const localHere = localVideoIds.has(id);
+        const recForDelete = { displayName: display, localKey: null, cloudItem: item };
+        const borderCls = localHere
+            ? 'border-emerald-300 hover:border-emerald-400 hover:shadow-emerald-50'
+            : 'border-slate-100 hover:border-sky-300 hover:shadow-sky-50';
         return (
             <div
                 key={item.folder}
                 onClick={() => loadCloud && loadCloud(item)}
-                className="flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:border-sky-300 hover:shadow-md hover:shadow-sky-50 transition-all cursor-pointer group/item"
+                className={`flex items-center justify-between bg-white border p-4 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group/item ${borderCls}`}
             >
                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-500 shrink-0">
-                        <Smartphone size={18} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${localHere ? 'bg-emerald-50 text-emerald-500' : 'bg-sky-50 text-sky-500'}`}>
+                        {localHere ? <Volume2 size={18} /> : <Smartphone size={18} />}
                     </div>
-                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{name}</span>
+                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{display}</span>
                 </div>
                 <div className="flex items-center shrink-0">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(favIdFromItem(item)); }}
-                        className="p-2 text-amber-400 hover:bg-amber-50 rounded-xl transition-all"
-                        title="즐겨찾기 해제"
-                    >
-                        <Star size={18} className="fill-current" />
-                    </button>
+                    {renderStar(id)}
+                    {renderDeleteButtons(recForDelete, localHere, item)}
                 </div>
             </div>
         );
@@ -163,12 +194,12 @@ const EmptyState = ({
                             </>
                         )}
                     </div>
-                    {cacheKeys.length > 0 && (
+                    {cacheKeys.length > 0 && clearLocalCache && (
                         <button
-                            onClick={clearAllCache}
-                            className="text-xs font-bold text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1 mx-auto"
+                            onClick={clearLocalCache}
+                            className="text-xs font-bold text-slate-400 hover:text-emerald-600 transition-colors flex items-center gap-1 mx-auto"
                         >
-                            <Trash2 size={12} /> 히스토리 전체 삭제
+                            <HardDrive size={12} /> 이 기기 캐시 비우기
                         </button>
                     )}
                 </div>

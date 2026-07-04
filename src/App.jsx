@@ -87,7 +87,7 @@ const App = () => {
     showToast
   });
 
-  const { cacheKeys, deleteCache, deleteLocal, deleteServer, clearLocalCache, clearAllCache,
+  const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
@@ -200,8 +200,10 @@ const App = () => {
         onLockVault={lockVault}
         cacheKeys={cacheKeys}
         loadCache={loadCache}
-        deleteCache={deleteCache}
-        clearAllCache={clearAllCache}
+        deleteLocal={deleteLocal}
+        deleteServer={deleteServer}
+        clearLocalCache={clearLocalCache}
+        localVideoIds={localVideoIds}
         isFavorite={isFavorite}
         toggleFavorite={toggleFavorite}
         cloudItems={cloudItems}
