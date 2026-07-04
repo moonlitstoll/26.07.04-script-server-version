@@ -1,16 +1,58 @@
 import {
-    Upload, Volume2, Settings, Trash2
+    Upload, Volume2, Settings, Trash2, Star
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { getCacheDisplayName } from '../utils/cacheStatus';
+
+const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
 
 const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
     processFiles,
     showSettings, setShowSettings,
     config, updateField, onLockVault,
-    cacheKeys, loadCache, deleteCache, clearAllCache
+    cacheKeys, loadCache, deleteCache, clearAllCache,
+    isFavorite = () => false, toggleFavorite = () => {}
 }) => {
+    // 즐겨찾기 우선 정렬: 별표한 항목을 맨 위로
+    const favKeys = cacheKeys.filter(k => isFavorite(favIdFromKey(k)));
+    const restKeys = cacheKeys.filter(k => !isFavorite(favIdFromKey(k)));
+
+    const renderRow = (key) => {
+        const name = getCacheDisplayName(key).replace(/\.[^.]+$/, '');
+        const fav = isFavorite(favIdFromKey(key));
+        return (
+            <div
+                key={key}
+                onClick={() => loadCache(key)}
+                className="flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-50 transition-all cursor-pointer group/item"
+            >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover/item:bg-indigo-50 group-hover/item:text-indigo-500 transition-colors shrink-0">
+                        <Volume2 size={18} />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{name}</span>
+                </div>
+                <div className="flex items-center shrink-0">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(favIdFromKey(key)); }}
+                        className={`p-2 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-amber-400 hover:bg-amber-50'}`}
+                        title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
+                    >
+                        <Star size={18} className={fav ? 'fill-current' : ''} />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
+                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover/item:opacity-100"
+                        title="Delete"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div
             onDragOver={onDragOver}
@@ -72,30 +114,16 @@ const EmptyState = ({
                                 <p className="text-sm text-slate-400">저장된 기록이 없습니다.</p>
                             </div>
                         ) : (
-                            cacheKeys.map(key => {
-                                const name = getCacheDisplayName(key).replace(/\.[^.]+$/, '');
-                                return (
-                                    <div
-                                        key={key}
-                                        onClick={() => loadCache(key)}
-                                        className="flex items-center justify-between bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:border-indigo-300 hover:shadow-md hover:shadow-indigo-50 transition-all cursor-pointer group/item"
-                                    >
-                                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                                            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover/item:bg-indigo-50 group-hover/item:text-indigo-500 transition-colors shrink-0">
-                                                <Volume2 size={18} />
-                                            </div>
-                                            <span className="text-sm font-bold text-slate-700 line-clamp-3 break-all">{name}</span>
-                                        </div>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); deleteCache(key); }}
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover/item:opacity-100"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
+                            <>
+                                {favKeys.length > 0 && (
+                                    <div className="flex items-center justify-center gap-1.5 text-amber-500 pt-1 pb-0.5">
+                                        <Star size={12} className="fill-current" />
+                                        <span className="text-[11px] font-bold uppercase tracking-wider">즐겨찾기</span>
                                     </div>
-                                );
-                            })
+                                )}
+                                {favKeys.map(renderRow)}
+                                {restKeys.map(renderRow)}
+                            </>
                         )}
                     </div>
                     {cacheKeys.length > 0 && (

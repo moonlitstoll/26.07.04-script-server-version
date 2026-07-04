@@ -202,6 +202,8 @@ const App = () => {
         loadCache={loadCache}
         deleteCache={deleteCache}
         clearAllCache={clearAllCache}
+        isFavorite={isFavorite}
+        toggleFavorite={toggleFavorite}
       />
       {overlays}
       </>
