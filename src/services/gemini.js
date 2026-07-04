@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { extractOriginalAudio, splitAudio } from "../utils/audioExtractor";
+import { extractOriginalAudio, extractAudioWav, splitAudio } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 
@@ -128,13 +128,24 @@ async function uploadToGemini(blob, apiKey, displayName = 'audio') {
 
 // 파일에서 오디오 Blob 추출 (FFmpeg demux, 실패 시 원본 반환)
 async function extractAudioBlob(file) {
+    console.log(`[Stage 1] Extracting audio from ${file.type} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+
+    // 1순위: 브라우저 내장 Web Audio API로 16kHz 모노 WAV 추출 (FFmpeg 불필요, 용량 소)
     try {
-        console.log(`[Stage 1] Extracting audio from ${file.type} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
+        const wav = await extractAudioWav(file);
+        console.log(`[Stage 1] WebAudio 추출 완료: ${(wav.size / 1024 / 1024).toFixed(1)}MB (16kHz mono WAV)`);
+        return wav;
+    } catch (e) {
+        console.warn('[Stage 1] WebAudio 추출 실패, FFmpeg 시도:', e && e.message);
+    }
+
+    // 2순위: FFmpeg demux (환경에 따라 실패 가능)
+    try {
         const audioBlob = await extractOriginalAudio(file);
         console.log(`[Stage 1] Demuxing complete: ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB`);
         return audioBlob;
     } catch (err) {
-        console.warn('[Stage 1] Audio extraction failed, using original:', err.message);
+        console.warn('[Stage 1] FFmpeg 추출도 실패, 원본 사용:', err && err.message);
         return file;
     }
 }
