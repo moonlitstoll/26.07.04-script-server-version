@@ -161,12 +161,14 @@ const App = () => {
     restoredForRef.current = activeFile.id;
 
     const pos = getLastPos(activeFile.file.name, activeFile.file.size);
+    console.log('[Restore] name=', JSON.stringify(activeFile.file.name), 'size=', activeFile.file.size, 'pos=', pos, 'dataLen=', activeFile.data.length);
     const item = pos ? activeFile.data[pos.idx] : null;
-    if (!item) return;
+    if (!item) { console.log('[Restore] 저장 위치 없음/불일치 → 스킵'); return; }
 
     restoreTo(pos.idx, item.seconds);            // 재생 커서·하이라이트
     requestAnimationFrame(() => {                // 스크롤 (아이템 마운트 후)
       const el = scrollContainerRef.current?.querySelector(`[data-idx="${pos.idx}"]`);
+      console.log('[Restore] idx', pos.idx, '스크롤 대상 찾음?', !!el);
       if (el) el.scrollIntoView({ block: 'start' });
     });
   }, [activeFile, isSwitchingFile, restoreTo]);
