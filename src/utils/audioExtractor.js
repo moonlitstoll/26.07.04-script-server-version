@@ -1,12 +1,15 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 let ffmpegInstance = null;
 let isLoading = false;
 
+// 싱글스레드 코어 (SharedArrayBuffer 불필요). CDN에서 받아 blob URL로 로드해
+// 배포 환경(Vercel 등)에서 코어 미해석으로 인한 FS error를 방지한다.
+const FFMPEG_CORE_VERSION = '0.12.6';
+
 /**
- * FFmpeg 싱글 스레드 인스턴스 반환 
- * (SharedArrayBuffer가 필요 없는 100% 안전한 코어로 구동)
+ * FFmpeg 싱글 스레드 인스턴스 반환
  */
 async function getFFmpeg() {
     if (ffmpegInstance) return ffmpegInstance;
@@ -18,8 +21,12 @@ async function getFFmpeg() {
     isLoading = true;
     try {
         const ffmpeg = new FFmpeg();
-        // 기본 모듈 로드 (core-mt 제외, 보안 정책 충돌 제로)
-        await ffmpeg.load();
+        const baseURL = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`;
+        // 코어/wasm을 명시적으로 로드 (toBlobURL로 same-origin blob 변환 → CSP/코어 해석 문제 회피)
+        await ffmpeg.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
         ffmpegInstance = ffmpeg;
         return ffmpeg;
     } catch (err) {
