@@ -44,6 +44,18 @@ const App = () => {
   const showConfirm = useCallback((opts) => setConfirmState(opts), []);
   const showToast = useCallback((opts) => setToastState(opts), []);
 
+  // 보관함 잠그기: 이 기기에 저장된 암호를 지우고 암호 입력창으로 복귀 (클라우드 대본은 보존)
+  const lockVault = useCallback(() => {
+    showConfirm({
+      message: "보관함을 잠글까요? 이 기기에 저장된 암호가 지워지고 암호 입력창으로 돌아갑니다. (클라우드에 저장된 대본은 지워지지 않습니다)",
+      onConfirm: () => {
+        persistPassphrase('');
+        setPassphraseState('');
+        setShowSettings(false);
+      },
+    });
+  }, [showConfirm]);
+
   const toggleGlobalAnalysis = useCallback(() => setShowAnalysis(prev => !prev), []);
   const stage2AbortRef = useRef(null);
 
@@ -204,6 +216,7 @@ const App = () => {
         setShowSettings={setShowSettings}
         config={config}
         updateField={updateField}
+        onLockVault={lockVault}
         cacheKeys={cacheKeys}
         loadCache={loadCache}
         deleteCache={deleteCache}
@@ -406,6 +419,7 @@ const App = () => {
         <SettingsModal
           config={config}
           updateField={updateField}
+          onLockVault={lockVault}
           onClose={() => setShowSettings(false)}
         />
       )}

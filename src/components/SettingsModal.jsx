@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Settings, X, Check, Info
+    Settings, X, Check, Info, Lock
 } from 'lucide-react';
 
 const MODELS = [
@@ -21,7 +21,7 @@ const MODEL_INFO = [
     { name: '3.5 Flash', s1: '?', s2: 'A+', rpm: '1K', rpd: '10K', desc: '최신 모델. 전사 안정성 미검증' },
 ];
 
-const SettingsModal = ({ config, updateField, onClose }) => {
+const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
     const [showModelInfo, setShowModelInfo] = useState(false);
 
     const renderModelSelector = (label, colorClass, field) => (
@@ -371,6 +371,23 @@ const SettingsModal = ({ config, updateField, onClose }) => {
                             </div>
                         )}
                     </div>
+
+                    {/* 보관함 잠그기 / 암호 변경 */}
+                    {onLockVault && (
+                        <div className="space-y-2 pt-4 border-t border-slate-50">
+                            <label className="text-sm font-bold text-slate-700">기기 간 공유 보관함</label>
+                            <button
+                                type="button"
+                                onClick={onLockVault}
+                                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all"
+                            >
+                                <Lock size={16} /> 보관함 잠그기 / 암호 변경
+                            </button>
+                            <p className="text-[10px] text-slate-400 leading-relaxed">
+                                이 기기에 저장된 암호를 지우고 암호 입력창으로 돌아갑니다. 다른 암호를 넣어 다른 보관함으로 전환할 수 있어요. 클라우드에 저장된 대본은 지워지지 않습니다.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-6 bg-slate-50 flex gap-3">

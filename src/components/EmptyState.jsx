@@ -8,7 +8,7 @@ const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
     processFiles,
     showSettings, setShowSettings,
-    config, updateField,
+    config, updateField, onLockVault,
     cacheKeys, loadCache, deleteCache, clearAllCache
 }) => {
     return (
@@ -32,6 +32,7 @@ const EmptyState = ({
                 <SettingsModal
                     config={config}
                     updateField={updateField}
+                    onLockVault={onLockVault}
                     onClose={() => setShowSettings(false)}
                 />
             )}
