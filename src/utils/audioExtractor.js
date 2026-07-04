@@ -8,6 +8,9 @@ let isLoading = false;
 const FFMPEG_CORE_JS = `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.js`;
 const FFMPEG_CORE_WASM = `${import.meta.env.BASE_URL}ffmpeg/ffmpeg-core.wasm`;
 
+// 음성 인식용 목표 샘플레이트 (16kHz 모노면 전사에 충분하고 용량이 작다)
+const TARGET_SAMPLE_RATE = 16000;
+
 /**
  * FFmpeg 싱글 스레드 인스턴스 반환
  */
@@ -71,7 +74,7 @@ function encodeWAV(samples, sampleRate) {
  * @param {number} targetRate 목표 샘플레이트 (기본 16000)
  * @returns {Promise<Blob>} audio/wav Blob
  */
-export async function extractAudioWav(file, targetRate = 16000) {
+export async function extractAudioWav(file, targetRate = TARGET_SAMPLE_RATE) {
     const arrayBuffer = await file.arrayBuffer();
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) throw new Error('AudioContext 미지원 브라우저');
@@ -136,7 +139,7 @@ export async function splitAudio(audioBlob, totalDuration, chunkDurationSec, ove
             index++;
         }
     } finally {
-        try { await ffmpeg.deleteFile(inputName); } catch (e) { /* cleanup */ }
+        try { await ffmpeg.deleteFile(inputName); } catch { /* cleanup */ }
     }
 
     console.log(`[Split] ${chunks.length} chunks (${chunkDurationSec}s each, ${overlapSec}s overlap)`);
@@ -166,7 +169,7 @@ export async function extractOriginalAudio(file) {
         // 2. 오디오만 디코드 → 16kHz 모노 WAV 재인코딩
         // -vn: 비디오 무시, -ac 1: 모노, -ar 16000: 16kHz, -c:a pcm_s16le: 16-bit PCM
         // (H.265 등 브라우저가 못 읽는 코덱도 FFmpeg는 디코드 가능 → Gemini 호환 오디오 생성)
-        await ffmpeg.exec(['-i', inputName, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', outputName]);
+        await ffmpeg.exec(['-i', inputName, '-vn', '-ac', '1', '-ar', String(TARGET_SAMPLE_RATE), '-c:a', 'pcm_s16le', outputName]);
 
         // 3. 적출된 결과 읽기
         const data = await ffmpeg.readFile(outputName);

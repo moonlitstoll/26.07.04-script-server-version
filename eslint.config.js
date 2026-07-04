@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // dist: 빌드 산출물 / public: 정적 자산(vendored ffmpeg-core.js 등, minified라 린트 대상 아님)
+  globalIgnores(['dist', 'public']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
