@@ -62,7 +62,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, openFilePicker, runStage2, retryAnalysis } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, stage2AbortRef,
@@ -200,7 +200,6 @@ const App = () => {
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         processFiles={processFiles}
-        openFilePicker={openFilePicker}
         showSettings={showSettings}
         setShowSettings={setShowSettings}
         config={config}
@@ -424,7 +423,6 @@ const App = () => {
           deleteCache={deleteCache}
           clearAllCache={clearAllCache}
           processFiles={processFiles}
-          openFilePicker={openFilePicker}
           removeFile={removeFile}
           setActiveFileId={setActiveFileId}
           cloudItems={cloudItems}

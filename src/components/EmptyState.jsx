@@ -6,7 +6,7 @@ import { getCacheDisplayName } from '../utils/cacheStatus';
 
 const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
-    processFiles, openFilePicker,
+    processFiles,
     showSettings, setShowSettings,
     config, updateField,
     cacheKeys, loadCache, deleteCache, clearAllCache
@@ -47,14 +47,7 @@ const EmptyState = ({
                 </div>
 
                 <div className="max-w-3xl mx-auto group relative flex items-center gap-6 p-10 rounded-3xl border-2 border-dashed transition-all duration-300 cursor-pointer border-slate-200 hover:border-indigo-300 hover:bg-white bg-white/60">
-                    <input
-                        type="file"
-                        multiple
-                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                        onClick={(e) => { if (openFilePicker && window.showOpenFilePicker) { e.preventDefault(); openFilePicker(); } }}
-                        onChange={(e) => processFiles(e.target.files)}
-                        accept="audio/*,video/*"
-                    />
+                    <input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={(e) => processFiles(e.target.files)} accept="audio/*,video/*" />
                     <div className="w-full flex flex-col items-center gap-4">
                         <div className="p-4 bg-indigo-100 text-indigo-600 rounded-2xl group-hover:scale-110 transition-transform">
                             <Upload size={32} />

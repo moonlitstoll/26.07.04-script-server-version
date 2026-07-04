@@ -6,7 +6,7 @@ import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
 
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
-    loadCache, deleteCache, clearAllCache, processFiles, openFilePicker, removeFile,
+    loadCache, deleteCache, clearAllCache, processFiles, removeFile,
     setActiveFileId, cloudItems = [], loadCloud, deleteCloud, onClose
 }) => {
     const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
@@ -71,13 +71,6 @@ const CacheHistoryModal = ({
                                 type="file"
                                 multiple
                                 className="hidden"
-                                onClick={(e) => {
-                                    if (openFilePicker && window.showOpenFilePicker) {
-                                        e.preventDefault();
-                                        openFilePicker();
-                                        onClose();
-                                    }
-                                }}
                                 onChange={(e) => {
                                     const selectedFiles = e.target.files;
                                     if (selectedFiles && selectedFiles.length > 0) {

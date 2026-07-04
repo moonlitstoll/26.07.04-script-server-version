@@ -170,7 +170,7 @@ export const useMediaAnalysis = ({
             id: Math.random().toString(36).substr(2, 9),
             file: it.file,
             handle: it.handle,
-            url: null, // 메모리 적재(materializeFile) 후 설정
+            url: URL.createObjectURL(it.file), // 재생은 항상 원본 파일로 (원래 동작 보존)
             data: [],
             isAnalyzing: true,
             error: null
@@ -188,50 +188,43 @@ export const useMediaAnalysis = ({
             try {
                 if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-                // ① 가능하면 메모리에 적재(OneDrive/Drive 온디맨드 대응).
-                //    핸들이 있으면 매번 새 참조를 재획득(스트리밍 파일 대응), 없으면 일반 적재.
-                //    실패해도 절대 중단하지 않고 원본 파일로 그대로 진행 → 기존 동작 보존
-                const onWait = (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (클라우드 다운로드 대기)', type: 'success' }); };
-                let file = fItem.file;
+                // 전사(분석)용으로만 파일을 메모리에 적재 시도 (클라우드/온디맨드 파일 대응).
+                // 재생 URL과 state의 원본 file은 그대로 유지 → 재생은 원본으로 정상 동작.
+                // 적재 실패해도 중단하지 않고 원본으로 진행.
+                const onWait = (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); };
+                let fileForAnalysis = fItem.file;
                 try {
-                    file = fItem.handle
+                    fileForAnalysis = fItem.handle
                         ? await materializeFromHandle(fItem.handle, { onWait })
                         : await materializeFile(fItem.file, { onWait });
                 } catch (e) {
                     console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
-                    file = fItem.file;
+                    fileForAnalysis = fItem.file;
                 }
-                // 재생용 URL 생성 (메모리 파일 우선, 실패 시 원본)
-                const objectUrl = URL.createObjectURL(file);
-                setFiles(prev => prev.map(p => {
-                    if (p.id !== fItem.id) return p;
-                    if (p.url) URL.revokeObjectURL(p.url);
-                    return { ...p, file, url: objectUrl };
-                }));
 
-                const cacheKey = `gemini_analysis_${file.name}_${file.size}`;
+                const cacheKey = `gemini_analysis_${fItem.file.name}_${fItem.file.size}`;
                 const cacheEntry = parseCacheEntry(cacheKey);
 
                 if (cacheEntry) {
-                    console.log("Using cached analysis for", file.name);
+                    console.log("Using cached analysis for", fItem.file.name);
                     let cacheDuration = 0;
-                    try { cacheDuration = await getMediaDuration(file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
+                    try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
                     const data = sanitizeData(cacheEntry.rawData, cacheDuration);
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false, isFromCache: true } : p));
                 } else {
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, isAnalyzing: true } : p));
 
-                    const data = await runStage1(fItem.id, file);
+                    const data = await runStage1(fItem.id, fileForAnalysis);
 
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false } : p));
 
-                    saveCacheEntry(file, data, 'extracted');
+                    saveCacheEntry(fItem.file, data, 'extracted');
                     if (refreshCacheKeys) refreshCacheKeys();
 
-                    runStage2(fItem.id, file, data, apiKey, stage2Model);
+                    runStage2(fItem.id, fileForAnalysis, data, apiKey, stage2Model);
 
                     try {
-                        await mediaStore.saveFile(file);
+                        await mediaStore.saveFile(fileForAnalysis);
                     } catch (storageError) {
                         console.warn("Failed to save media file to store", storageError);
                     }
@@ -241,13 +234,13 @@ export const useMediaAnalysis = ({
                         try {
                             let mediaUrl = null;
                             try {
-                                mediaUrl = await cloudUploadMedia(file);
+                                mediaUrl = await cloudUploadMedia(fileForAnalysis);
                             } catch (e) {
                                 console.warn('[Cloud] 영상 업로드 실패:', e);
                             }
                             let dur = 0;
-                            try { dur = await getMediaDuration(file); } catch { /* noop */ }
-                            await cloudSaveMeta(file, data, 'extracted', mediaUrl, dur);
+                            try { dur = await getMediaDuration(fItem.file); } catch { /* noop */ }
+                            await cloudSaveMeta(fItem.file, data, 'extracted', mediaUrl, dur);
                         } catch (e) {
                             console.warn('[Cloud] 대본 저장 실패:', e);
                         }
@@ -278,60 +271,29 @@ export const useMediaAnalysis = ({
         try {
             if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-            // 가능하면 메모리에 적재. 실패해도 중단하지 않고 원본으로 진행 (기존 동작 보존)
-            let file = targetFile;
+            // 전사용으로만 메모리 적재 시도. 재생 URL/원본은 그대로 유지 (기존 동작 보존)
+            let fileForAnalysis = targetFile;
             try {
-                file = await materializeFile(targetFile, {
-                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (클라우드 다운로드 대기)', type: 'success' }); }
+                fileForAnalysis = await materializeFile(targetFile, {
+                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
                 });
             } catch (e) {
                 console.warn('[Retry] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
-                file = targetFile;
+                fileForAnalysis = targetFile;
             }
-            const objectUrl = URL.createObjectURL(file);
-            setFiles(prev => prev.map(p => {
-                if (p.id !== fileId) return p;
-                if (p.url) URL.revokeObjectURL(p.url);
-                return { ...p, file, url: objectUrl };
-            }));
 
-            const data = await runStage1(fileId, file);
+            const data = await runStage1(fileId, fileForAnalysis);
 
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: data, isAnalyzing: false } : p));
 
-            saveCacheEntry(file, data, 'extracted');
+            saveCacheEntry(targetFile, data, 'extracted');
             if (refreshCacheKeys) refreshCacheKeys();
 
-            runStage2(fileId, file, data, apiKey, stage2Model);
+            runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model);
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error("Retry Analysis Error", err);
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, error: "Analysis failed: " + err.message, isAnalyzing: false } : p));
-        }
-    };
-
-    // File System Access API로 파일 선택 (파일 핸들 확보 → 클라우드 스트리밍 파일 재획득 가능)
-    // 미지원 브라우저에서는 false 반환 → 호출부가 기존 <input>으로 폴백
-    const openFilePicker = async () => {
-        if (!window.showOpenFilePicker) return false;
-        try {
-            const handles = await window.showOpenFilePicker({
-                multiple: true,
-                types: [{
-                    description: 'Media',
-                    accept: {
-                        'video/*': ['.mp4', '.mov', '.mkv', '.webm', '.avi', '.m4v'],
-                        'audio/*': ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'],
-                    },
-                }],
-            });
-            const picked = await Promise.all(handles.map(async h => ({ handle: h, file: await h.getFile() })));
-            processFiles(picked);
-            return true;
-        } catch (e) {
-            if (e && e.name === 'AbortError') return true; // 사용자가 취소한 경우
-            console.warn('[Picker] showOpenFilePicker 실패 → 기본 입력으로 폴백:', e);
-            return false;
         }
     };
 
@@ -344,29 +306,8 @@ export const useMediaAnalysis = ({
     };
     const onDrop = (e) => {
         e.preventDefault();
-        setIsDragging(false);
-        const dt = e.dataTransfer;
-        const filesFallback = Array.from(dt.files || []);
-        const dtItems = dt.items;
-        // 가능하면 드롭 항목에서 파일시스템 핸들 확보 (스트리밍 파일 재획득 대응)
-        if (dtItems && dtItems.length && typeof dtItems[0].getAsFileSystemHandle === 'function') {
-            const handlePromises = [];
-            for (const it of Array.from(dtItems)) {
-                if (it.kind === 'file') handlePromises.push(it.getAsFileSystemHandle());
-            }
-            Promise.all(handlePromises).then(async (handles) => {
-                const picked = [];
-                for (const handle of handles) {
-                    if (handle && handle.kind === 'file') {
-                        try { picked.push({ handle, file: await handle.getFile() }); } catch { /* skip */ }
-                    }
-                }
-                processFiles(picked.length ? picked : filesFallback);
-            }).catch(() => processFiles(filesFallback));
-            return;
-        }
-        processFiles(filesFallback);
+        processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, openFilePicker, runStage2, retryAnalysis, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };
