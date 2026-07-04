@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import {
-    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2
+    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Cloud, Smartphone
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
 
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
     loadCache, deleteCache, clearAllCache, processFiles, removeFile,
-    setActiveFileId, onClose
+    setActiveFileId, cloudItems = [], loadCloud, deleteCloud, onClose
 }) => {
     const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
     const sortedFilteredCacheKeys = useMemo(() =>
@@ -15,6 +15,19 @@ const CacheHistoryModal = ({
             .filter(key => key.toLowerCase().includes(searchQuery.toLowerCase()))
             .sort().reverse(),
         [cacheKeys, searchQuery]
+    );
+
+    // 로컬에 이미 있는 항목은 클라우드 섹션에서 제외 (중복 방지)
+    const localKeySet = useMemo(() =>
+        new Set(cacheKeys.map(k => k.replace('gemini_analysis_', ''))),
+        [cacheKeys]
+    );
+    const cloudOnlyItems = useMemo(() =>
+        (cloudItems || [])
+            .filter(it => !localKeySet.has(`${it.name}_${it.size}`))
+            .filter(it => (it.name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+            .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)),
+        [cloudItems, localKeySet, searchQuery]
     );
 
     return (
@@ -83,7 +96,7 @@ const CacheHistoryModal = ({
                         </div>
                     </div>
 
-                    {analyzingFiles.length === 0 && sortedFilteredCacheKeys.length === 0 ? (
+                    {analyzingFiles.length === 0 && sortedFilteredCacheKeys.length === 0 && cloudOnlyItems.length === 0 ? (
                         <div className="text-center py-20 text-slate-400">
                             <Clock size={48} className="mx-auto mb-4 opacity-20" />
                             <p className="text-lg font-medium">No history found</p>
@@ -186,6 +199,54 @@ const CacheHistoryModal = ({
                                     );
                                 })
                             }
+
+                            {/* 3. Cloud Files (다른 기기에서 추출한 대본) */}
+                            {cloudOnlyItems.length > 0 && (
+                                <div className="pt-3 pb-1">
+                                    <div className="flex items-center gap-2 px-1 text-slate-400">
+                                        <Cloud size={14} />
+                                        <span className="text-[11px] font-bold uppercase tracking-wider">다른 기기 (클라우드)</span>
+                                    </div>
+                                </div>
+                            )}
+                            {cloudOnlyItems.map(item => {
+                                const displayName = (item.name || 'Untitled').replace(/\.[^.]+$/, '');
+                                const isDone = item.status === 'completed';
+                                return (
+                                    <div
+                                        key={item.folder}
+                                        onClick={() => loadCloud && loadCloud(item)}
+                                        className="group flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all mb-2 bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/40"
+                                    >
+                                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                                            <div className="p-2.5 rounded-xl bg-sky-50 text-sky-500">
+                                                <Smartphone size={20} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-base font-bold line-clamp-3 break-all text-slate-700">{displayName}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                        {isDone ? '분석 완료' : '전사 완료'}
+                                                    </span>
+                                                    <span className="text-[10px] font-medium text-slate-400">
+                                                        {item.mediaUrl ? '영상 포함' : '대본만'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 pl-4 border-l border-slate-100/50 ml-4">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); deleteCloud && deleteCloud(item); }}
+                                                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                title="클라우드에서 삭제"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
 

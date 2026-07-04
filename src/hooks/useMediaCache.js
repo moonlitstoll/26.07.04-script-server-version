@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
+import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem } from '../services/cloudSync';
 
 export const useMediaCache = ({
     files,
@@ -19,9 +20,20 @@ export const useMediaCache = ({
     showToast
 }) => {
     const [cacheKeys, setCacheKeys] = useState([]);
+    const [cloudItems, setCloudItems] = useState([]);
 
     const refreshCacheKeys = useCallback(() => {
         setCacheKeys(Object.keys(localStorage).filter(k => k.startsWith('gemini_analysis_')));
+    }, []);
+
+    // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort
+    const refreshCloud = useCallback(async () => {
+        try {
+            const items = await cloudListItems();
+            setCloudItems(items);
+        } catch (e) {
+            console.warn('[Cloud] 목록 조회 실패:', e);
+        }
     }, []);
 
     useEffect(() => {
@@ -163,12 +175,72 @@ export const useMediaCache = ({
         }
     };
 
+    // 클라우드 항목 로드 (다른 기기서 추출한 대본을 불러와 재생)
+    const loadCloud = async (item) => {
+        if (resetPlayerState) resetPlayerState();
+        if (setIsSwitchingFile) setIsSwitchingFile(true);
+        try {
+            const rawData = await cloudFetchData(item.dataUrl);
+            if (!rawData || !Array.isArray(rawData)) throw new Error('클라우드 데이터 형식 오류');
+
+            const data = sanitizeData(rawData, item.duration || 0);
+            const id = 'cloud-' + Date.now();
+            const newFileEntry = {
+                id,
+                file: { name: item.name, type: item.type || 'video/unknown', size: item.size },
+                data,
+                url: item.mediaUrl || null,
+                isAnalyzing: false,
+                isFromCache: true
+            };
+
+            if (setFiles) setFiles(prev => [...prev, newFileEntry]);
+            if (setActiveFileId) setActiveFileId(id);
+            if (setShowSettings) setShowSettings(false);
+            if (setShowCacheHistory) setShowCacheHistory(false);
+
+            // 미완료 분석이 남아있으면 Stage 2 재개 (기기 간 이어서 분석)
+            const hasPending = data.some(d => !d.isAnalyzed);
+            if (hasPending && apiKey && runStage2) {
+                console.log(`[Cloud Load] ${data.filter(d => !d.isAnalyzed).length}개 미완료 항목 → Stage 2 재개`);
+                runStage2(id, newFileEntry.file, data, apiKey, stage2Model);
+            }
+        } catch (e) {
+            console.error('[Cloud] 로드 실패:', e);
+            showToast({ message: '클라우드 대본 로드에 실패했습니다.', type: 'error' });
+        } finally {
+            if (setIsSwitchingFile) setIsSwitchingFile(false);
+        }
+    };
+
+    // 클라우드 항목 삭제 (영상+대본 모두 서버에서 제거)
+    const deleteCloud = async (item) => {
+        showConfirm({
+            message: "이 대본과 영상을 클라우드에서 삭제하시겠습니까?",
+            onConfirm: async () => {
+                try {
+                    await cloudDeleteItem({ name: item.name, size: item.size });
+                } catch (e) {
+                    console.warn('[Cloud] 삭제 실패:', e);
+                    showToast({ message: '클라우드 삭제에 실패했습니다.', type: 'error' });
+                    return;
+                }
+                setCloudItems(prev => prev.filter(i => i.folder !== item.folder));
+                showToast({ message: "삭제 완료", type: "success" });
+            }
+        });
+    };
+
     return {
         cacheKeys,
         setCacheKeys,
         deleteCache,
         clearAllCache,
         loadCache,
-        refreshCacheKeys
+        refreshCacheKeys,
+        cloudItems,
+        refreshCloud,
+        loadCloud,
+        deleteCloud
     };
 };

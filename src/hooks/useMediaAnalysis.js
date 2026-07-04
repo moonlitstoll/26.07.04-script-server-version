@@ -3,6 +3,7 @@ import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
+import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -102,6 +103,13 @@ export const useMediaAnalysis = ({
             if (showToast) showToast({ message: '분석 실패: API 오류가 발생했습니다. 설정에서 모델을 확인해주세요.', type: 'error' });
         }
 
+        // 클라우드에 최종 분석 결과 반영 (best-effort, mediaUrl은 서버가 기존 값 보존)
+        if (!signal.aborted && totalSuccessCount > 0) {
+            const allDone = workingData.every(d => d.isAnalyzed);
+            cloudSaveMeta(fileInfo, workingData, allDone ? 'completed' : 'analyzing', null, 0)
+                .catch(e => console.warn('[Cloud] 분석 결과 저장 실패:', e));
+        }
+
         console.log(`[Stage 2] Finished. Analyzed: ${totalSuccessCount}/${pendingIndices.length}`);
     };
 
@@ -199,6 +207,23 @@ export const useMediaAnalysis = ({
                     } catch (storageError) {
                         console.warn("Failed to save media file to store", storageError);
                     }
+
+                    // 클라우드 동기화 (best-effort): 원본 영상 업로드 + 대본 저장 → 다른 기기서 열람 가능
+                    (async () => {
+                        try {
+                            let mediaUrl = null;
+                            try {
+                                mediaUrl = await cloudUploadMedia(fItem.file);
+                            } catch (e) {
+                                console.warn('[Cloud] 영상 업로드 실패:', e);
+                            }
+                            let dur = 0;
+                            try { dur = await getMediaDuration(fItem.file); } catch { /* noop */ }
+                            await cloudSaveMeta(fItem.file, data, 'extracted', mediaUrl, dur);
+                        } catch (e) {
+                            console.warn('[Cloud] 대본 저장 실패:', e);
+                        }
+                    })();
                 }
             } catch (err) {
                 if (err.name === 'AbortError') return;

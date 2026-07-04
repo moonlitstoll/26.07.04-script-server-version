@@ -16,10 +16,15 @@ import PlayerControls from './components/PlayerControls';
 import EmptyState from './components/EmptyState';
 import ConfirmModal from './components/ConfirmModal';
 import Toast from './components/Toast';
+import PassphraseGate from './components/PassphraseGate';
+import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
 
 
 const App = () => {
   const { config, updateField } = useSettings();
+
+  // 기기 간 동기화용 비밀 암호
+  const [passphrase, setPassphraseState] = useState(() => getPassphrase());
   const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes } = config;
 
   // Multi-file state
@@ -64,7 +69,8 @@ const App = () => {
     showToast
   });
 
-  const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys } = useMediaCache({
+  const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys,
+    cloudItems, refreshCloud, loadCloud, deleteCloud } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
   });
@@ -76,7 +82,13 @@ const App = () => {
 
   useEffect(() => {
     if (showSettings || showCacheHistory) refreshCacheKeys();
-  }, [showSettings, showCacheHistory, refreshCacheKeys]);
+    if (showCacheHistory) refreshCloud();
+  }, [showSettings, showCacheHistory, refreshCacheKeys, refreshCloud]);
+
+  // 암호가 설정되면 클라우드 보관함 목록을 미리 불러온다
+  useEffect(() => {
+    if (passphrase) refreshCloud();
+  }, [passphrase, refreshCloud]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -170,6 +182,13 @@ const App = () => {
       )}
     </>
   );
+
+  // ─── 비밀 암호 게이트 (동기화 활성화 전 최초 1회) ───
+  if (!passphrase) {
+    return (
+      <PassphraseGate onSubmit={(p) => { persistPassphrase(p); setPassphraseState(p); }} />
+    );
+  }
 
   // ─── Empty State ───
   if (files.length === 0) {
@@ -406,6 +425,9 @@ const App = () => {
           processFiles={processFiles}
           removeFile={removeFile}
           setActiveFileId={setActiveFileId}
+          cloudItems={cloudItems}
+          loadCloud={loadCloud}
+          deleteCloud={deleteCloud}
           onClose={() => setShowCacheHistory(false)}
         />
       )}
