@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
+import { splitMergedSentences } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
 
 const resolveModel = (modelId) =>
@@ -494,7 +495,10 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
             throw new Error("API Error (Stage 1): No valid data found. Video might just be music/noise.");
         }
 
-        return allMatches.sort((a, b) => a.seconds - b.seconds);
+        // [후처리] 모델이 여러 문장을 한 줄에 뭉쳐 출력한 경우 문장별로 분할
+        // (짧은 문장은 인접과 병합, 시각은 다음 항목까지 글자 수 비례로 배분)
+        const sorted = allMatches.sort((a, b) => a.seconds - b.seconds);
+        return splitMergedSentences(sorted, totalDuration);
     } catch (err) {
         if (err.name === 'AbortError') throw err;
         console.error(`Stage 1 Error: `, err);
