@@ -4,6 +4,30 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
 import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem } from '../services/cloudSync';
 
+// Content-Length 기반으로 진행률을 보고하며 Blob 다운로드.
+// 길이를 모르거나 스트림을 못 읽으면 onProgress(null)로 폴백하고 통째로 받는다.
+async function fetchBlobWithProgress(url, onProgress) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`media ${res.status}`);
+    const total = Number(res.headers.get('Content-Length')) || 0;
+    if (!res.body || !total) {
+        if (onProgress) onProgress(null);
+        return await res.blob();
+    }
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (onProgress) onProgress(Math.min(100, Math.round((received / total) * 100)));
+    }
+    const type = res.headers.get('Content-Type') || 'application/octet-stream';
+    return new Blob(chunks, { type });
+}
+
 export const useMediaCache = ({
     files,
     setFiles,
@@ -21,6 +45,8 @@ export const useMediaCache = ({
 }) => {
     const [cacheKeys, setCacheKeys] = useState([]);
     const [cloudItems, setCloudItems] = useState([]);
+    // 클라우드 영상 다운로드 진행률: null(비활성) | { percent: number|null }
+    const [cloudDownload, setCloudDownload] = useState(null);
 
     const refreshCacheKeys = useCallback(() => {
         setCacheKeys(Object.keys(localStorage).filter(k => k.startsWith('gemini_analysis_')));
@@ -193,9 +219,8 @@ export const useMediaCache = ({
                 try {
                     let blob = await mediaStore.getFile(item.name, item.size);
                     if (!blob) {
-                        const res = await fetch(item.mediaUrl);
-                        if (!res.ok) throw new Error(`media ${res.status}`);
-                        const downloaded = await res.blob();
+                        setCloudDownload({ percent: 0 });
+                        const downloaded = await fetchBlobWithProgress(item.mediaUrl, (percent) => setCloudDownload({ percent }));
                         blob = new File([downloaded], item.name, { type: item.type || downloaded.type || 'video/mp4' });
                         try { await mediaStore.saveFile(blob); } catch (e) { console.warn('[Cloud] 영상 로컬 저장 실패:', e); }
                     }
@@ -231,6 +256,7 @@ export const useMediaCache = ({
             console.error('[Cloud] 로드 실패:', e);
             showToast({ message: '클라우드 대본 로드에 실패했습니다.', type: 'error' });
         } finally {
+            setCloudDownload(null);
             if (setIsSwitchingFile) setIsSwitchingFile(false);
         }
     };
@@ -263,6 +289,7 @@ export const useMediaCache = ({
         cloudItems,
         refreshCloud,
         loadCloud,
-        deleteCloud
+        deleteCloud,
+        cloudDownload
     };
 };

@@ -85,7 +85,7 @@ const App = () => {
   });
 
   const { cacheKeys, deleteCache, clearAllCache, loadCache, refreshCacheKeys,
-    cloudItems, refreshCloud, loadCloud, deleteCloud } = useMediaCache({
+    cloudItems, refreshCloud, loadCloud, deleteCloud, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
   });
@@ -143,6 +143,14 @@ const App = () => {
           type={toastState.type}
           onClose={() => setToastState(null)}
         />
+      )}
+      {cloudDownload && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-5 py-3 bg-slate-900/90 text-white rounded-2xl shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          <span className="text-sm font-bold whitespace-nowrap">
+            영상 받는 중{cloudDownload.percent != null ? ` ${cloudDownload.percent}%` : '...'}
+          </span>
+        </div>
       )}
     </>
   );
