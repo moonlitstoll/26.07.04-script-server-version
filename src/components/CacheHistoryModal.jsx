@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
-    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Smartphone, Star, MoreVertical
+    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Trash2, Star
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
 
@@ -15,8 +15,6 @@ const CacheHistoryModal = ({
     setActiveFileId, cloudItems = [], loadCloud,
     isFavorite = () => false, toggleFavorite = () => {}, onClose
 }) => {
-    const [menuOpenId, setMenuOpenId] = useState(null);
-
     const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
 
     // 로컬 + 클라우드를 "{name}_{size}" 기준으로 하나로 병합 (같은 녹음은 한 줄)
@@ -68,11 +66,10 @@ const CacheHistoryModal = ({
     // 통합 항목 1행
     const renderRecordRow = (rec) => {
         const hasLocal = !!rec.localKey;
-        const hasCloud = !!rec.cloudItem;
         const display = stripExt(rec.name);
         const isActive = activeFile?.file?.name === rec.name;
 
-        // 상태 뱃지
+        // 상태 뱃지 (분석/전사 진행 상태 — 저장 위치와 무관)
         let statusText, statusCls, progressText = null;
         if (hasLocal) {
             const s = getCacheStatus(rec.localKey);
@@ -82,13 +79,6 @@ const CacheHistoryModal = ({
             statusText = done ? '분석 완료' : '전사 완료';
             statusCls = done ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
         }
-
-        // 저장 위치 뱃지
-        const where = hasLocal && hasCloud
-            ? { text: '이 기기 · 클라우드', cls: 'bg-indigo-50 text-indigo-500' }
-            : hasCloud
-                ? { text: '클라우드', cls: 'bg-sky-50 text-sky-500' }
-                : { text: '이 기기만', cls: 'bg-amber-50 text-amber-600' };
 
         const open = () => { if (hasLocal) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); };
 
@@ -101,51 +91,27 @@ const CacheHistoryModal = ({
                     : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}
             >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
-                    <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : hasLocal ? 'bg-slate-100 text-slate-500' : 'bg-sky-50 text-sky-500'}`}>
-                        {isActive ? <Check size={20} /> : hasLocal ? <BookOpen size={20} /> : <Smartphone size={20} />}
+                    <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        {isActive ? <Check size={20} /> : <BookOpen size={20} />}
                     </div>
                     <div className="min-w-0">
                         <p className={`text-base font-bold line-clamp-3 break-all ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{display}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
                             {progressText && <span className="text-[10px] font-medium text-slate-400">{progressText}</span>}
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${where.cls}`}>{where.text}</span>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-1 pl-2 border-l border-slate-100/50 ml-2">
                     {renderStar(rec.id)}
-                    <div className="relative">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === rec.id ? null : rec.id); }}
-                            className="p-2.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all"
-                            title="삭제 옵션"
-                        >
-                            <MoreVertical size={20} />
-                        </button>
-                        {menuOpenId === rec.id && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); }} />
-                                <div className="absolute right-0 top-full mt-1 z-20 w-52 bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden">
-                                    {hasLocal && hasCloud && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); deleteRecording({ displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem }, 'local'); }}
-                                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 text-left"
-                                        >
-                                            <Trash2 size={15} /> 이 기기에서 내리기
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setMenuOpenId(null); deleteRecording({ displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem }, hasCloud ? 'all' : 'local'); }}
-                                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 text-left"
-                                    >
-                                        <Trash2 size={15} /> {hasCloud ? '완전 삭제 (모든 기기)' : '삭제'}
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); deleteRecording({ displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem }, 'all'); }}
+                        className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                        title="삭제"
+                    >
+                        <Trash2 size={20} />
+                    </button>
                 </div>
             </div>
         );
