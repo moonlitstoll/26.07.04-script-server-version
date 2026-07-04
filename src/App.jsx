@@ -23,7 +23,7 @@ import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
-import { setLastPos } from './utils/viewPosition';
+import { getLastPos, setLastPos } from './utils/viewPosition';
 
 
 const App = () => {
@@ -76,8 +76,15 @@ const App = () => {
   const {
     videoRef, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
     manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, jumpToSentence,
-    handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef
+    handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo
   } = useAudioPlayer({ activeFile, bufferTime });
+
+  // 대본 스크롤 컨테이너 (위치 저장/복원용)
+  const scrollContainerRef = useRef(null);
+  const restoredForRef = useRef(null);   // 위치 복원을 이미 처리한 activeFile.id
+  const scrollRafRef = useRef(0);
+  const activeFileRef = useRef(activeFile);
+  useEffect(() => { activeFileRef.current = activeFile; }, [activeFile]);
 
   const refreshCacheKeysRef = useRef(null);
 
@@ -112,7 +119,32 @@ const App = () => {
     if (passphrase) refreshCloud();
   }, [passphrase, refreshCloud]);
 
-  // [위치 기억] 보던 문장이 바뀔 때마다 대본별 마지막 위치를 저장 → 재열람 시 복원
+  // [위치 기억 - 스크롤] 대본을 스크롤할 때 화면 맨 위 문장을 저장 (재생 안 해도 기록됨)
+  const saveScrollPos = () => {
+    const c = scrollContainerRef.current;
+    const f = activeFileRef.current;
+    if (!c || !f || f.isAnalyzing || !f.file?.name || !f.data?.length) return;
+    const items = c.querySelectorAll('[data-idx]');
+    if (!items.length) return;
+    const cTop = c.getBoundingClientRect().top;
+    let topIdx = 0;
+    for (const el of items) {
+      // 컨테이너 상단을 지나 걸쳐 있는 첫 아이템 = 지금 보고 있는 문장
+      if (el.getBoundingClientRect().bottom > cTop + 8) { topIdx = Number(el.dataset.idx); break; }
+    }
+    const item = f.data[topIdx];
+    if (item) setLastPos(f.file.name, f.file.size, topIdx, item.seconds);
+  };
+
+  const onTranscriptScroll = () => {
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = 0;
+      saveScrollPos();
+    });
+  };
+
+  // [위치 기억 - 재생] 재생 하이라이트가 움직일 때도 위치 저장 (스크롤 없는 짧은 대본 대비)
   useEffect(() => {
     if (activeSentenceIdx < 0) return;
     if (!activeFile || activeFile.isAnalyzing || !activeFile.file?.name) return;
@@ -120,6 +152,24 @@ const App = () => {
     if (!item) return;
     setLastPos(activeFile.file.name, activeFile.file.size, activeSentenceIdx, item.seconds);
   }, [activeSentenceIdx, activeFile]);
+
+  // [위치 복원] 대본이 실제로 렌더된 뒤(스위칭 종료·데이터 존재) 마지막 위치로 이동 (정지 상태)
+  useEffect(() => {
+    if (!activeFile || activeFile.isAnalyzing || isSwitchingFile) return;
+    if (!activeFile.file?.name || !activeFile.data?.length) return;
+    if (restoredForRef.current === activeFile.id) return;
+    restoredForRef.current = activeFile.id;
+
+    const pos = getLastPos(activeFile.file.name, activeFile.file.size);
+    const item = pos ? activeFile.data[pos.idx] : null;
+    if (!item) return;
+
+    restoreTo(pos.idx, item.seconds);            // 재생 커서·하이라이트
+    requestAnimationFrame(() => {                // 스크롤 (아이템 마운트 후)
+      const el = scrollContainerRef.current?.querySelector(`[data-idx="${pos.idx}"]`);
+      if (el) el.scrollIntoView({ block: 'start' });
+    });
+  }, [activeFile, isSwitchingFile, restoreTo]);
 
   // Keyboard Shortcuts
   useKeyboardShortcuts({
@@ -254,7 +304,7 @@ const App = () => {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {activeFile ? (
           <div className="flex flex-col h-full">
-            <div className="flex-1 w-full overflow-y-auto bg-[#F8FAFC]" onClick={() => { setShowSpeedMenu(false); }}>
+            <div ref={scrollContainerRef} onScroll={onTranscriptScroll} className="flex-1 w-full overflow-y-auto bg-[#F8FAFC]" onClick={() => { setShowSpeedMenu(false); }}>
               <div className="max-w-6xl mx-auto px-2 md:px-6 pb-32">
                 {isAnalyzing || isSwitchingFile ? (
                   <div className="flex flex-col items-center justify-center py-20 space-y-6">
