@@ -43,7 +43,9 @@ const formatTime = (seconds) => {
 };
 
 
-const FILE_API_THRESHOLD_MB = 15;
+// 이 크기 초과 시 File API 업로드 사용. inline(base64)은 요청 한도(~20MB)가 있어
+// 낮게 잡아 대부분을 안정적인 File API로 보낸다. (FFmpeg 실패 시 원본 영상도 안전 처리)
+const FILE_API_THRESHOLD_MB = 8;
 
 // Blob → Gemini inlineData 파트 (base64) 변환
 function blobToGenerativePart(blob, fallbackMime = 'audio/aac') {
@@ -60,35 +62,44 @@ function blobToGenerativePart(blob, fallbackMime = 'audio/aac') {
     });
 }
 
-// Gemini File API: 브라우저에서 REST 직접 호출로 대용량 파일 업로드
+// Gemini File API: 브라우저에서 REST 직접 호출로 대용량 파일 업로드 (리섬어블 프로토콜)
 async function uploadToGemini(blob, apiKey, displayName = 'audio') {
     const mimeType = blob.type || 'audio/aac';
-    const boundary = 'GEMINI_UPLOAD_' + Date.now();
-    const metadata = JSON.stringify({ file: { displayName } });
+    const numBytes = blob.size;
 
-    const encoder = new TextEncoder();
-    const preamble = encoder.encode(
-        `--${boundary}\r\nContent-Type: application/json; charset=utf-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`
-    );
-    const postamble = encoder.encode(`\r\n--${boundary}--\r\n`);
-    const fileBuffer = await blob.arrayBuffer();
+    console.log(`[Stage 1] Uploading ${(numBytes / 1024 / 1024).toFixed(1)}MB via File API (resumable)...`);
 
-    const body = new Uint8Array(preamble.length + fileBuffer.byteLength + postamble.length);
-    body.set(preamble, 0);
-    body.set(new Uint8Array(fileBuffer), preamble.length);
-    body.set(postamble, preamble.length + fileBuffer.byteLength);
-
-    console.log(`[Stage 1] Uploading ${(blob.size / 1024 / 1024).toFixed(1)}MB via File API...`);
-
-    const uploadRes = await fetch(
+    // 1) 리섬어블 업로드 세션 시작 → 업로드 URL 획득
+    const startRes = await fetch(
         `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
         {
             method: 'POST',
-            headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-            body: body,
+            headers: {
+                'X-Goog-Upload-Protocol': 'resumable',
+                'X-Goog-Upload-Command': 'start',
+                'X-Goog-Upload-Header-Content-Length': String(numBytes),
+                'X-Goog-Upload-Header-Content-Type': mimeType,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ file: { display_name: displayName } }),
         }
     );
+    if (!startRes.ok) {
+        const t = await startRes.text();
+        throw new Error(`Upload start failed (${startRes.status}): ${t}`);
+    }
+    const uploadUrl = startRes.headers.get('X-Goog-Upload-URL') || startRes.headers.get('x-goog-upload-url');
+    if (!uploadUrl) throw new Error('업로드 URL을 받지 못했습니다');
 
+    // 2) 실제 바이트 업로드 + 마무리(finalize)
+    const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+            'X-Goog-Upload-Offset': '0',
+            'X-Goog-Upload-Command': 'upload, finalize',
+        },
+        body: blob,
+    });
     if (!uploadRes.ok) {
         const errorText = await uploadRes.text();
         throw new Error(`Upload failed (${uploadRes.status}): ${errorText}`);
@@ -96,6 +107,7 @@ async function uploadToGemini(blob, apiKey, displayName = 'audio') {
 
     let fileInfo = (await uploadRes.json()).file;
 
+    // 3) 서버 처리(PROCESSING) 대기
     while (fileInfo.state === 'PROCESSING') {
         console.log('[Stage 1] File processing on server, waiting...');
         await new Promise(r => setTimeout(r, 2000));
