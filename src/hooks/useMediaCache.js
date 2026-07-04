@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
@@ -48,6 +48,9 @@ export const useMediaCache = ({
 }) => {
     const [cacheKeys, setCacheKeys] = useState([]);
     const [cloudItems, setCloudItems] = useState([]);
+    // enforceCacheLimit이 최신 cloudItems를 참조하되 콜백 identity는 고정되도록 ref 사용
+    // (refreshCloud가 cloudItems마다 새로 만들어지면 App의 effect가 무한 재요청 루프에 빠짐)
+    const cloudItemsRef = useRef([]);
     // 클라우드 영상 다운로드 진행률: null(비활성) | { percent: number|null }
     const [cloudDownload, setCloudDownload] = useState(null);
 
@@ -59,7 +62,7 @@ export const useMediaCache = ({
     // 클라우드에 안전히 있을 때만 제거(재열람 시 자동 재다운로드). 동기화 안 된 항목은 보존.
     const enforceCacheLimit = useCallback(async (items) => {
         try {
-            const src = items || cloudItems || [];
+            const src = items || cloudItemsRef.current || [];
             const cloudIds = new Set(src.map(it => `${it.name}_${it.size}`));
             if (cloudIds.size === 0) return; // 클라우드 상태 모르면 안전하게 보류
 
@@ -81,13 +84,14 @@ export const useMediaCache = ({
         } catch (e) {
             console.warn('[Cache] 자동 정리 실패:', e);
         }
-    }, [cloudItems]);
+    }, []);
 
     // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort. 조회 후 로컬 캐시 자동 정리.
     const refreshCloud = useCallback(async () => {
         try {
             const items = await cloudListItems();
             setCloudItems(items);
+            cloudItemsRef.current = items;
             enforceCacheLimit(items);
         } catch (e) {
             console.warn('[Cloud] 목록 조회 실패:', e);
@@ -97,6 +101,11 @@ export const useMediaCache = ({
     useEffect(() => {
         refreshCacheKeys();
     }, [refreshCacheKeys]);
+
+    // cloudItems가 바뀌면 ref도 동기화 (enforceCacheLimit 무인자 호출이 최신값 참조)
+    useEffect(() => {
+        cloudItemsRef.current = cloudItems;
+    }, [cloudItems]);
 
     // \ub85c\uceec(localStorage \ub300\ubcf8 + IndexedDB \uc601\uc0c1 + \uc5f4\ub824\uc788\ub294 \ud30c\uc77c) \uc81c\uac70 \u2014 \ud655\uc778\ucc3d \uc5c6\uc74c(\ud638\ucd9c\ubd80\uc5d0\uc11c \ucc98\ub9ac)
     const purgeLocalByKey = async (key) => {
