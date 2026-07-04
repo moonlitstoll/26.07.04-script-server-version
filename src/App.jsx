@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileAudio, FileVideo, Settings, Home, AlertCircle, RotateCcw
+  AlertCircle, RotateCcw
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -17,6 +18,8 @@ import EmptyState from './components/EmptyState';
 import ConfirmModal from './components/ConfirmModal';
 import Toast from './components/Toast';
 import PassphraseGate from './components/PassphraseGate';
+import WorkspaceHeader from './components/WorkspaceHeader';
+import NoActiveFile from './components/NoActiveFile';
 import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
 
 
@@ -103,61 +106,10 @@ const App = () => {
   }, [passphrase, refreshCloud]);
 
   // Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!mediaUrl || !activeFile?.data?.length) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      const data = activeFile.data;
-
-      switch (e.code) {
-        case 'Space':
-          e.preventDefault();
-          togglePlay();
-          break;
-        case 'Enter':
-          e.preventDefault();
-          toggleLoop();
-          break;
-        case 'KeyB':
-          e.preventDefault();
-          toggleGlobalAnalysis();
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          if (data.length > 0) {
-            const idx = activeIdxRef.current !== null ? activeIdxRef.current : 0;
-            const prevIdx = Math.max(0, idx - 1);
-            if (prevIdx !== idx) jumpToSentence(prevIdx);
-          }
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          if (data.length > 0) {
-            const idx = activeIdxRef.current !== null ? activeIdxRef.current : 0;
-            const nextIdx = Math.min(data.length - 1, idx + 1);
-            if (nextIdx !== idx) jumpToSentence(nextIdx);
-          }
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          if (videoRef.current) {
-            lastActionTimeRef.current = Date.now();
-            videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
-          }
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          if (videoRef.current) {
-            lastActionTimeRef.current = Date.now();
-            videoRef.current.currentTime = Math.min(videoRef.current.duration || 0, videoRef.current.currentTime + 5);
-          }
-          break;
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis, jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef]);
+  useKeyboardShortcuts({
+    mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis,
+    jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef,
+  });
 
   const removeFile = (id, e) => {
     e.stopPropagation();
@@ -243,51 +195,14 @@ const App = () => {
       )}
 
       {/* Header */}
-      <header className="relative z-50 bg-white/80 border-b border-slate-100 flex-none h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6">
-        <button
-          onClick={() => { setFiles([]); setActiveFileId(null); resetPlayerState(); }}
-          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-          title="Go to Home"
-        >
-          <Home size={20} />
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <div className="relative">
-            <button
-              onClick={() => setShowCacheHistory(true)}
-              className="w-full text-center px-4 py-1.5 hover:bg-slate-50 rounded-xl transition-colors group"
-            >
-              {activeFile ? (
-                <div className="flex items-center justify-center gap-2 text-slate-900">
-                  {activeFile.file.type.startsWith('video') ? (
-                    <FileVideo size={16} className={`shrink-0 ${isAnalyzing || isSwitchingFile ? 'text-slate-400 animate-pulse' : 'text-indigo-600'}`} />
-                  ) : (
-                    <FileAudio size={16} className={`shrink-0 ${isAnalyzing || isSwitchingFile ? 'text-slate-400 animate-pulse' : 'text-indigo-600'}`} />
-                  )}
-                  <span className={`text-base font-bold truncate group-hover:text-indigo-700 transition-colors ${isAnalyzing || isSwitchingFile ? 'text-slate-500 italic' : ''}`}>
-                    {isAnalyzing
-                      ? `Extracting Transcript...`
-                      : (activeFile?.data && activeFile.data.some(d => !d.isAnalyzed)
-                        ? `Analyzing Details (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
-                        : activeFile?.file?.name || "Ready")
-                    }
-                  </span>
-                </div>
-              ) : (
-                <span className="text-base font-bold text-slate-400">Select File...</span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowSettings(true)}
-          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-        >
-          <Settings size={20} />
-        </button>
-      </header>
+      <WorkspaceHeader
+        activeFile={activeFile}
+        isAnalyzing={isAnalyzing}
+        isSwitchingFile={isSwitchingFile}
+        onHome={() => { setFiles([]); setActiveFileId(null); resetPlayerState(); }}
+        onOpenHistory={() => setShowCacheHistory(true)}
+        onOpenSettings={() => setShowSettings(true)}
+      />
 
       {/* Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -381,36 +296,12 @@ const App = () => {
             />
           </div>
         ) : (
-          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-            <div className="flex-1 flex items-center justify-center p-10">
-              <div className="max-w-md w-full p-8 bg-white rounded-3xl border-2 border-dashed border-slate-200 text-center space-y-4">
-                <div className="inline-flex p-4 bg-slate-50 rounded-2xl text-slate-400">
-                  <FileAudio size={32} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-800">No active file</h3>
-                  <p className="text-slate-500 mt-1">Upload or select a file to start the analysis.</p>
-                </div>
-                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-2 text-left">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Current Models</p>
-                  <p className="text-sm text-slate-600"><span className="font-bold text-indigo-600">Stage 1</span> (전사): {stage1Model}</p>
-                  <p className="text-sm text-slate-600"><span className="font-bold text-purple-600">Stage 2</span> (분석): {stage2Model}</p>
-                  <button
-                    onClick={() => setShowSettings(true)}
-                    className="w-full mt-2 px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all"
-                  >
-                    모델 설정 변경
-                  </button>
-                </div>
-                <button
-                  onClick={() => setShowCacheHistory(true)}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100"
-                >
-                  Select from List
-                </button>
-              </div>
-            </div>
-          </div>
+          <NoActiveFile
+            stage1Model={stage1Model}
+            stage2Model={stage2Model}
+            onOpenSettings={() => setShowSettings(true)}
+            onOpenHistory={() => setShowCacheHistory(true)}
+          />
         )}
       </div>
 
