@@ -4,7 +4,7 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
-import { materializeFile } from '../utils/materializeFile';
+import { materializeFile, materializeFromHandle } from '../utils/materializeFile';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -161,9 +161,15 @@ export const useMediaAnalysis = ({
 
         console.log("[Upload] Processing files...", fileList);
 
-        const newFiles = Array.from(fileList).map(f => ({
+        // 입력 정규화: File(기존 <input>/드래그) 또는 { file, handle }(File System Access API)
+        const items = Array.from(fileList).map(src =>
+            (src instanceof File) ? { file: src, handle: null } : { file: src.file, handle: src.handle || null }
+        );
+
+        const newFiles = items.map(it => ({
             id: Math.random().toString(36).substr(2, 9),
-            file: f,
+            file: it.file,
+            handle: it.handle,
             url: null, // 메모리 적재(materializeFile) 후 설정
             data: [],
             isAnalyzing: true,
@@ -183,12 +189,14 @@ export const useMediaAnalysis = ({
                 if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
                 // ① 가능하면 메모리에 적재(OneDrive/Drive 온디맨드 대응).
-                //    실패해도 절대 중단하지 않고 원본 파일로 그대로 진행 → 기존 동작 100% 보존
+                //    핸들이 있으면 매번 새 참조를 재획득(스트리밍 파일 대응), 없으면 일반 적재.
+                //    실패해도 절대 중단하지 않고 원본 파일로 그대로 진행 → 기존 동작 보존
+                const onWait = (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (클라우드 다운로드 대기)', type: 'success' }); };
                 let file = fItem.file;
                 try {
-                    file = await materializeFile(fItem.file, {
-                        onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (클라우드 다운로드 대기)', type: 'success' }); }
-                    });
+                    file = fItem.handle
+                        ? await materializeFromHandle(fItem.handle, { onWait })
+                        : await materializeFile(fItem.file, { onWait });
                 } catch (e) {
                     console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
                     file = fItem.file;
@@ -302,6 +310,31 @@ export const useMediaAnalysis = ({
         }
     };
 
+    // File System Access API로 파일 선택 (파일 핸들 확보 → 클라우드 스트리밍 파일 재획득 가능)
+    // 미지원 브라우저에서는 false 반환 → 호출부가 기존 <input>으로 폴백
+    const openFilePicker = async () => {
+        if (!window.showOpenFilePicker) return false;
+        try {
+            const handles = await window.showOpenFilePicker({
+                multiple: true,
+                types: [{
+                    description: 'Media',
+                    accept: {
+                        'video/*': ['.mp4', '.mov', '.mkv', '.webm', '.avi', '.m4v'],
+                        'audio/*': ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'],
+                    },
+                }],
+            });
+            const picked = await Promise.all(handles.map(async h => ({ handle: h, file: await h.getFile() })));
+            processFiles(picked);
+            return true;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return true; // 사용자가 취소한 경우
+            console.warn('[Picker] showOpenFilePicker 실패 → 기본 입력으로 폴백:', e);
+            return false;
+        }
+    };
+
     // 드래그앤드롭 핸들러
     const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
     const onDragLeave = (e) => {
@@ -311,8 +344,29 @@ export const useMediaAnalysis = ({
     };
     const onDrop = (e) => {
         e.preventDefault();
-        processFiles(e.dataTransfer.files);
+        setIsDragging(false);
+        const dt = e.dataTransfer;
+        const filesFallback = Array.from(dt.files || []);
+        const dtItems = dt.items;
+        // 가능하면 드롭 항목에서 파일시스템 핸들 확보 (스트리밍 파일 재획득 대응)
+        if (dtItems && dtItems.length && typeof dtItems[0].getAsFileSystemHandle === 'function') {
+            const handlePromises = [];
+            for (const it of Array.from(dtItems)) {
+                if (it.kind === 'file') handlePromises.push(it.getAsFileSystemHandle());
+            }
+            Promise.all(handlePromises).then(async (handles) => {
+                const picked = [];
+                for (const handle of handles) {
+                    if (handle && handle.kind === 'file') {
+                        try { picked.push({ handle, file: await handle.getFile() }); } catch { /* skip */ }
+                    }
+                }
+                processFiles(picked.length ? picked : filesFallback);
+            }).catch(() => processFiles(filesFallback));
+            return;
+        }
+        processFiles(filesFallback);
     };
 
-    return { processFiles, runStage2, retryAnalysis, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, openFilePicker, runStage2, retryAnalysis, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };
