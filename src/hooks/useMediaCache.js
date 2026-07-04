@@ -184,12 +184,34 @@ export const useMediaCache = ({
             if (!rawData || !Array.isArray(rawData)) throw new Error('클라우드 데이터 형식 오류');
 
             const data = sanitizeData(rawData, item.duration || 0);
+
+            // 영상: 로컬(IndexedDB) 캐시 우선 → 없으면 서버에서 통째로 받아 로컬 저장.
+            // 한 번 받으면 이후엔 재다운로드 없이 로컬 재생 → seek 시 끊김 없음.
+            // 다운로드 실패 시엔 기존처럼 원격 URL 스트리밍으로 폴백.
+            let mediaUrl = null;
+            if (item.mediaUrl && item.name && item.size) {
+                try {
+                    let blob = await mediaStore.getFile(item.name, item.size);
+                    if (!blob) {
+                        const res = await fetch(item.mediaUrl);
+                        if (!res.ok) throw new Error(`media ${res.status}`);
+                        const downloaded = await res.blob();
+                        blob = new File([downloaded], item.name, { type: item.type || downloaded.type || 'video/mp4' });
+                        try { await mediaStore.saveFile(blob); } catch (e) { console.warn('[Cloud] 영상 로컬 저장 실패:', e); }
+                    }
+                    mediaUrl = URL.createObjectURL(blob);
+                } catch (e) {
+                    console.warn('[Cloud] 영상 다운로드 실패 → 원격 스트리밍 폴백:', e);
+                    mediaUrl = item.mediaUrl;
+                }
+            }
+
             const id = 'cloud-' + Date.now();
             const newFileEntry = {
                 id,
                 file: { name: item.name, type: item.type || 'video/unknown', size: item.size },
                 data,
-                url: item.mediaUrl || null,
+                url: mediaUrl,
                 isAnalyzing: false,
                 isFromCache: true
             };
