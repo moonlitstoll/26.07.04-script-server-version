@@ -4,6 +4,7 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
+import { materializeFile } from '../utils/materializeFile';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -163,7 +164,7 @@ export const useMediaAnalysis = ({
         const newFiles = Array.from(fileList).map(f => ({
             id: Math.random().toString(36).substr(2, 9),
             file: f,
-            url: URL.createObjectURL(f),
+            url: null, // 메모리 적재(materializeFile) 후 설정
             data: [],
             isAnalyzing: true,
             error: null
@@ -181,29 +182,43 @@ export const useMediaAnalysis = ({
             try {
                 if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-                const cacheKey = `gemini_analysis_${fItem.file.name}_${fItem.file.size}`;
+                // ① OneDrive 등 클라우드 파일도 확실히 읽히도록 메모리에 적재 (실패 시 재시도)
+                const file = await materializeFile(fItem.file, {
+                    onWait: (n) => {
+                        if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (OneDrive 다운로드 대기)', type: 'success' });
+                    }
+                });
+                // 읽기 가능한 메모리 파일로 교체 + 재생용 URL 생성
+                const objectUrl = URL.createObjectURL(file);
+                setFiles(prev => prev.map(p => {
+                    if (p.id !== fItem.id) return p;
+                    if (p.url) URL.revokeObjectURL(p.url);
+                    return { ...p, file, url: objectUrl };
+                }));
+
+                const cacheKey = `gemini_analysis_${file.name}_${file.size}`;
                 const cacheEntry = parseCacheEntry(cacheKey);
 
                 if (cacheEntry) {
-                    console.log("Using cached analysis for", fItem.file.name);
+                    console.log("Using cached analysis for", file.name);
                     let cacheDuration = 0;
-                    try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
+                    try { cacheDuration = await getMediaDuration(file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
                     const data = sanitizeData(cacheEntry.rawData, cacheDuration);
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false, isFromCache: true } : p));
                 } else {
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, isAnalyzing: true } : p));
 
-                    const data = await runStage1(fItem.id, fItem.file);
+                    const data = await runStage1(fItem.id, file);
 
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false } : p));
 
-                    saveCacheEntry(fItem.file, data, 'extracted');
+                    saveCacheEntry(file, data, 'extracted');
                     if (refreshCacheKeys) refreshCacheKeys();
 
-                    runStage2(fItem.id, fItem.file, data, apiKey, stage2Model);
+                    runStage2(fItem.id, file, data, apiKey, stage2Model);
 
                     try {
-                        await mediaStore.saveFile(fItem.file);
+                        await mediaStore.saveFile(file);
                     } catch (storageError) {
                         console.warn("Failed to save media file to store", storageError);
                     }
@@ -213,13 +228,13 @@ export const useMediaAnalysis = ({
                         try {
                             let mediaUrl = null;
                             try {
-                                mediaUrl = await cloudUploadMedia(fItem.file);
+                                mediaUrl = await cloudUploadMedia(file);
                             } catch (e) {
                                 console.warn('[Cloud] 영상 업로드 실패:', e);
                             }
                             let dur = 0;
-                            try { dur = await getMediaDuration(fItem.file); } catch { /* noop */ }
-                            await cloudSaveMeta(fItem.file, data, 'extracted', mediaUrl, dur);
+                            try { dur = await getMediaDuration(file); } catch { /* noop */ }
+                            await cloudSaveMeta(file, data, 'extracted', mediaUrl, dur);
                         } catch (e) {
                             console.warn('[Cloud] 대본 저장 실패:', e);
                         }
@@ -250,14 +265,27 @@ export const useMediaAnalysis = ({
         try {
             if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
-            const data = await runStage1(fileId, targetFile);
+            // OneDrive 등 클라우드 파일도 확실히 읽히도록 메모리에 적재 (실패 시 재시도)
+            const file = await materializeFile(targetFile, {
+                onWait: (n) => {
+                    if (n === 1 && showToast) showToast({ message: '파일 불러오는 중... (OneDrive 다운로드 대기)', type: 'success' });
+                }
+            });
+            const objectUrl = URL.createObjectURL(file);
+            setFiles(prev => prev.map(p => {
+                if (p.id !== fileId) return p;
+                if (p.url) URL.revokeObjectURL(p.url);
+                return { ...p, file, url: objectUrl };
+            }));
+
+            const data = await runStage1(fileId, file);
 
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: data, isAnalyzing: false } : p));
 
-            saveCacheEntry(targetFile, data, 'extracted');
+            saveCacheEntry(file, data, 'extracted');
             if (refreshCacheKeys) refreshCacheKeys();
 
-            runStage2(fileId, targetFile, data, apiKey, stage2Model);
+            runStage2(fileId, file, data, apiKey, stage2Model);
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error("Retry Analysis Error", err);
