@@ -2,11 +2,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
-
-const VALID_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2-flash", "gemini-3.5-flash"];
+import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
 
 const resolveModel = (modelId) =>
-    VALID_MODELS.find(m => m === modelId) || "gemini-2.5-flash";
+    VALID_MODELS.find(m => m === modelId) || DEFAULT_MODEL_ID;
 
 // [모듈 레벨 상수] 정규식 패턴 및 유틸 — 호출마다 재컴파일/재생성 방지
 const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;

@@ -2,24 +2,9 @@ import { useState } from 'react';
 import {
     Settings, X, Check, Info, Lock
 } from 'lucide-react';
-
-const MODELS = [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', badge: '추천' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', badge: '최고품질' },
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', badge: '대량처리' },
-    { id: 'gemini-2-flash', name: 'Gemini 2 Flash', badge: '' },
-    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', badge: '최신' },
-];
+import { MODELS } from '../constants/models';
 
 const MARKER_PRESETS = ['※', '#', '|', '·', '❖', '∂', '¤'];
-
-const MODEL_INFO = [
-    { name: '2.5 Flash', s1: 'A', s2: 'A', rpm: '1K', rpd: '10K', desc: '만능형 기본값. 전사/분석 균형' },
-    { name: '2.5 Pro', s1: 'S', s2: 'S', rpm: '150', rpd: '1K', desc: '최고 품질. 긴 영상엔 한도 주의' },
-    { name: '2.5 Flash Lite', s1: 'B+', s2: 'A', rpm: '4K', rpd: '무제한', desc: '대량 배치에 최적. RPM 넉넉' },
-    { name: '2 Flash', s1: 'A-', s2: 'B+', rpm: '2K', rpd: '무제한', desc: '안정적 폴백용' },
-    { name: '3.5 Flash', s1: '?', s2: 'A+', rpm: '1K', rpd: '10K', desc: '최신 모델. 전사 안정성 미검증' },
-];
 
 const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
     const [showModelInfo, setShowModelInfo] = useState(false);
@@ -119,22 +104,22 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {MODEL_INFO.map((m, i) => (
-                                                <tr key={i} className={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                                                    <td className="px-2 py-1.5 font-bold text-slate-700">{m.name}</td>
-                                                    <td className={`px-1.5 py-1.5 text-center font-black ${m.s1 === 'S' ? 'text-emerald-600' : m.s1 === 'A' || m.s1 === 'A+' ? 'text-indigo-600' : 'text-slate-500'}`}>{m.s1}</td>
-                                                    <td className={`px-1.5 py-1.5 text-center font-black ${m.s2 === 'S' ? 'text-emerald-600' : m.s2 === 'A' || m.s2 === 'A+' ? 'text-indigo-600' : 'text-slate-500'}`}>{m.s2}</td>
-                                                    <td className="px-1.5 py-1.5 text-center text-slate-500">{m.rpm}</td>
-                                                    <td className="px-1.5 py-1.5 text-center text-slate-500">{m.rpd}</td>
+                                            {MODELS.map((m, i) => (
+                                                <tr key={m.id} className={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                                                    <td className="px-2 py-1.5 font-bold text-slate-700">{m.shortName}</td>
+                                                    <td className={`px-1.5 py-1.5 text-center font-black ${m.info.s1 === 'S' ? 'text-emerald-600' : m.info.s1 === 'A' || m.info.s1 === 'A+' ? 'text-indigo-600' : 'text-slate-500'}`}>{m.info.s1}</td>
+                                                    <td className={`px-1.5 py-1.5 text-center font-black ${m.info.s2 === 'S' ? 'text-emerald-600' : m.info.s2 === 'A' || m.info.s2 === 'A+' ? 'text-indigo-600' : 'text-slate-500'}`}>{m.info.s2}</td>
+                                                    <td className="px-1.5 py-1.5 text-center text-slate-500">{m.info.rpm}</td>
+                                                    <td className="px-1.5 py-1.5 text-center text-slate-500">{m.info.rpd}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
                                 <div className="px-3 py-2 border-t border-slate-100 space-y-1">
-                                    {MODEL_INFO.map((m, i) => (
-                                        <p key={i} className="text-[10px] text-slate-400">
-                                            <span className="font-bold text-slate-500">{m.name}</span>: {m.desc}
+                                    {MODELS.map((m) => (
+                                        <p key={m.id} className="text-[10px] text-slate-400">
+                                            <span className="font-bold text-slate-500">{m.shortName}</span>: {m.info.desc}
                                         </p>
                                     ))}
                                 </div>

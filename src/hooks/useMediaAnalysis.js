@@ -5,6 +5,7 @@ import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
+import { getStage2Concurrency } from '../constants/models';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -50,7 +51,7 @@ export const useMediaAnalysis = ({
         if (pendingIndices.length === 0) return;
 
         const BATCH_SIZE = 25;
-        const CONCURRENCY = currentModelId === 'gemini-2.5-pro' ? 2 : 3;
+        const CONCURRENCY = getStage2Concurrency(currentModelId);
         const batches = [];
         for (let i = 0; i < pendingIndices.length; i += BATCH_SIZE) {
             batches.push(pendingIndices.slice(i, i + BATCH_SIZE));
@@ -152,6 +153,62 @@ export const useMediaAnalysis = ({
         return data;
     };
 
+    // Stage1 전사 → 캐시/클라우드 저장 → Stage2 분석까지, 한 파일의 전체 파이프라인.
+    // 신규 업로드(processFiles)와 재시도(retryAnalysis)가 공유한다.
+    //  - saveMedia: 원본을 IndexedDB에 저장 (재생 복원용)
+    //  - syncCloud: 원본 영상 업로드 + 대본 저장 (다른 기기 열람용)
+    const runFullAnalysis = async (fileId, sourceFile, { saveMedia = false, syncCloud = false } = {}) => {
+        if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
+
+        // 전사(분석)용으로만 파일을 메모리에 적재 시도 (클라우드/온디맨드 파일 대응).
+        // 재생 URL과 state의 원본 file은 그대로 유지 → 재생은 원본으로 정상 동작. 실패 시 원본 폴백.
+        let fileForAnalysis = sourceFile;
+        try {
+            fileForAnalysis = await materializeFile(sourceFile, {
+                onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
+            });
+        } catch (e) {
+            console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
+            fileForAnalysis = sourceFile;
+        }
+
+        const data = await runStage1(fileId, fileForAnalysis);
+
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data, isAnalyzing: false } : p));
+
+        saveCacheEntry(sourceFile, data, 'extracted');
+        if (refreshCacheKeys) refreshCacheKeys();
+
+        runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model);
+
+        if (saveMedia) {
+            try {
+                await mediaStore.saveFile(fileForAnalysis);
+            } catch (storageError) {
+                console.warn("Failed to save media file to store", storageError);
+            }
+        }
+
+        if (syncCloud) {
+            // 클라우드 동기화 (best-effort): 원본 영상 업로드 + 대본 저장 → 다른 기기서 열람 가능
+            (async () => {
+                try {
+                    let mediaUrl = null;
+                    try {
+                        mediaUrl = await cloudUploadMedia(fileForAnalysis);
+                    } catch (e) {
+                        console.warn('[Cloud] 영상 업로드 실패:', e);
+                    }
+                    let dur = 0;
+                    try { dur = await getMediaDuration(sourceFile); } catch { /* noop */ }
+                    await cloudSaveMeta(sourceFile, data, 'extracted', mediaUrl, dur);
+                } catch (e) {
+                    console.warn('[Cloud] 대본 저장 실패:', e);
+                }
+            })();
+        }
+    };
+
     const processFiles = async (fileList) => {
         setIsDragging(false);
         if (!fileList || fileList.length === 0) return;
@@ -180,64 +237,19 @@ export const useMediaAnalysis = ({
         // fire-and-forget: 각 파일을 병렬로 독립 처리 (개별 try/catch로 에러 격리)
         newFiles.forEach(async (fItem) => {
             try {
-                if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
-
-                // 전사(분석)용으로만 파일을 메모리에 적재 시도 (클라우드/온디맨드 파일 대응).
-                // 재생 URL과 state의 원본 file은 그대로 유지 → 재생은 원본으로 정상 동작.
-                // 적재 실패해도 중단하지 않고 원본으로 진행.
-                const onWait = (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); };
-                let fileForAnalysis = fItem.file;
-                try {
-                    fileForAnalysis = await materializeFile(fItem.file, { onWait });
-                } catch (e) {
-                    console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
-                    fileForAnalysis = fItem.file;
-                }
-
+                // 이미 분석된 캐시가 있으면 Stage 1/2 없이 즉시 복원
                 const cacheKey = `gemini_analysis_${fItem.file.name}_${fItem.file.size}`;
                 const cacheEntry = parseCacheEntry(cacheKey);
-
                 if (cacheEntry) {
                     console.log("Using cached analysis for", fItem.file.name);
                     let cacheDuration = 0;
                     try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
                     const data = sanitizeData(cacheEntry.rawData, cacheDuration);
-                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false, isFromCache: true } : p));
-                } else {
-                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, isAnalyzing: true } : p));
-
-                    const data = await runStage1(fItem.id, fileForAnalysis);
-
-                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data: data, isAnalyzing: false } : p));
-
-                    saveCacheEntry(fItem.file, data, 'extracted');
-                    if (refreshCacheKeys) refreshCacheKeys();
-
-                    runStage2(fItem.id, fileForAnalysis, data, apiKey, stage2Model);
-
-                    try {
-                        await mediaStore.saveFile(fileForAnalysis);
-                    } catch (storageError) {
-                        console.warn("Failed to save media file to store", storageError);
-                    }
-
-                    // 클라우드 동기화 (best-effort): 원본 영상 업로드 + 대본 저장 → 다른 기기서 열람 가능
-                    (async () => {
-                        try {
-                            let mediaUrl = null;
-                            try {
-                                mediaUrl = await cloudUploadMedia(fileForAnalysis);
-                            } catch (e) {
-                                console.warn('[Cloud] 영상 업로드 실패:', e);
-                            }
-                            let dur = 0;
-                            try { dur = await getMediaDuration(fItem.file); } catch { /* noop */ }
-                            await cloudSaveMeta(fItem.file, data, 'extracted', mediaUrl, dur);
-                        } catch (e) {
-                            console.warn('[Cloud] 대본 저장 실패:', e);
-                        }
-                    })();
+                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data, isAnalyzing: false, isFromCache: true } : p));
+                    return;
                 }
+
+                await runFullAnalysis(fItem.id, fItem.file, { saveMedia: true, syncCloud: true });
             } catch (err) {
                 if (err.name === 'AbortError') return;
                 console.error("Analysis Error", err);
@@ -261,27 +273,8 @@ export const useMediaAnalysis = ({
         if (!targetFile) return;
 
         try {
-            if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
-
-            // 전사용으로만 메모리 적재 시도. 재생 URL/원본은 그대로 유지 (기존 동작 보존)
-            let fileForAnalysis = targetFile;
-            try {
-                fileForAnalysis = await materializeFile(targetFile, {
-                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
-                });
-            } catch (e) {
-                console.warn('[Retry] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
-                fileForAnalysis = targetFile;
-            }
-
-            const data = await runStage1(fileId, fileForAnalysis);
-
-            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: data, isAnalyzing: false } : p));
-
-            saveCacheEntry(targetFile, data, 'extracted');
-            if (refreshCacheKeys) refreshCacheKeys();
-
-            runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model);
+            // 재시도는 신규 업로드와 달리 미디어 재저장/클라우드 재동기화는 생략 (기존 동작 보존)
+            await runFullAnalysis(fileId, targetFile);
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error("Retry Analysis Error", err);
