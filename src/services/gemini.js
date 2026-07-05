@@ -661,24 +661,36 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             // 2) 한 줄 다문장 분리(기존 파이프라인과 동일: 짧으면 병합)
             const split = [...splitMergedSentences(inWindow.length > 0 ? inWindow : all)];
 
-            // 3) [핵심] 딸려온 이웃 문장 제거.
-            //    각 문장을 '대상 원문 / 앞문장 / 다음문장'과 비교해, 이웃과 더 비슷하면 버리고
-            //    대상 문장과 가장 잘 맞는 것만 남긴다(짧은 클립의 부정확한 타임스탬프에 안 의존).
-            const selfText = w.selfText || '';
-            const scored = split.map(s => {
-                const t = s.text ?? s.o ?? '';
-                return {
-                    s,
-                    self: sentenceSim(t, selfText),
-                    prev: sentenceSim(t, w.prevText || ''),
-                    next: sentenceSim(t, w.nextText || ''),
-                };
-            });
-            let kept = scored.filter(x => x.self >= x.prev && x.self >= x.next).map(x => x.s);
-            // 분류로 전부 걸러지면(대상 문장이 애매) 대상과 가장 비슷한 1개만 살린다.
-            if (kept.length === 0 && scored.length > 0) {
-                const best = [...scored].sort((a, b) => b.self - a.self)[0];
-                if (best && best.self > 0) kept = [best.s];
+            // 3) 채택 문장 선별 — 모드별 분기
+            let kept;
+            if (w.recover) {
+                // [복구 모드] 유사도 필터를 끄고 '앵커 시각 ~ 다음 문장 직전' 구간의 문장을 전량 채택.
+                // 삭제됐던 문장도 버려지지 않고 되살아나며, 각 문장은 실측 절대 시각을 그대로 유지
+                // → 사이에 있던 문장이 제자리(실측 시각)에 정확히 들어간다.
+                kept = split.filter(s => {
+                    const sec = s.seconds ?? 0;
+                    return sec >= blockStart - 0.3 && sec < blockEnd - 0.05;
+                });
+            } else {
+                // [교체 모드] 딸려온 이웃 문장 제거.
+                //  각 문장을 '대상 원문 / 앞문장 / 다음문장'과 비교해, 이웃과 더 비슷하면 버리고
+                //  대상 문장과 가장 잘 맞는 것만 남긴다(짧은 클립의 부정확한 타임스탬프에 안 의존).
+                const selfText = w.selfText || '';
+                const scored = split.map(s => {
+                    const t = s.text ?? s.o ?? '';
+                    return {
+                        s,
+                        self: sentenceSim(t, selfText),
+                        prev: sentenceSim(t, w.prevText || ''),
+                        next: sentenceSim(t, w.nextText || ''),
+                    };
+                });
+                kept = scored.filter(x => x.self >= x.prev && x.self >= x.next).map(x => x.s);
+                // 분류로 전부 걸러지면(대상 문장이 애매) 대상과 가장 비슷한 1개만 살린다.
+                if (kept.length === 0 && scored.length > 0) {
+                    const best = [...scored].sort((a, b) => b.self - a.self)[0];
+                    if (best && best.self > 0) kept = [best.s];
+                }
             }
 
             // 4) 경계 부분 겹침(마침표 없이 붙은 앞/뒤 꼬리) 단어 단위 트림 + 빈 문장 제거

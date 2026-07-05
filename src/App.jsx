@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -98,7 +98,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, restoreSentences } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverForward, deleteSentences, restoreSentences } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
@@ -187,6 +187,20 @@ const App = () => {
       message: `선택한 ${idxs.length}개 문장을 대본에서 삭제합니다. (이 기기와 클라우드에서 사라집니다) 되돌릴 수 없습니다. 삭제할까요?`,
       onConfirm: () => {
         deleteSentences(fileId, idxs);
+        exitSelectMode();
+      },
+    });
+  };
+
+  // 이후 구간 복구 — 앵커 문장 1개 기준, 그 시각~다음 문장 직전 구간을 통째로 재전사(삭제분 복구)
+  const confirmRecover = () => {
+    if (!activeFile || selectedIdxs.size !== 1) return;
+    const anchorIndex = [...selectedIdxs][0];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 문장 시각부터 다음 문장 직전까지를 통째로 다시 듣고 전사합니다. 그 사이에 실수로 지워진 문장이 있으면 함께 복구되고, 그 구간의 기존 문장도 새로 전사·분석됩니다. (실측 시각 유지) 진행할까요?`,
+      onConfirm: () => {
+        recoverForward(fileId, anchorIndex);
         exitSelectMode();
       },
     });
@@ -469,6 +483,15 @@ const App = () => {
                         >
                           <Check size={14} /> 전사
                         </button>
+                        {selectedIdxs.size === 1 && (
+                          <button
+                            onClick={confirmRecover}
+                            title="이 문장 시각부터 다음 문장 직전까지 통째로 다시 전사 — 실수로 지운 문장 복구 (실측 시각 유지, 자동 분석)"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                          >
+                            <LifeBuoy size={14} /> 복구
+                          </button>
+                        )}
                       </div>
                     </>
                   )}

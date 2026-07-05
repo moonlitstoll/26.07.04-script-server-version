@@ -494,6 +494,122 @@ export const useMediaAnalysis = ({
     };
 
     /**
+     * [이후 구간 복구]
+     * 실수로 문장을 지워 빈칸이 생긴 경우, 선택한 '앵커' 문장 1개를 기준으로
+     * [앵커 시각 ~ 다음 살아있는 문장 직전] 구간을 통째로 다시 들어(raw 모드)
+     * 삭제됐던 문장까지 전부 복구한다. 각 문장은 재청취로 얻은 '실측 시각'을 유지하므로
+     * 사이에 있던 문장도 제자리에 정확히 들어간다. 복구 문장은 곧바로 자동 재분석(Stage 3).
+     */
+    const recoverForward = async (fileId, anchorIndex) => {
+        if (!apiKey) {
+            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+            return;
+        }
+        if (anchorIndex === null || anchorIndex === undefined || anchorIndex < 0) return;
+
+        let targetFile = null;
+        let targetUrl = null;
+        let currentData = null;
+        setFiles(prev => {
+            const f = prev.find(p => p.id === fileId);
+            if (f) { targetFile = f.file; targetUrl = f.url; currentData = f.data; }
+            return prev;
+        });
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) return;
+        if (anchorIndex >= currentData.length) return;
+
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+
+        const anchorSec = currentData[anchorIndex].seconds;
+
+        // 로딩 표시: 앵커와 같은 시각(블록) 문장에 스피너
+        const clearRetranscribingFlag = () => {
+            setFiles(prev => prev.map(p => p.id === fileId
+                ? { ...p, data: p.data.map(d => {
+                    if (!d.isRetranscribing) return d;
+                    const c = { ...d }; delete c.isRetranscribing; return c;
+                }) }
+                : p));
+        };
+        setFiles(prev => prev.map(p => p.id === fileId
+            ? { ...p, data: p.data.map(d => d.seconds === anchorSec ? { ...d, isRetranscribing: true } : d) }
+            : p));
+
+        if (stage1AbortRef.current) stage1AbortRef.current.abort();
+        stage1AbortRef.current = new AbortController();
+        const { signal } = stage1AbortRef.current;
+
+        try {
+            let fileForAnalysis = targetFile;
+            try {
+                fileForAnalysis = await materializeFile(targetFile, {
+                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
+                });
+            } catch (e) {
+                console.warn('[Recover] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
+                fileForAnalysis = targetFile;
+            }
+
+            let duration = 0;
+            try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
+
+            // 앵커 블록(동일 시각) 경계 계산
+            let lo = anchorIndex; while (lo > 0 && currentData[lo - 1].seconds === anchorSec) lo--;
+            let hi = anchorIndex; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
+            // 구간 끝 = 다음(더 큰) 시각의 살아있는 문장, 없으면 영상 끝
+            let end = duration > anchorSec ? duration : anchorSec + 8;
+            let nextIdx = -1;
+            for (let j = hi + 1; j < currentData.length; j++) {
+                if (currentData[j].seconds > anchorSec) { end = currentData[j].seconds; nextIdx = j; break; }
+            }
+            const prevText = lo > 0 ? (currentData[lo - 1].text || '') : '';
+            const nextText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
+
+            const windows = [{ start: anchorSec, end, prevText, nextText, recover: true }];
+
+            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
+                totalDuration: duration,
+                temperature,
+                topP,
+                signal,
+                antiRecitation,
+                markerChar,
+                markerInterval,
+                mediaSrc: targetUrl,
+            });
+
+            const fresh = perWindow[0]?.sentences;
+            if (!fresh || fresh.length === 0) {
+                clearRetranscribingFlag();
+                if (showToast) showToast({
+                    message: `구간 복구 실패: ${perWindow[0]?.error || '전사된 내용이 없음'}`,
+                    type: 'error'
+                });
+                return;
+            }
+
+            // 구간 [앵커 시각 ~ end) 안의 기존 문장을 모두 제거하고, 실측 시각을 가진 새 문장을 삽입
+            const kept = currentData.filter(d => !(d.seconds >= anchorSec - 1e-6 && d.seconds < end - 1e-6));
+            const cleanData = sanitizeData([...kept, ...fresh], duration);
+            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
+
+            const allDone = cleanData.every(d => d.isAnalyzed);
+            saveCacheEntry(targetFile, cleanData, allDone ? 'completed' : 'analyzing');
+            if (refreshCacheKeys) refreshCacheKeys();
+
+            if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
+            // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
+            runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage3Model);
+        } catch (err) {
+            clearRetranscribingFlag();
+            if (err.name === 'AbortError') return;
+            console.error('[Recover] 실패', err);
+            if (showToast) showToast({ message: '구간 복구 실패: ' + err.message, type: 'error' });
+        }
+    };
+
+    /**
      * [구간 선택 삭제]
      * 선택한 문장(카드)들을 대본에서 제거한다. 중복·불필요 문장 정리용.
      * 로컬 캐시 + 클라우드에 반영해 다른 기기에서도 사라지게 한다.
@@ -596,5 +712,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, restoreSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverForward, deleteSentences, restoreSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };
