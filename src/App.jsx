@@ -414,7 +414,7 @@ const App = () => {
             {/* 구간 다시 전사 툴바 */}
             {!isAnalyzing && !isSwitchingFile && !activeFile.error && transcriptData.length > 0 && (
               <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-3 md:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="max-w-6xl mx-auto px-3 md:px-6 py-1.5 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -433,15 +433,15 @@ const App = () => {
                     </div>
                   ) : (
                     <>
-                      <span className="text-xs font-bold text-slate-600 shrink-0">
+                      <span className="text-xs font-bold text-slate-600 shrink min-w-0 truncate">
                         {selectedIdxs.size > 0
-                          ? `${selectedIdxs.size}개 문장 선택됨`
-                          : '고칠 문장을 탭하세요'}
+                          ? `${selectedIdxs.size}개 선택`
+                          : '문장 선택'}
                       </span>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={exitSelectMode}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
                         >
                           <X size={14} /> 취소
                         </button>
@@ -449,7 +449,7 @@ const App = () => {
                           onClick={confirmDelete}
                           disabled={selectedIdxs.size === 0}
                           title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
@@ -457,17 +457,17 @@ const App = () => {
                           onClick={confirmReanalyze}
                           disabled={selectedIdxs.size === 0}
                           title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
-                          <Languages size={14} /> 분석만 다시
+                          <Languages size={14} /> 분석
                         </button>
                         <button
                           onClick={confirmRetranscribe}
                           disabled={selectedIdxs.size === 0}
                           title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
                         >
-                          <Check size={14} /> 전사부터 다시
+                          <Check size={14} /> 전사
                         </button>
                       </div>
                     </>
