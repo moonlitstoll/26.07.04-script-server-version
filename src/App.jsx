@@ -161,15 +161,8 @@ const App = () => {
     });
   };
 
-  // [위치 기억 - 재생] 재생 하이라이트가 움직일 때도 위치 저장 (스크롤 없는 짧은 대본 대비)
-  useEffect(() => {
-    if (activeSentenceIdx < 0) return;
-    if (!activeFile || activeFile.isAnalyzing || !activeFile.file?.name) return;
-    if (restoredForRef.current !== activeFile.id) return;  // 복원 완료 후에만 저장
-    const item = activeFile.data?.[activeSentenceIdx];
-    if (!item) return;
-    setLastPos(activeFile.file.name, activeFile.file.size, activeSentenceIdx, item.seconds);
-  }, [activeSentenceIdx, activeFile]);
+  // (재생 하이라이트 기반 저장은 제거됨: activeFile 재생성 시 낡은 idx로 스크롤 저장을 덮어쓰는
+  //  버그가 있었음. 재생 중엔 활성 문장 자동 스크롤 → onScroll → 스크롤 저장으로 이미 위치가 기록됨.)
 
   // [위치 복원] 대본이 렌더된 직후, 화면에 그리기 '전에' 저장 위치로 스크롤 (맨 위 깜빡임 방지)
   useLayoutEffect(() => {
