@@ -187,6 +187,7 @@ const App = () => {
     const fileId = activeFile.id;
     showConfirm({
       message: `선택한 ${idxs.length}개 문장을 대본에서 삭제합니다. (이 기기와 클라우드에서 사라집니다) 되돌릴 수 없습니다. 삭제할까요?`,
+      confirmText: '확인',
       onConfirm: () => {
         deleteSentences(fileId, idxs);
         exitSelectMode();
