@@ -429,15 +429,13 @@ const App = () => {
                       >
                         <Wand2 size={14} /> 구간 다시 전사 / 분석
                       </button>
-                      {trashItems.length > 0 && (
-                        <button
-                          onClick={() => setShowTrash(true)}
-                          title="삭제한 문장 복구 (휴지통)"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
-                        >
-                          <Trash2 size={14} /> 휴지통 ({trashItems.length})
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setShowTrash(true)}
+                        title="삭제한 문장 복구 (휴지통)"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                      >
+                        <Trash2 size={14} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
+                      </button>
                     </div>
                   ) : (
                     <>
