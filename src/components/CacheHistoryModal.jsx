@@ -56,10 +56,10 @@ const CacheHistoryModal = ({
         return (
             <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
-                className={`p-2.5 rounded-xl transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-400 hover:bg-amber-50'}`}
+                className={`p-1.5 rounded-lg transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-400 hover:bg-amber-50'}`}
                 title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
             >
-                <Star size={20} className={fav ? 'fill-current' : ''} />
+                <Star size={17} className={fav ? 'fill-current' : ''} />
             </button>
         );
     };
@@ -98,51 +98,47 @@ const CacheHistoryModal = ({
             <div
                 key={rec.id}
                 onClick={open}
-                className={`group flex flex-col p-3 rounded-2xl border cursor-pointer transition-all mb-2 ${borderCls}`}
+                className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all mb-1.5 ${borderCls}`}
             >
-                {/* 상단: 아이콘 + 전체 파일명 + 즐겨찾기 */}
-                <div className="flex items-start gap-3 min-w-0">
-                    <div className={`shrink-0 p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                        {isActive ? <Check size={20} /> : <BookOpen size={20} />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className={`text-[15px] font-bold break-words leading-snug ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{display}</p>
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
-                            {progressText && <span className="text-[10px] font-medium text-slate-400">{progressText}</span>}
-                            {localHere && (
-                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] tracking-tight bg-emerald-50 text-emerald-600">
-                                    <HardDrive size={10} /> 이 기기에 저장됨
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="shrink-0 -mr-1 -mt-0.5">{renderStar(rec.id)}</div>
+                {/* 아이콘 */}
+                <div className={`shrink-0 p-2 rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {isActive ? <Check size={17} /> : <BookOpen size={17} />}
                 </div>
-
-                {/* 하단: 삭제 액션 (있을 때만) — 우측 정렬 + 라벨 */}
-                {(localHere || hasCloud) && (
-                    <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                {/* 제목 + 상태 뱃지 */}
+                <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-bold break-words leading-snug ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{display}</p>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
+                        {progressText && <span className="text-[10px] font-medium text-slate-400">{progressText}</span>}
                         {localHere && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="이 기기에서 삭제 (로컬 캐시)"
-                            >
-                                <HardDrive size={14} /> 기기에서 삭제
-                            </button>
-                        )}
-                        {hasCloud && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="서버에서 삭제 (모든 기기)"
-                            >
-                                <Cloud size={14} /> 서버에서 삭제
-                            </button>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] tracking-tight bg-emerald-50 text-emerald-600">
+                                <HardDrive size={10} /> 저장됨
+                            </span>
                         )}
                     </div>
-                )}
+                </div>
+                {/* 우측 인라인: 즐겨찾기 + 삭제 (아이콘만) */}
+                <div className="shrink-0 flex items-center gap-0.5">
+                    {renderStar(rec.id)}
+                    {localHere && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
+                            className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="이 기기에서 삭제 (로컬 캐시)"
+                        >
+                            <HardDrive size={16} />
+                        </button>
+                    )}
+                    {hasCloud && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
+                            className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="서버에서 삭제 (모든 기기)"
+                        >
+                            <Cloud size={16} />
+                        </button>
+                    )}
+                </div>
             </div>
         );
     };
@@ -171,15 +167,10 @@ const CacheHistoryModal = ({
                         <div className="relative">
                             <label
                                 htmlFor="manager-file-upload"
-                                className="flex items-center justify-center gap-3 w-full p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl cursor-pointer shadow-lg shadow-indigo-200 transition-all group"
+                                className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl cursor-pointer shadow-md shadow-indigo-200 transition-all group"
                             >
-                                <div className="p-2 bg-white/20 rounded-lg group-hover:scale-110 transition-transform">
-                                    <Upload size={24} />
-                                </div>
-                                <div>
-                                    <span className="block text-lg font-bold">Upload New File</span>
-                                    <span className="text-xs text-indigo-200">Audio or Video support</span>
-                                </div>
+                                <Upload size={18} className="group-hover:scale-110 transition-transform" />
+                                <span className="text-sm font-bold">파일 업로드 (Upload New File)</span>
                             </label>
                             <input
                                 id="manager-file-upload"
