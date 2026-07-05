@@ -84,17 +84,6 @@ const App = () => {
   const restoredForRef = useRef(null);   // 위치 복원을 이미 처리한 activeFile.id
   const scrollRafRef = useRef(0);
   const activeFileRef = useRef(activeFile);
-
-  // [임시 디버그] 모바일 화면에 위치 저장/복원 값 표시 (콘솔 못 보는 환경용) — 진단 후 제거
-  const dbgRef = useRef(null);
-  const dbgLinesRef = useRef([]);
-  const lastSavedIdxRef = useRef(-1);
-  const dbg = (m) => {
-    const arr = dbgLinesRef.current;
-    arr.push(m);
-    if (arr.length > 7) arr.shift();
-    if (dbgRef.current) dbgRef.current.textContent = arr.join('\n');
-  };
   // 렌더 직후 동기화(이벤트 핸들러가 최신 activeFile을 보도록) — 전환 시 지연 방지
   useLayoutEffect(() => { activeFileRef.current = activeFile; }, [activeFile]);
 
@@ -147,10 +136,7 @@ const App = () => {
       if (el.getBoundingClientRect().bottom > cTop + 8) { topIdx = Number(el.dataset.idx); break; }
     }
     const item = f.data[topIdx];
-    if (item) {
-      if (topIdx !== lastSavedIdxRef.current) { lastSavedIdxRef.current = topIdx; dbg(`SAVE ${f.file.name.slice(0, 8)} idx=${topIdx}`); }
-      setLastPos(f.file.name, f.file.size, topIdx, item.seconds);
-    }
+    if (item) setLastPos(f.file.name, f.file.size, topIdx, item.seconds);
   };
 
   const onTranscriptScroll = () => {
@@ -173,14 +159,13 @@ const App = () => {
 
     const pos = getLastPos(activeFile.file.name, activeFile.file.size);
     const item = pos ? activeFile.data[pos.idx] : null;
-    dbg(`OPEN ${activeFile.file.name.slice(0, 8)} pos=${pos ? pos.idx : 'NONE'} len=${activeFile.data.length} rs=${videoRef.current?.readyState ?? 'noVid'}`);
     if (!item) return;
 
     // 페인트 전에 동기적으로 스크롤 → 처음부터 그 위치에 그려짐(맨 위로 튀지 않음)
     const el = scrollContainerRef.current?.querySelector(`[data-idx="${pos.idx}"]`);
     if (el) el.scrollIntoView({ block: 'start' });
     restoreTo(pos.idx, item.seconds);            // 재생 커서·하이라이트
-  }, [activeFile, isSwitchingFile, restoreTo, videoRef]);
+  }, [activeFile, isSwitchingFile, restoreTo]);
 
   // Keyboard Shortcuts
   useKeyboardShortcuts({
@@ -221,12 +206,6 @@ const App = () => {
   // Shared overlays for both Empty and Main states
   const overlays = (
     <>
-      {/* [임시 디버그] 위치 저장/복원 진단 오버레이 — 진단 후 제거 */}
-      <div
-        ref={dbgRef}
-        className="fixed top-1 left-1 z-[200] px-1.5 py-1 rounded bg-black/75 text-green-400 pointer-events-none"
-        style={{ font: '10px monospace', whiteSpace: 'pre-wrap', maxWidth: '70vw' }}
-      />
       {confirmState && (
         <ConfirmModal
           message={confirmState.message}
