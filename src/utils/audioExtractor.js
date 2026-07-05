@@ -75,29 +75,51 @@ function encodeWAV(samples, sampleRate) {
  * @returns {Promise<Blob>} audio/wav Blob
  */
 export async function extractAudioWav(file, targetRate = TARGET_SAMPLE_RATE) {
-    const arrayBuffer = await file.arrayBuffer();
+    let arrayBuffer = await file.arrayBuffer();
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) throw new Error('AudioContext 미지원 브라우저');
 
-    const tmp = new AC();
+    // [OOM 방지] 디코딩 컨텍스트를 처음부터 목표 레이트(16kHz)로 생성하면
+    // decodeAudioData가 그 레이트로 바로 리샘플해 디코딩한다. 그러면 원본(48kHz 등)의
+    // 풀레이트 비압축 PCM(긴 영상은 수백 MB)을 메모리에 들고 있지 않아 탭 크래시를 막는다.
+    let ctx;
+    try { ctx = new AC({ sampleRate: targetRate }); }
+    catch { ctx = new AC(); } // 샘플레이트 지정 미지원 브라우저 폴백
+
     let decoded;
     try {
-        decoded = await tmp.decodeAudioData(arrayBuffer);
+        decoded = await ctx.decodeAudioData(arrayBuffer);
     } finally {
-        try { await tmp.close(); } catch { /* noop */ }
+        try { await ctx.close(); } catch { /* noop */ }
     }
+    arrayBuffer = null; // 원본 압축 버퍼 즉시 해제 (GC 유도)
     if (!decoded || decoded.length === 0) throw new Error('오디오 트랙을 찾을 수 없음');
 
-    // OfflineAudioContext로 16kHz 모노 리샘플링
-    const frames = Math.max(1, Math.ceil(decoded.duration * targetRate));
-    const offline = new OfflineAudioContext(1, frames, targetRate);
-    const src = offline.createBufferSource();
-    src.buffer = decoded;
-    src.connect(offline.destination);
-    src.start(0);
-    const rendered = await offline.startRendering();
+    let samples;
+    if (decoded.sampleRate === targetRate) {
+        // 이미 목표 레이트로 디코딩됨 → 모노 다운믹스만(추가 컨텍스트/버퍼 없음)
+        if (decoded.numberOfChannels > 1) {
+            const a = decoded.getChannelData(0);
+            const b = decoded.getChannelData(1);
+            const mono = new Float32Array(a.length);
+            for (let i = 0; i < a.length; i++) mono[i] = (a[i] + b[i]) * 0.5;
+            samples = mono;
+        } else {
+            samples = decoded.getChannelData(0);
+        }
+    } else {
+        // 폴백: 컨텍스트가 목표 레이트를 못 맞춘 경우에만 OfflineAudioContext로 16kHz 모노 리샘플
+        const frames = Math.max(1, Math.ceil(decoded.duration * targetRate));
+        const offline = new OfflineAudioContext(1, frames, targetRate);
+        const src = offline.createBufferSource();
+        src.buffer = decoded;
+        src.connect(offline.destination);
+        src.start(0);
+        const rendered = await offline.startRendering();
+        samples = rendered.getChannelData(0);
+    }
 
-    const wav = encodeWAV(rendered.getChannelData(0), targetRate);
+    const wav = encodeWAV(samples, targetRate);
     return new Blob([wav], { type: 'audio/wav' });
 }
 
