@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
-  AlertCircle, RotateCcw
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -45,6 +45,10 @@ const App = () => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSwitchingFile, setIsSwitchingFile] = useState(false);
+
+  // 구간 선택 재전사 모드
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIdxs, setSelectedIdxs] = useState(() => new Set());
   const [confirmState, setConfirmState] = useState(null);
   const [toastState, setToastState] = useState(null);
 
@@ -89,7 +93,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
@@ -104,6 +108,56 @@ const App = () => {
 
   // 즐겨찾기 (기기 간 동기화)
   const { isFavorite, toggleFavorite } = useFavorites(passphrase);
+
+  // 구간 선택 재전사: 문장 선택 토글 (memo된 TranscriptItem용 안정 핸들러)
+  const toggleSelectIdx = useCallback((idx) => {
+    setSelectedIdxs(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIdxs(new Set());
+  }, []);
+
+  // 파일이 바뀌면 선택 모드 해제 (렌더 중 상태 조정 — React 권장 패턴, 효과 아님)
+  const [prevActiveIdForSelect, setPrevActiveIdForSelect] = useState(activeFileId);
+  if (prevActiveIdForSelect !== activeFileId) {
+    setPrevActiveIdForSelect(activeFileId);
+    if (selectMode) setSelectMode(false);
+    if (selectedIdxs.size > 0) setSelectedIdxs(new Set());
+  }
+
+  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2)
+  const confirmRetranscribe = () => {
+    if (!activeFile || selectedIdxs.size === 0) return;
+    const idxs = [...selectedIdxs];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 ${idxs.length}개 문장의 해당 구간 오디오만 다시 듣고 전사합니다. (전사 후 분석도 새로) 나머지 문장·타임라인은 그대로 유지됩니다. 진행할까요?`,
+      onConfirm: () => {
+        retranscribeSentences(fileId, idxs);
+        exitSelectMode();
+      },
+    });
+  };
+
+  // 선택 구간 분석만 다시 (Phase 2만 — 전사는 보존)
+  const confirmReanalyze = () => {
+    if (!activeFile || selectedIdxs.size === 0) return;
+    const idxs = [...selectedIdxs];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 ${idxs.length}개 문장의 번역·분석만 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
+      onConfirm: () => {
+        reanalyzeSentences(fileId, idxs);
+        exitSelectMode();
+      },
+    });
+  };
 
   useEffect(() => {
     refreshCacheKeysRef.current = refreshCacheKeys;
@@ -300,6 +354,53 @@ const App = () => {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {activeFile ? (
           <div className="flex flex-col h-full">
+            {/* 구간 다시 전사 툴바 */}
+            {!isAnalyzing && !isSwitchingFile && !activeFile.error && transcriptData.length > 0 && (
+              <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+                <div className="max-w-6xl mx-auto px-3 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
+                  {!selectMode ? (
+                    <button
+                      onClick={() => setSelectMode(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
+                    >
+                      <Wand2 size={14} /> 구간 다시 전사 / 분석
+                    </button>
+                  ) : (
+                    <>
+                      <span className="text-xs font-bold text-slate-600 shrink-0">
+                        {selectedIdxs.size > 0
+                          ? `${selectedIdxs.size}개 문장 선택됨`
+                          : '고칠 문장을 탭하세요'}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={exitSelectMode}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                        >
+                          <X size={14} /> 취소
+                        </button>
+                        <button
+                          onClick={confirmReanalyze}
+                          disabled={selectedIdxs.size === 0}
+                          title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Languages size={14} /> 분석만 다시
+                        </button>
+                        <button
+                          onClick={confirmRetranscribe}
+                          disabled={selectedIdxs.size === 0}
+                          title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                        >
+                          <Check size={14} /> 전사부터 다시
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <div ref={scrollContainerRef} onScroll={onTranscriptScroll} className="flex-1 w-full overflow-y-auto bg-[#F8FAFC]" onClick={() => { setShowSpeedMenu(false); }}>
               <div className="max-w-6xl mx-auto px-2 md:px-6 pb-32">
                 {isAnalyzing || isSwitchingFile ? (
@@ -355,6 +456,9 @@ const App = () => {
                             isGlobalLooping={isGlobalLoopActive}
                             showAnalysis={showAnalysis}
                             toggleGlobalAnalysis={toggleGlobalAnalysis}
+                            selectMode={selectMode}
+                            isSelected={selectedIdxs.has(idx)}
+                            onToggleSelect={toggleSelectIdx}
                           />
                         );
                       })}

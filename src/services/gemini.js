@@ -482,6 +482,90 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
     return rebuildWithReplacements(sorted, replacements);
 }
 
+/**
+ * [Stage 1 부분 재전사 - 구간 선택 재전사]
+ * 사용자가 고른 문장들의 '시간대 오디오'만 잘라 다시 전사한다.
+ * 나머지 문장의 타임스탬프는 전혀 건드리지 않으므로 타임라인이 최대한 보존된다.
+ * (realignMergedBlocks와 동일한 원리 — 다만 대상 구간을 호출부에서 명시적으로 지정)
+ *
+ * @param {File|Blob} file - 원본 미디어 (오디오 추출용)
+ * @param {string} apiKey
+ * @param {string} modelId
+ * @param {Array<{start:number,end:number}>} windows - 재전사할 절대 시간 구간(초). end는 배타적 경계.
+ * @param {object} opts - { totalDuration, temperature, topP, signal, antiRecitation, markerChar, markerInterval, onProgress }
+ * @returns {Promise<Array<Array|null>>} windows와 같은 길이/순서. 각 원소는 그 구간의 새 문장 배열(실패·빈 결과면 null).
+ */
+export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-flash", windows = [], {
+    totalDuration = 0,
+    temperature = 0.5,
+    topP = 0.7,
+    signal = null,
+    antiRecitation = false,
+    markerChar = DEFAULT_RECITATION_MARKER,
+    markerInterval = 2,
+    onProgress = null,
+} = {}) {
+    if (!apiKey) throw new Error("API Key is required");
+    if (!windows || windows.length === 0) return [];
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelName = resolveModel(modelId);
+    const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+            temperature: temperature || 0.5,
+            topP: topP || 0.7,
+            maxOutputTokens: 65536,
+            ...(modelName.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+        },
+        safetySettings
+    }, { apiVersion: "v1beta" });
+
+    const stripMarker = antiRecitation ? makeMarkerStripper(markerChar) : null;
+    const audioBlob = await extractAudioBlob(file); // 오디오는 1회만 추출, 이후 구간별 슬라이스
+
+    const PAD_START = 0.3;
+    const results = [];
+    let done = 0;
+
+    for (const w of windows) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+        const blockStart = Math.max(0, w.start);
+        const blockEnd = (typeof w.end === 'number' && w.end > blockStart)
+            ? w.end
+            : (totalDuration > blockStart ? totalDuration : blockStart + 8);
+        const winStart = Math.max(0, blockStart - PAD_START);
+        const winDur = Math.max(1, blockEnd - winStart);
+
+        try {
+            const segBlob = await extractSegmentWav(audioBlob, winStart, winDur);
+            const segPart = await blobToGeminiPart(segBlob, apiKey);
+            const prompt = buildStage1Prompt(winDur, antiRecitation, markerChar, markerInterval);
+            const segMatches = await transcribeStream(model, [segPart, prompt], {
+                segDuration: winDur,
+                offset: winStart,
+                hardLimit: totalDuration,
+                signal,
+                stripMarker,
+            });
+            // 구간 경계 침범분 제거: 이 구간 끝 이전 것만 채택
+            const clean = (segMatches || []).filter(m => m.seconds < blockEnd - 0.05);
+            results.push(clean.length > 0 ? clean : null);
+            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s → ${clean.length}문장`);
+        } catch (err) {
+            if (err.name === 'AbortError') throw err;
+            console.warn(`[Retranscribe] 구간 @${blockStart.toFixed(1)}s 재전사 실패:`, err && err.message);
+            results.push(null);
+        }
+
+        done++;
+        if (onProgress) onProgress(done, windows.length);
+    }
+
+    return results;
+}
+
 export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", {
     totalDuration = 0,
     onProgress = null,

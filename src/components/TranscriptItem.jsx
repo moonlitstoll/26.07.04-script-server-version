@@ -1,12 +1,13 @@
 import { useRef, useEffect, useLayoutEffect, memo } from 'react';
 import {
-    Play, Repeat, Clock, Languages, BookOpen
+    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check
 } from 'lucide-react';
 
 const TranscriptItem = memo(({
     item, idx, isActive, isGlobalLooping, manualScrollNonce,
     seekTo, jumpToSentence,
-    isLooping, showAnalysis
+    isLooping, showAnalysis,
+    selectMode = false, isSelected = false, onToggleSelect
 }) => {
     const itemRef = useRef(null);
 
@@ -46,11 +47,35 @@ const TranscriptItem = memo(({
             data-idx={idx}
             className={`
         group relative transition-all duration-300 ease-out mb-2 rounded-xl border border-l-[4px] p-2.5 sm:px-4 sm:py-5
-        ${isActive
-                    ? 'bg-transparent border-l-purple-700 border-t-slate-100 border-r-slate-100 border-b-slate-100 shadow-md z-10'
-                    : 'bg-white border-slate-100 opacity-90'}
+        ${isSelected
+                    ? 'bg-indigo-50 border-l-indigo-500 border-t-indigo-200 border-r-indigo-200 border-b-indigo-200 ring-2 ring-indigo-300 shadow-md z-10'
+                    : isActive
+                        ? 'bg-transparent border-l-purple-700 border-t-slate-100 border-r-slate-100 border-b-slate-100 shadow-md z-10'
+                        : 'bg-white border-slate-100 opacity-90'}
       `}
         >
+            {/* 선택 모드: 카드 전체를 탭하면 선택/해제 (내부 버튼 클릭 차단) */}
+            {selectMode && (
+                <div
+                    onClick={() => onToggleSelect && onToggleSelect(idx)}
+                    className="absolute inset-0 z-30 cursor-pointer rounded-xl"
+                    role="button"
+                    aria-pressed={isSelected}
+                >
+                    <div className={`absolute top-2 right-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
+                        {isSelected && <Check size={14} className="stroke-[3]" />}
+                    </div>
+                </div>
+            )}
+
+            {/* 재전사 진행 오버레이 */}
+            {item.isRetranscribing && (
+                <div className="absolute inset-0 z-40 rounded-xl bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow">
+                        <Loader2 size={14} className="animate-spin" /> 다시 전사 중...
+                    </div>
+                </div>
+            )}
 
             <div>
                 {/* Header: Timestamp & Looping Indicator */}

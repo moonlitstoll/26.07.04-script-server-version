@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
-import { extractTranscript, analyzeBatchSentences } from '../services/gemini';
+import { extractTranscript, analyzeBatchSentences, retranscribeSegments } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
@@ -288,6 +288,179 @@ export const useMediaAnalysis = ({
         }
     };
 
+    /**
+     * [구간 선택 재전사]
+     * 사용자가 고른 문장들의 시간대 오디오만 다시 전사하고, 그 자리에 교체한다.
+     * 나머지 문장의 타임스탬프·분석은 그대로 보존된다(타임라인 최대 보존).
+     * 새로 나온 문장은 미분석 상태로 넣고 runStage2가 그것들만 분석한다.
+     */
+    const retranscribeSentences = async (fileId, indices) => {
+        if (!apiKey) {
+            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+            return;
+        }
+        if (!indices || indices.length === 0) return;
+
+        // 현재 파일/데이터 스냅샷 확보
+        let targetFile = null;
+        let currentData = null;
+        setFiles(prev => {
+            const f = prev.find(p => p.id === fileId);
+            if (f) { targetFile = f.file; currentData = f.data; }
+            return prev;
+        });
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) return;
+
+        const sortedIdx = [...new Set(indices)]
+            .filter(i => i >= 0 && i < currentData.length)
+            .sort((a, b) => a - b);
+        if (sortedIdx.length === 0) return;
+
+        // 진행 중인 Stage 2 중단 (교체 후 재개)
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+
+        // 선택 문장에 재전사 로딩 표시
+        const clearRetranscribingFlag = () => {
+            setFiles(prev => prev.map(p => p.id === fileId
+                ? { ...p, data: p.data.map(d => {
+                    if (!d.isRetranscribing) return d;
+                    const c = { ...d }; delete c.isRetranscribing; return c;
+                }) }
+                : p));
+        };
+        setFiles(prev => prev.map(p => p.id === fileId
+            ? { ...p, data: p.data.map((d, i) => sortedIdx.includes(i) ? { ...d, isRetranscribing: true } : d) }
+            : p));
+
+        // 재전사도 Stage 1 계열 → 같은 abort 채널 사용 (파일 전환 시 함께 취소됨)
+        if (stage1AbortRef.current) stage1AbortRef.current.abort();
+        stage1AbortRef.current = new AbortController();
+        const { signal } = stage1AbortRef.current;
+
+        try {
+            // 온디맨드/클라우드 파일 대응: 분석용으로 메모리 적재 (실패 시 원본 폴백)
+            let fileForAnalysis = targetFile;
+            try {
+                fileForAnalysis = await materializeFile(targetFile, {
+                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
+                });
+            } catch (e) {
+                console.warn('[Retranscribe] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
+                fileForAnalysis = targetFile;
+            }
+
+            let duration = 0;
+            try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
+
+            // 선택 문장을 '블록'(동일 시각으로 뭉친 연속 구간) 단위로 정규화.
+            // 블록 시각 공유로 여러 문장이 같은 seconds를 가지면, 한 개만 교체 시 형제 문장이
+            // 남아 중복이 생기므로 그 블록 전체를 통째로 교체한다. (보통은 lo===hi인 단일 문장)
+            const blockMap = new Map(); // lo -> { lo, hi, start, end }
+            for (const i of sortedIdx) {
+                const t = currentData[i].seconds;
+                let lo = i; while (lo > 0 && currentData[lo - 1].seconds === t) lo--;
+                let hi = i; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === t) hi++;
+                if (blockMap.has(lo)) continue;
+                // 블록 끝(배타적 경계) = 다음(더 큰) 시각, 없으면 영상 끝
+                let end = duration > t ? duration : t + 8;
+                for (let j = hi + 1; j < currentData.length; j++) {
+                    if (currentData[j].seconds > t) { end = currentData[j].seconds; break; }
+                }
+                blockMap.set(lo, { lo, hi, start: t, end });
+            }
+            const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
+            const windows = blocks.map(b => ({ start: b.start, end: b.end }));
+
+            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1Model, windows, {
+                totalDuration: duration,
+                temperature,
+                topP,
+                signal,
+                antiRecitation,
+                markerChar,
+                markerInterval,
+            });
+
+            // 뒤 블록부터 splice 교체 (앞 인덱스 밀림 방지)
+            const newData = currentData.slice();
+            let replacedCount = 0;
+            let failedCount = 0;
+            for (let k = blocks.length - 1; k >= 0; k--) {
+                const b = blocks[k];
+                const fresh = perWindow[k];
+                if (fresh && fresh.length > 0) {
+                    newData.splice(b.lo, b.hi - b.lo + 1, ...fresh); // 새 문장은 isAnalyzed:false 상태
+                    replacedCount++;
+                } else {
+                    failedCount++; // 실패 → 원본 유지
+                }
+            }
+
+            const cleanData = sanitizeData(newData, duration);
+            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
+
+            const allDone = cleanData.every(d => d.isAnalyzed);
+            saveCacheEntry(targetFile, cleanData, allDone ? 'completed' : 'analyzing');
+            if (refreshCacheKeys) refreshCacheKeys();
+
+            if (replacedCount > 0) {
+                if (showToast) showToast({
+                    message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
+                    type: 'success'
+                });
+                // 새로 들어온(미분석) 문장만 분석
+                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2Model);
+            } else {
+                clearRetranscribingFlag();
+                if (showToast) showToast({ message: '재전사 결과를 얻지 못해 원본을 유지했습니다.', type: 'error' });
+            }
+        } catch (err) {
+            clearRetranscribingFlag();
+            if (err.name === 'AbortError') return;
+            console.error('[Retranscribe] 실패', err);
+            if (showToast) showToast({ message: '재전사 실패: ' + err.message, type: 'error' });
+        }
+    };
+
+    /**
+     * [구간 선택 분석만 다시 - Phase 2 재실행]
+     * 선택 문장의 전사(문장·타임스탬프)는 그대로 두고, 번역/분석만 지우고 다시 분석한다.
+     * 오디오 재전사가 없어(텍스트만 전송) 빠르고 타임라인이 완전히 보존된다.
+     */
+    const reanalyzeSentences = async (fileId, indices) => {
+        if (!apiKey) {
+            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+            return;
+        }
+        if (!indices || indices.length === 0) return;
+
+        // 진행 중인 Stage 2 중단 (재분석으로 재개)
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+
+        const idxSet = new Set(indices);
+        let targetFile = null;
+        let resetData = null;
+        setFiles(prev => prev.map(p => {
+            if (p.id !== fileId) return p;
+            targetFile = p.file;
+            // 선택 문장만 미분석 상태로 리셋 (전사 텍스트·타임스탬프는 유지)
+            resetData = p.data.map((d, i) => idxSet.has(i)
+                ? { ...d, translation: '', analysis: '', a: '', isAnalyzed: false }
+                : d);
+            return { ...p, data: resetData };
+        }));
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile || !resetData) return;
+
+        saveCacheEntry(targetFile, resetData, 'analyzing');
+        if (refreshCacheKeys) refreshCacheKeys();
+
+        if (showToast) showToast({ message: `${idxSet.size}개 문장 분석을 다시 진행 중...`, type: 'success' });
+        // 미분석(리셋된) 문장만 Stage 2가 다시 분석
+        runStage2(fileId, targetFile, resetData, apiKey, stage2Model);
+    };
+
     // 드래그앤드롭 핸들러
     const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
     const onDragLeave = (e) => {
@@ -300,5 +473,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };
