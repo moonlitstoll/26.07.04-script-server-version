@@ -18,6 +18,15 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     const loopTargetIdxRef = useRef(null); // [Phase 4] 루프 고정 타겟 인덱스
     const lastActionTimeRef = useRef(0); // [4차 수정] 시간 기반 의도 보호 가드
 
+    // <video>가 실제로 마운트된 시점을 상태로 추적 → 싱크 엔진/복원이 비디오 준비 후 확실히 실행
+    // (첫 로드에서 비디오가 늦게 붙어 리스너가 안 달리던 경합 방지)
+    const [videoNode, setVideoNode] = useState(null);
+    const pendingSeekRef = useRef(null); // 비디오 준비 전 예약된 seek 시각(초)
+    const attachVideo = useCallback((node) => {
+        videoRef.current = node;
+        setVideoNode(node);
+    }, []);
+
     const triggerManualScroll = useCallback(() => setManualScrollNonce(Date.now()), []);
 
     useEffect(() => {
@@ -128,7 +137,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
 
     // High-Resolution Sync Engine (Absolute Tracking)
     useEffect(() => {
-        const v = videoRef.current;
+        const v = videoNode; // 마운트된 실제 요소 (videoRef.current와 동일 노드)
         if (!v || !activeFile?.data) return;
 
         // [Phase 4] 한곡 반복 수정: 한문장 반복이 꺼져있을 때만 전체 반복(native loop) 활성화
@@ -259,25 +268,35 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             v.removeEventListener('loadedmetadata', handleLoadedMetadata);
             if (pulseId) clearInterval(pulseId);
         };
-    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime]);
+    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode]);
+
+    // 예약된 seek을 비디오가 준비되는 대로 적용 (비디오가 늦게 마운트돼도 유실 없음)
+    const applyPendingSeek = useCallback(() => {
+        const v = videoRef.current;
+        const t = pendingSeekRef.current;
+        if (v == null || t == null) return;
+        const doSeek = () => { try { v.currentTime = t; } catch { /* noop */ } setCurrentTime(t); pendingSeekRef.current = null; };
+        if (v.readyState >= 1) doSeek();             // 메타데이터 준비됨 → 즉시
+        else v.addEventListener('loadedmetadata', function once() { // 아직이면 로드 후 1회
+            v.removeEventListener('loadedmetadata', once); doSeek();
+        });
+    }, []);
+
+    // 비디오 요소가 (재)마운트되면 예약된 seek 적용
+    useEffect(() => { if (videoNode) applyPendingSeek(); }, [videoNode, applyPendingSeek]);
 
     // [위치 복원] 저장된 문장으로 재생 커서·하이라이트를 맞춘다(정지 유지, 자동재생 안 함).
     // 스크롤은 App(대본 컨테이너)에서 담당. 데이터가 마운트된 뒤 호출되어야 함.
     const restoreTo = useCallback((idx, seconds) => {
-        const v = videoRef.current;
         loopTargetIdxRef.current = idx;
         lastActionTimeRef.current = Date.now();
         activeIdxRef.current = idx;
         setActiveSentenceIdx(idx);
         if (typeof seconds !== 'number') return;
-        const t = Math.max(0, seconds - bufferTime);
-        const applySeek = () => { try { v.currentTime = t; } catch { /* noop */ } setCurrentTime(t); };
-        if (!v) return;
-        if (v.readyState >= 1) applySeek();          // 메타데이터 준비됨 → 즉시 seek
-        else v.addEventListener('loadedmetadata', function once() {  // 아직이면 로드 후 1회
-            v.removeEventListener('loadedmetadata', once); applySeek();
-        });
-    }, [bufferTime]);
+        // 비디오가 아직 안 붙었어도 seek을 예약 → 마운트되면 자동 적용
+        pendingSeekRef.current = Math.max(0, seconds - bufferTime);
+        applyPendingSeek();
+    }, [bufferTime, applyPendingSeek]);
 
     const resetPlayerState = useCallback(() => {
         setActiveSentenceIdx(-1);
@@ -293,6 +312,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
 
     return {
         videoRef,
+        attachVideo,
         activeSentenceIdx,
         currentTime,
         duration,

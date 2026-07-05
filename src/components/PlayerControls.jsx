@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 
 const PlayerControls = ({
-    videoRef, mediaUrl, isPlaying, currentTime, duration,
+    attachVideo, mediaUrl, isPlaying, currentTime, duration,
     playbackRate, isGlobalLoopActive, currentSentenceIdx,
     showAnalysis, showSpeedMenu,
     togglePlay, seekTo, handlePrev, handleNext,
@@ -21,7 +21,7 @@ const PlayerControls = ({
                     {mediaUrl ? (
                         <>
                             <video
-                                ref={videoRef}
+                                ref={attachVideo}
                                 src={mediaUrl}
                                 className="w-full h-full object-contain"
                                 onClick={togglePlay}

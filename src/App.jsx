@@ -74,7 +74,7 @@ const App = () => {
 
   // Hooks
   const {
-    videoRef, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
+    videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
     manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, jumpToSentence,
     handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo
   } = useAudioPlayer({ activeFile, bufferTime });
@@ -373,7 +373,7 @@ const App = () => {
 
             {/* Bottom Player Controls */}
             <PlayerControls
-              videoRef={videoRef}
+              attachVideo={attachVideo}
               mediaUrl={mediaUrl}
               isPlaying={isPlaying}
               currentTime={currentTime}
