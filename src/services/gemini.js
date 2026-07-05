@@ -25,6 +25,40 @@ const DEDUP_WINDOW_SEC = 8;
 // 정규식 특수문자 이스케이프
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// [구간 재전사 경계 정리] 이웃 문장과 겹치는 경계 단어열을 잘라낸다.
+//  - mode 'lead' : text의 '앞'과 neighbor의 '뒤'가 겹치면(=앞 문장 꼬리) 앞을 제거
+//  - mode 'trail': text의 '뒤'와 neighbor의 '앞'이 겹치면(=다음 문장 머리) 뒤를 제거
+// 흔한 한 단어 오제거를 막기 위해 '겹친 글자 수 4 이상'일 때만 자른다.
+const normWordForTrim = (w) => (w || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+function trimBoundaryOverlap(text, neighbor, mode) {
+    if (!text || !neighbor) return text;
+    const words = text.split(/\s+/).filter(Boolean);
+    const nWords = neighbor.split(/\s+/).filter(Boolean);
+    if (words.length < 2 || nWords.length === 0) return text;
+    const w = words.map(normWordForTrim);
+    const n = nWords.map(normWordForTrim);
+    const maxK = Math.min(words.length - 1, n.length, 10); // 문장을 통째로 지우진 않게 상한
+    let best = 0;
+    let bestChars = 0;
+    for (let k = 1; k <= maxK; k++) {
+        let ok = true;
+        let chars = 0;
+        for (let i = 0; i < k; i++) {
+            const a = mode === 'lead' ? w[i] : w[words.length - k + i];
+            const b = mode === 'lead' ? n[n.length - k + i] : n[i];
+            if (!a || a !== b) { ok = false; break; }
+            chars += a.length;
+        }
+        if (ok) { best = k; bestChars = chars; }
+    }
+    if (best > 0 && bestChars >= 4) {
+        return mode === 'lead'
+            ? words.slice(best).join(' ')
+            : words.slice(0, words.length - best).join(' ');
+    }
+    return text;
+}
+
 // 분절 기호 제거 함수 생성. antiRecitation이 켜졌을 때만 사용한다(임의 문자 오제거 방지).
 // 기호 양옆 공백까지 한 칸으로 정리해 원문을 그대로 복원한다.
 function makeMarkerStripper(markerChar) {
@@ -548,10 +582,10 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
         return await extractSegmentWav(await getWholeAudio(), winStart, winDur);
     };
 
-    // 구간을 넉넉히 잡아 누락 방지. 특히 뒤쪽(PAD_END)을 크게 잡아, 다음 문장 타임스탬프
-    // 경계에서 이 문장의 끝 단어가 잘려나가는 것을 막는다. 앞쪽(PAD_START)은 앞 문장 꼬리가
-    // 딸려오지 않게 작게 유지한다. 넓게 딴 뒤 '이 문장 범위' 밖은 타임스탬프로 잘라낸다.
-    const PAD_START = 0.25;
+    // 구간을 넉넉히 잡아 누락 방지(앞 1s / 뒤 2s). 넓게 딴 뒤:
+    //  1) '이 문장 시간범위' 밖의 줄(앞 문장/다음 문장)은 타임스탬프로 제거
+    //  2) 한 줄로 붙어버린 경계는 이웃 문장 텍스트와 겹치는 단어를 잘라내 정리
+    const PAD_START = 1.0;
     const PAD_END = 2.0;
     const results = []; // 각 원소: { sentences: Array|null, error: string|null }
     let done = 0;
@@ -584,10 +618,24 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             //  - 시작 >= blockEnd-0.05 : 다음 문장(뒤 여유로 함께 잡힌 것) → 제거
             // (줄 시작 시각 기준이므로, 이 문장의 끝 단어가 blockEnd를 넘겨도 그 줄은 통째로 보존됨)
             const all = segMatches || [];
-            const inRange = all.filter(m => m.seconds >= blockStart - 0.2 && m.seconds < blockEnd - 0.05);
+            const inRange = all.filter(m => m.seconds >= blockStart - 0.3 && m.seconds < blockEnd - 0.05);
             const picked = inRange.length > 0 ? inRange : all;
             // 한 줄에 여러 문장이 뭉치면 문장별로 분리(기존 파이프라인과 동일: 짧으면 병합)
-            const clean = splitMergedSentences(picked);
+            let clean = [...splitMergedSentences(picked)];
+
+            // 경계 정리: 첫 문장의 앞은 이전 문장과, 마지막 문장의 뒤는 다음 문장과
+            // 겹치는 단어열을 잘라낸다(마침표 없이 붙어버린 꼬리까지 제거). 빈 문장은 버림.
+            if (clean.length > 0) {
+                const first = clean[0];
+                const ft = trimBoundaryOverlap(first.text ?? first.o ?? '', w.prevText, 'lead');
+                if (ft !== (first.text ?? first.o)) clean[0] = { ...first, o: ft, text: ft };
+                const li = clean.length - 1;
+                const last = clean[li];
+                const lt = trimBoundaryOverlap(last.text ?? last.o ?? '', w.nextText, 'trail');
+                if (lt !== (last.text ?? last.o)) clean[li] = { ...last, o: lt, text: lt };
+                clean = clean.filter(c => (c.text ?? c.o ?? '').trim().length > 0);
+            }
+
             results.push({
                 sentences: clean.length > 0 ? clean : null,
                 error: clean.length > 0 ? null : '이 구간에서 전사된 문장이 없음(무음/음악이거나 인식 실패)'
