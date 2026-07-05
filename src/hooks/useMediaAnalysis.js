@@ -308,12 +308,15 @@ export const useMediaAnalysis = ({
      * 나머지 문장의 타임스탬프·분석은 그대로 보존된다(타임라인 최대 보존).
      * 새로 나온 문장은 미분석 상태로 넣고 runStage2가 그것들만 분석한다.
      */
-    const retranscribeSentences = async (fileId, indices) => {
+    const retranscribeSentences = async (fileId, indices, { highQuality = false } = {}) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
         }
         if (!indices || indices.length === 0) return;
+        // 고급 모드: 전사·분석 모두 최고 품질 모델(Pro)로 (분석엔 정밀추론까지)
+        const stage1ModelForUse = highQuality ? 'gemini-2.5-pro' : stage1Model;
+        const stage2ModelForUse = highQuality ? 'gemini-2.5-pro' : stage2Model;
 
         // 현재 파일/데이터 스냅샷 확보
         let targetFile = null;
@@ -391,7 +394,7 @@ export const useMediaAnalysis = ({
             const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
             const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText }));
 
-            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1Model, windows, {
+            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1ModelForUse, windows, {
                 totalDuration: duration,
                 temperature,
                 topP,
@@ -428,11 +431,11 @@ export const useMediaAnalysis = ({
 
             if (replacedCount > 0) {
                 if (showToast) showToast({
-                    message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
+                    message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. ${highQuality ? '고급 ' : ''}분석 진행 중...`,
                     type: 'success'
                 });
-                // 새로 들어온(미분석) 문장만 분석
-                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2Model);
+                // 새로 들어온(미분석) 문장만 분석 (고급이면 Pro + 정밀추론)
+                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2ModelForUse, { thinking: highQuality });
             } else {
                 clearRetranscribingFlag();
                 if (showToast) showToast({
