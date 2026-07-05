@@ -20,11 +20,13 @@ const EmptyState = ({
     const favKeys = cacheKeys.filter(k => isFavorite(favIdFromKey(k)));
     const restKeys = cacheKeys.filter(k => !isFavorite(favIdFromKey(k)));
 
-    // 클라우드 즐겨찾기 (로컬에 이미 있는 건 로컬 즐겨찾기로 표시되므로 제외)
+    // 클라우드 항목 중 로컬에 없는 것(로컬에 있으면 로컬 행으로 표시됨)을 즐겨찾기/일반으로 분리.
+    // → 홈 화면도 목록(History)과 동일하게 클라우드 전용 항목까지 모두 노출.
     const localIdSet = new Set(cacheKeys.map(favIdFromKey));
-    const favCloudItems = (cloudItems || []).filter(
-        it => isFavorite(favIdFromItem(it)) && !localIdSet.has(favIdFromItem(it))
-    );
+    const cloudOnlyItems = (cloudItems || []).filter(it => !localIdSet.has(favIdFromItem(it)));
+    const favCloudItems = cloudOnlyItems.filter(it => isFavorite(favIdFromItem(it)));
+    const restCloudItems = cloudOnlyItems.filter(it => !isFavorite(favIdFromItem(it)));
+    const hasAnyItems = cacheKeys.length > 0 || cloudOnlyItems.length > 0;
     // id → 클라우드 항목 (로컬 행에서 서버 삭제 버튼 표시 여부 판단)
     const cloudById = new Map((cloudItems || []).map(it => [favIdFromItem(it), it]));
 
@@ -175,7 +177,7 @@ const EmptyState = ({
                         최근 작업 히스토리
                     </h4>
                     <div className="space-y-2 max-h-60 overflow-y-auto mb-4 pr-1 scrollbar-thin scrollbar-thumb-slate-200">
-                        {cacheKeys.length === 0 && favCloudItems.length === 0 ? (
+                        {!hasAnyItems ? (
                             <div className="bg-slate-50/50 rounded-2xl p-8 border border-slate-100">
                                 <p className="text-sm text-slate-400">저장된 기록이 없습니다.</p>
                             </div>
@@ -190,6 +192,7 @@ const EmptyState = ({
                                 {favKeys.map(renderRow)}
                                 {favCloudItems.map(renderCloudRow)}
                                 {restKeys.map(renderRow)}
+                                {restCloudItems.map(renderCloudRow)}
                             </>
                         )}
                     </div>
