@@ -218,26 +218,45 @@ async function blobToGeminiPart(blob, apiKey) {
 }
 
 // 청크 경계 오버랩 구간 중복 제거
+// 청크 오버랩 경계에서 두 번 잡힌 문장 제거 (강화판).
+//  (1) 직전 1개만이 아니라, 시간 창(WINDOW_SEC) 안의 '최근 kept 전부'와 비교
+//      → 청크 간 타임스탬프 지터로 벌어졌거나 사이에 다른 문장이 낀 중복도 포착.
+//  (2) 정규화 시 공백뿐 아니라 구두점·기호까지 제거(문장부호만 다른 중복 포착, 다국어 문자/숫자는 보존).
+//  (3) 판정: 완전일치 · (충분히 긴 경우) 포함 · 양방향 단어 유사도 3중.
+//      짧은 문장은 포함/유사도 판정에서 제외해 서로 다른 짧은 발화의 오제거를 방지.
 function deduplicateOverlap(matches) {
     if (matches.length < 2) return matches;
     matches.sort((a, b) => a.seconds - b.seconds);
 
-    const result = [matches[0]];
-    for (let i = 1; i < matches.length; i++) {
-        const curr = matches[i];
-        const prev = result[result.length - 1];
-        if (Math.abs(curr.seconds - prev.seconds) < 3) {
-            const normCurr = curr.text.toLowerCase().replace(/\s+/g, '');
-            const normPrev = prev.text.toLowerCase().replace(/\s+/g, '');
-            if (normCurr === normPrev ||
-                normCurr.startsWith(normPrev.substring(0, 15)) ||
-                normPrev.startsWith(normCurr.substring(0, 15))) {
-                continue;
-            }
+    const WINDOW_SEC = 20;       // 청크 간 타임스탬프 지터를 넉넉히 포섭
+    const SIM_THRESHOLD = 0.85;  // 양방향 단어 포함 비율 기준
+    const MIN_CONTAIN_LEN = 12;  // 포함 판정 최소 길이(짧은 문장 오탐 방지)
+
+    const normFull = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const wordCount = (t) => ((t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').match(/\S+/g) || []).length;
+
+    const isDup = (curr, prev) => {
+        const nc = normFull(curr.text), np = normFull(prev.text);
+        if (!nc || !np) return false;
+        if (nc === np) return true;
+        const [shorter, longer] = nc.length <= np.length ? [nc, np] : [np, nc];
+        if (shorter.length >= MIN_CONTAIN_LEN && longer.includes(shorter)) return true;
+        if (wordCount(curr.text) >= 4 && wordCount(prev.text) >= 4) {
+            if (Math.max(sentenceSim(curr.text, prev.text), sentenceSim(prev.text, curr.text)) >= SIM_THRESHOLD) return true;
         }
-        result.push(curr);
+        return false;
+    };
+
+    const kept = [];
+    for (const curr of matches) {
+        let dup = false;
+        for (let j = kept.length - 1; j >= 0; j--) {
+            if (curr.seconds - kept[j].seconds > WINDOW_SEC) break; // 정렬돼 있으니 더 과거는 불필요
+            if (isDup(curr, kept[j])) { dup = true; break; }
+        }
+        if (!dup) kept.push(curr);
     }
-    return result;
+    return kept;
 }
 
 
