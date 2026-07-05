@@ -582,11 +582,10 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
         return await extractSegmentWav(await getWholeAudio(), winStart, winDur);
     };
 
-    // 구간을 넉넉히 잡아 누락 방지(앞 1s / 뒤 3s). 넓게 딴 뒤:
+    // 구간을 넉넉히 잡아 누락 방지(앞 2s / 뒤 3s). 넓게 딴 뒤:
     //  1) '이 문장 시간범위' 밖의 줄(앞 문장/다음 문장)은 타임스탬프로 제거
     //  2) 한 줄로 붙어버린 경계는 이웃 문장 텍스트와 겹치는 단어를 잘라내 정리
-    // 앞은 시작 안 잘릴 만큼만(작게=앞 꼬리 최소), 뒤는 끝말이 다음 경계를 넘겨도 담기게 크게.
-    const PAD_START = 1.0;
+    const PAD_START = 2.0;
     const PAD_END = 3.0;
     const results = []; // 각 원소: { sentences: Array|null, error: string|null }
     let done = 0;
