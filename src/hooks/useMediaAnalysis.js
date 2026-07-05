@@ -496,12 +496,13 @@ export const useMediaAnalysis = ({
     /**
      * [빈칸 구간 복구]
      * 실수로 문장을 지워 빈칸이 생긴 경우, 선택한 '앵커' 문장 1개는 그대로 두고
-     * 그 옆(direction) 빈칸 구간만 다시 들어(raw 모드) 삭제됐던 문장을 복구한다.
+     * 그 옆 빈칸 구간만 다시 들어(raw 모드) 삭제됐던 문장을 복구한다.
+     *  - direction 'both'(기본): 앞 이웃 ~ 뒤 이웃 전체를 한 번에 확인(어느 쪽이 지워졌든 복구)
      *  - direction 'forward' : 앵커 ~ 다음 살아있는 문장 사이(뒤 빈칸)
      *  - direction 'backward': 이전 살아있는 문장 ~ 앵커 사이(앞 빈칸, 맨 앞 포함)
      * 앵커/이웃 문장은 유지(분석 보존)하고, 복구된 문장만 실측 시각으로 삽입 → 자동 재분석(Stage 3).
      */
-    const recoverGap = async (fileId, anchorIndex, direction = 'forward') => {
+    const recoverGap = async (fileId, anchorIndex, direction = 'both') => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
@@ -560,24 +561,33 @@ export const useMediaAnalysis = ({
             let hi = anchorIndex; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
             const sBlockText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
 
-            // 방향별 구간(빈칸) 및 유지 경계 문장 계산
-            let winStart, winEnd, prevText, nextText;
+            // 앞/뒤 이웃(살아있는 문장) 탐색
+            let prevIdx = -1;
+            for (let j = lo - 1; j >= 0; j--) { if (currentData[j].seconds < anchorSec) { prevIdx = j; break; } }
+            let nextIdx = -1;
+            for (let j = hi + 1; j < currentData.length; j++) { if (currentData[j].seconds > anchorSec) { nextIdx = j; break; } }
+            const pSec = prevIdx >= 0 ? currentData[prevIdx].seconds : 0;
+            const pText = prevIdx >= 0 ? (currentData[prevIdx].text || '') : '';
+            const nSec = nextIdx >= 0 ? currentData[nextIdx].seconds : (duration > anchorSec ? duration : anchorSec + 8);
+            const nText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
+
+            // 방향별 구간(빈칸) 및 유지 경계 문장 계산.
+            //  - 'both'(기본): 앞 이웃 ~ 뒤 이웃 전체를 한 번에(앵커는 가운데서 유지)
+            //  - 'backward': 앞 이웃 ~ 앵커  /  'forward': 앵커 ~ 뒤 이웃
+            //  dropSimilarTo: 유지되는 경계 문장(앞/앵커/뒤)과 겹치는 재전사본 제거 → 중복 방지
+            let winStart, winEnd, prevText, nextText, dropList;
             if (direction === 'backward') {
-                // 앞 빈칸: 이전 살아있는 문장(P) ~ 앵커(S) 사이. 맨 앞이면 0 ~ S.
-                let prevIdx = -1;
-                for (let j = lo - 1; j >= 0; j--) { if (currentData[j].seconds < anchorSec) { prevIdx = j; break; } }
-                const pSec = prevIdx >= 0 ? currentData[prevIdx].seconds : 0;
-                const pText = prevIdx >= 0 ? (currentData[prevIdx].text || '') : '';
                 winStart = pSec; winEnd = anchorSec;
-                prevText = pText; nextText = sBlockText; // 유지 경계: 앞=P, 뒤=S
-            } else {
-                // 뒤 빈칸: 앵커(S) ~ 다음 살아있는 문장(N) 사이. 마지막이면 S ~ 영상 끝.
-                let nextIdx = -1;
-                for (let j = hi + 1; j < currentData.length; j++) { if (currentData[j].seconds > anchorSec) { nextIdx = j; break; } }
-                const nSec = nextIdx >= 0 ? currentData[nextIdx].seconds : (duration > anchorSec ? duration : anchorSec + 8);
-                const nText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
+                prevText = pText; nextText = sBlockText;
+                dropList = [pText, sBlockText];
+            } else if (direction === 'forward') {
                 winStart = anchorSec; winEnd = nSec;
-                prevText = sBlockText; nextText = nText; // 유지 경계: 앞=S, 뒤=N
+                prevText = sBlockText; nextText = nText;
+                dropList = [sBlockText, nText];
+            } else {
+                winStart = pSec; winEnd = nSec;
+                prevText = pText; nextText = nText;
+                dropList = [pText, sBlockText, nText];
             }
 
             if (winEnd - winStart < 0.5) {
@@ -586,14 +596,13 @@ export const useMediaAnalysis = ({
                 return;
             }
 
-            // dropSimilarTo: 유지되는 경계 문장(앞/뒤)과 겹치는 재전사본을 제거 → 중복 방지
             const windows = [{
                 start: winStart,
                 end: winEnd,
                 prevText,
                 nextText,
                 recover: true,
-                dropSimilarTo: [prevText, nextText].filter(Boolean),
+                dropSimilarTo: dropList.filter(Boolean),
             }];
 
             const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {

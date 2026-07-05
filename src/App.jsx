@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, ArrowUp, ArrowDown
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -192,27 +192,15 @@ const App = () => {
     });
   };
 
-  // 빈칸 구간 복구 — 선택 문장은 그대로 두고, 그 옆(앞/뒤) 빈칸에서 지워진 문장만 복구
-  const confirmRecoverBackward = () => {
+  // 빈칸 구간 복구 — 선택 문장은 그대로 두고, 그 앞·뒤 이웃 사이 빈칸에서 지워진 문장 복구
+  const confirmRecover = () => {
     if (!activeFile || selectedIdxs.size !== 1) return;
     const anchorIndex = [...selectedIdxs][0];
     const fileId = activeFile.id;
     showConfirm({
-      message: `선택한 문장은 그대로 두고, 그 "앞"(위쪽) 빈칸에서 실수로 지워진 문장을 다시 듣고 복구합니다. (맨 앞 구간 포함, 실측 시각·자동 분석) 진행할까요?`,
+      message: `선택한 문장은 그대로 두고, 그 앞·뒤 이웃 문장 사이에서 실수로 지워진 문장을 다시 듣고 복구합니다. (양쪽 자동 확인, 실측 시각·자동 분석) 진행할까요?`,
       onConfirm: () => {
-        recoverGap(fileId, anchorIndex, 'backward');
-        exitSelectMode();
-      },
-    });
-  };
-  const confirmRecoverForward = () => {
-    if (!activeFile || selectedIdxs.size !== 1) return;
-    const anchorIndex = [...selectedIdxs][0];
-    const fileId = activeFile.id;
-    showConfirm({
-      message: `선택한 문장은 그대로 두고, 그 "뒤"(아래쪽) 빈칸에서 실수로 지워진 문장을 다시 듣고 복구합니다. (실측 시각·자동 분석) 진행할까요?`,
-      onConfirm: () => {
-        recoverGap(fileId, anchorIndex, 'forward');
+        recoverGap(fileId, anchorIndex, 'both');
         exitSelectMode();
       },
     });
@@ -481,20 +469,11 @@ const App = () => {
                         </button>
                         {selectedIdxs.size === 1 && (
                           <button
-                            onClick={confirmRecoverBackward}
-                            title="선택 문장 앞(위쪽) 빈칸에서 실수로 지워진 문장 복구 — 맨 앞 구간 포함 (선택 문장은 유지, 실측 시각·자동 분석)"
+                            onClick={confirmRecover}
+                            title="선택 문장 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (양쪽 자동 확인, 선택 문장 유지, 실측 시각·자동 분석)"
                             className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
                           >
-                            <ArrowUp size={14} /> 앞복구
-                          </button>
-                        )}
-                        {selectedIdxs.size === 1 && (
-                          <button
-                            onClick={confirmRecoverForward}
-                            title="선택 문장 뒤(아래쪽) 빈칸에서 실수로 지워진 문장 복구 (선택 문장은 유지, 실측 시각·자동 분석)"
-                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
-                          >
-                            <ArrowDown size={14} /> 뒤복구
+                            <LifeBuoy size={14} /> 복구
                           </button>
                         )}
                         <button
