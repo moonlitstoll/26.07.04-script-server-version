@@ -118,29 +118,6 @@ export async function saveFavorites(favorites) {
     return res.json();
 }
 
-// ─── 보던 위치 (기기 간 동기화) ───
-// 값: { "{name}_{size}": { idx, seconds, t } }. 서버가 t 최신 기준으로 병합.
-export async function getPositions() {
-    const passphrase = getPassphrase();
-    if (!passphrase) return {};
-    const res = await fetch(`/api/position?passphrase=${encodeURIComponent(passphrase)}`);
-    if (!res.ok) throw new Error(`position ${res.status}`);
-    const { positions } = await res.json();
-    return positions && typeof positions === 'object' ? positions : {};
-}
-
-export async function savePositions(positions) {
-    const passphrase = getPassphrase();
-    if (!passphrase) return;
-    const res = await fetch('/api/position', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passphrase, positions }),
-    });
-    if (!res.ok) throw new Error(`position ${res.status}`);
-    return res.json();
-}
-
 // ─── 삭제 ───
 export async function deleteItem(fileInfo) {
     const passphrase = getPassphrase();
