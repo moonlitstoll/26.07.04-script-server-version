@@ -493,7 +493,7 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
  * @param {string} modelId
  * @param {Array<{start:number,end:number}>} windows - 재전사할 절대 시간 구간(초). end는 배타적 경계.
  * @param {object} opts - { totalDuration, temperature, topP, signal, antiRecitation, markerChar, markerInterval, onProgress }
- * @returns {Promise<Array<Array|null>>} windows와 같은 길이/순서. 각 원소는 그 구간의 새 문장 배열(실패·빈 결과면 null).
+ * @returns {Promise<Array<{sentences: Array|null, error: string|null}>>} windows와 같은 길이/순서.
  */
 export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-flash", windows = [], {
     totalDuration = 0,
@@ -522,10 +522,21 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
     }, { apiVersion: "v1beta" });
 
     const stripMarker = antiRecitation ? makeMarkerStripper(markerChar) : null;
-    const audioBlob = await extractAudioBlob(file); // 오디오는 1회만 추출, 이후 구간별 슬라이스
+
+    // 오디오는 1회만 추출, 이후 구간별 슬라이스. 추출 자체가 실패하면 명확히 던진다.
+    let audioBlob;
+    try {
+        audioBlob = await extractAudioBlob(file);
+    } catch (err) {
+        throw new Error(`오디오 추출 실패: ${err && err.message || err}`);
+    }
+    console.log(`[Retranscribe] 오디오 blob type=${audioBlob?.type || 'unknown'}, size=${((audioBlob?.size || 0) / 1024 / 1024).toFixed(2)}MB`);
+    if (!audioBlob || audioBlob.size < 1024) {
+        throw new Error(`오디오 데이터가 비어 있음 (size=${audioBlob?.size || 0}B). 이 기기에서 오디오를 열 수 없습니다.`);
+    }
 
     const PAD_START = 0.3;
-    const results = [];
+    const results = []; // 각 원소: { sentences: Array|null, error: string|null }
     let done = 0;
 
     for (const w of windows) {
@@ -554,12 +565,15 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             const all = segMatches || [];
             const filtered = all.filter(m => m.seconds < blockEnd - 0.05);
             const clean = filtered.length > 0 ? filtered : all;
-            results.push(clean.length > 0 ? clean : null);
+            results.push({
+                sentences: clean.length > 0 ? clean : null,
+                error: clean.length > 0 ? null : '이 구간에서 전사된 문장이 없음(무음/음악이거나 인식 실패)'
+            });
             console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s → ${clean.length}문장 (raw ${all.length})`);
         } catch (err) {
             if (err.name === 'AbortError') throw err;
             console.warn(`[Retranscribe] 구간 @${blockStart.toFixed(1)}s 재전사 실패:`, err && err.message);
-            results.push(null);
+            results.push({ sentences: null, error: err && err.message || String(err) });
         }
 
         done++;

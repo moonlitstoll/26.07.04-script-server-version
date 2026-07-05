@@ -386,14 +386,16 @@ export const useMediaAnalysis = ({
             const newData = currentData.slice();
             let replacedCount = 0;
             let failedCount = 0;
+            let firstError = null;
             for (let k = blocks.length - 1; k >= 0; k--) {
                 const b = blocks[k];
-                const fresh = perWindow[k];
+                const fresh = perWindow[k]?.sentences;
                 if (fresh && fresh.length > 0) {
                     newData.splice(b.lo, b.hi - b.lo + 1, ...fresh); // 새 문장은 isAnalyzed:false 상태
                     replacedCount++;
                 } else {
                     failedCount++; // 실패 → 원본 유지
+                    if (!firstError && perWindow[k]?.error) firstError = perWindow[k].error;
                 }
             }
 
@@ -413,7 +415,10 @@ export const useMediaAnalysis = ({
                 runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2Model);
             } else {
                 clearRetranscribingFlag();
-                if (showToast) showToast({ message: '재전사 결과를 얻지 못해 원본을 유지했습니다.', type: 'error' });
+                if (showToast) showToast({
+                    message: `재전사 실패: ${firstError || '결과 없음'}`,
+                    type: 'error'
+                });
             }
         } catch (err) {
             clearRetranscribingFlag();
