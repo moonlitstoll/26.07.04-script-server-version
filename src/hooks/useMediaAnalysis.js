@@ -71,8 +71,22 @@ export const useMediaAnalysis = ({
 
             const batchPromises = currentBatchGroup.map(async (batchIndices) => {
                 const batchItems = batchIndices.map(idx => ({ index: idx, text: workingData[idx].text }));
+                // 분석 정확도용 앞뒤 문맥(대상 제외, 최대 CONTEXT_EACH씩). 참고용으로만 전달.
+                const CONTEXT_EACH = 5;
+                const targetSet = new Set(batchIndices);
+                const ctxSet = new Set();
+                for (const idx of batchIndices) {
+                    for (let d = 1; d <= CONTEXT_EACH; d++) {
+                        if (idx - d >= 0) ctxSet.add(idx - d);
+                        if (idx + d < workingData.length) ctxSet.add(idx + d);
+                    }
+                }
+                for (const t of targetSet) ctxSet.delete(t);
+                const contextItems = [...ctxSet].sort((a, b) => a - b)
+                    .slice(0, 40) // 폭주 방지 상한
+                    .map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
-                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal);
+                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems);
                     if (results && !signal.aborted) {
                         let groupSuccess = 0;
                         results.forEach(res => {

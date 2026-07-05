@@ -781,7 +781,7 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
 /**
  * [Stage 2] 여러 문장 일괄 분석 (Batch)
  */
-export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
+export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = []) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -795,8 +795,25 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal) {
         safetySettings
     });
 
-    const inputContent = items.map(item => `문장(INDEX: ${item.index}): ${item.text} `).join('\n');
-    const prompt = `${STAGE2_BATCH_PROMPT}\n\n분석할 문장 목록:\n${inputContent}`;
+    // 분석 대상 + 앞뒤 문맥을 INDEX 순서로 섞어 '연속 흐름'으로 제시.
+    // [분석대상]만 분석/출력하고 [문맥참고]는 앞뒤 맥락 이해용으로만 쓰게 한다.
+    const targetSet = new Set(items.map(i => i.index));
+    const rows = [
+        ...items.map(i => ({ index: i.index, text: i.text, target: true })),
+        ...(contextItems || []).filter(c => !targetSet.has(c.index)).map(c => ({ index: c.index, text: c.text, target: false })),
+    ].sort((a, b) => a.index - b.index);
+
+    const hasContext = rows.some(r => !r.target);
+    const flow = rows.map(r => r.target
+        ? `[분석대상] 문장(INDEX: ${r.index}): ${r.text} `
+        : `[문맥참고] (INDEX: ${r.index}): ${r.text} `
+    ).join('\n');
+
+    const contextRule = hasContext
+        ? `\n\n[문맥 활용 규칙 — 최우선]\n아래 목록은 대본의 '연속된 흐름'이며 두 종류가 섞여 있습니다.\n- [분석대상]: 실제 분석할 문장. 이 INDEX들에 대해서만 번역/분석과 START/END 마커를 출력합니다.\n- [문맥참고]: 앞뒤 맥락을 '이해'하는 용도로만 읽습니다. 절대 분석·번역·출력하지 마십시오. START/END 마커를 만들지 마십시오.\n※ 앞의 "입력된 모든 문장을 분석" 규칙에서 '모든 문장'은 오직 [분석대상]만을 뜻합니다. [문맥참고]는 분석 대상이 아닙니다.`
+        : '';
+
+    const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}\n\n분석할 문장 목록:\n${flow}`;
 
     try {
         const result = await model.generateContent({
