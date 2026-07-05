@@ -144,6 +144,8 @@ const App = () => {
     const fileId = activeFile.id;
     showConfirm({
       message: `선택한 ${idxs.length}개 문장의 해당 구간 오디오만 다시 듣고 전사합니다. (전사 후 분석도 새로) 나머지 문장·타임라인은 그대로 유지됩니다. 진행할까요?`,
+      confirmText: '전사 다시',
+      danger: false,
       onConfirm: () => {
         retranscribeSentences(fileId, idxs);
         exitSelectMode();
@@ -199,6 +201,8 @@ const App = () => {
     const fileId = activeFile.id;
     showConfirm({
       message: `선택한 문장은 그대로 두고, 그 앞·뒤 이웃 문장 사이에서 실수로 지워진 문장을 다시 듣고 복구합니다. (양쪽 자동 확인, 실측 시각·자동 분석) 진행할까요?`,
+      confirmText: '복구',
+      danger: false,
       onConfirm: () => {
         recoverGap(fileId, anchorIndex, 'both');
         exitSelectMode();
@@ -213,6 +217,8 @@ const App = () => {
     const fileId = activeFile.id;
     showConfirm({
       message: `선택한 ${idxs.length}개 문장의 번역·분석만 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
+      confirmText: '분석 다시',
+      danger: false,
       onConfirm: () => {
         reanalyzeSentences(fileId, idxs);
         exitSelectMode();
@@ -324,6 +330,8 @@ const App = () => {
       {confirmState && (
         <ConfirmModal
           message={confirmState.message}
+          confirmText={confirmState.confirmText}
+          danger={confirmState.danger}
           onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
           onCancel={() => setConfirmState(null)}
         />
