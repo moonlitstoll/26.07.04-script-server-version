@@ -303,10 +303,11 @@ export const useMediaAnalysis = ({
 
         // 현재 파일/데이터 스냅샷 확보
         let targetFile = null;
+        let targetUrl = null;
         let currentData = null;
         setFiles(prev => {
             const f = prev.find(p => p.id === fileId);
-            if (f) { targetFile = f.file; currentData = f.data; }
+            if (f) { targetFile = f.file; targetUrl = f.url; currentData = f.data; }
             return prev;
         });
         await new Promise(r => setTimeout(r, 0));
@@ -380,6 +381,7 @@ export const useMediaAnalysis = ({
                 antiRecitation,
                 markerChar,
                 markerInterval,
+                mediaSrc: targetUrl, // 실시간 캡처용(모바일 대응). 실패 시 전체추출 폴백
             });
 
             // 뒤 블록부터 splice 교체 (앞 인덱스 밀림 방지)

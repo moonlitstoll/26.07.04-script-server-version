@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav } from "../utils/audioExtractor";
+import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences } from "../utils/sentenceSplitter";
@@ -504,6 +504,7 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
     markerChar = DEFAULT_RECITATION_MARKER,
     markerInterval = 2,
     onProgress = null,
+    mediaSrc = null, // 있으면 실시간 캡처 우선 (모바일 등 통짜 디코딩 불가 환경 대응)
 } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     if (!windows || windows.length === 0) return [];
@@ -523,17 +524,29 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
 
     const stripMarker = antiRecitation ? makeMarkerStripper(markerChar) : null;
 
-    // 오디오는 1회만 추출, 이후 구간별 슬라이스. 추출 자체가 실패하면 명확히 던진다.
-    let audioBlob;
-    try {
+    // 구간 오디오 추출 전략:
+    //  1순위: 실시간 캡처(mediaSrc) — 저메모리, 긴 영상/모바일 대응
+    //  2순위: 전체 오디오 추출 후 바이트 슬라이스 — 데스크톱/짧은 파일에서 즉시
+    let audioBlob = null; // 폴백 전체 오디오는 필요할 때 1회만 지연 추출
+    let captureBroken = false; // 캡처가 근본적으로(자동재생 차단 등) 안 되면 이후엔 폴백만
+    const getWholeAudio = async () => {
+        if (audioBlob) return audioBlob;
         audioBlob = await extractAudioBlob(file);
-    } catch (err) {
-        throw new Error(`오디오 추출 실패: ${err && err.message || err}`);
-    }
-    console.log(`[Retranscribe] 오디오 blob type=${audioBlob?.type || 'unknown'}, size=${((audioBlob?.size || 0) / 1024 / 1024).toFixed(2)}MB`);
-    if (!audioBlob || audioBlob.size < 1024) {
-        throw new Error(`오디오 데이터가 비어 있음 (size=${audioBlob?.size || 0}B). 이 기기에서 오디오를 열 수 없습니다.`);
-    }
+        console.log(`[Retranscribe] 폴백 오디오 blob type=${audioBlob?.type}, size=${((audioBlob?.size || 0) / 1024 / 1024).toFixed(2)}MB`);
+        if (!audioBlob || audioBlob.size < 1024) throw new Error(`오디오 데이터가 비어 있음 (size=${audioBlob?.size || 0}B)`);
+        return audioBlob;
+    };
+    const extractWindow = async (winStart, winDur) => {
+        if (mediaSrc && !captureBroken) {
+            try {
+                return await captureSegmentWav(mediaSrc, winStart, winDur);
+            } catch (e) {
+                console.warn('[Retranscribe] 실시간 캡처 실패, 전체추출 폴백:', e && e.message);
+                if (/차단|autoplay/.test(e && e.message || '')) captureBroken = true; // 재생차단이면 재시도 무의미
+            }
+        }
+        return await extractSegmentWav(await getWholeAudio(), winStart, winDur);
+    };
 
     const PAD_START = 0.3;
     const results = []; // 각 원소: { sentences: Array|null, error: string|null }
@@ -550,7 +563,7 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
         const winDur = Math.max(1, blockEnd - winStart);
 
         try {
-            const segBlob = await extractSegmentWav(audioBlob, winStart, winDur);
+            const segBlob = await extractWindow(winStart, winDur);
             const segPart = await blobToGeminiPart(segBlob, apiKey);
             const prompt = buildStage1Prompt(winDur, antiRecitation, markerChar, markerInterval);
             const segMatches = await transcribeStream(model, [segPart, prompt], {

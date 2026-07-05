@@ -252,6 +252,125 @@ export async function extractSegmentWav(audioBlob, startSec, durationSec) {
 }
 
 /**
+ * [모바일 대응 - 실시간 구간 캡처]
+ * 긴 영상을 통째로 디코딩하면(WebAudio/FFmpeg) 모바일에서 메모리 초과로 실패한다.
+ * 대신 브라우저가 스트리밍으로 잘 재생하는 능력을 이용해, 숨은 오디오 요소로 해당 구간만
+ * 재생하며 Web Audio 그래프에서 실시간으로 PCM을 받아 16kHz 모노 WAV로 만든다.
+ * 메모리 사용이 '그 구간 길이'만큼이라 저사양 기기에서도 동작한다. (단, 실시간이라 구간 길이만큼 소요)
+ *
+ * @param {string} src - 미디어 소스 URL(blob: 권장, 또는 CORS 허용 https)
+ * @param {number} startSec - 구간 시작(초)
+ * @param {number} durationSec - 구간 길이(초)
+ * @param {number} targetRate - 출력 샘플레이트(기본 16000)
+ * @returns {Promise<Blob>} audio/wav Blob
+ */
+export async function captureSegmentWav(src, startSec, durationSec, targetRate = TARGET_SAMPLE_RATE) {
+    if (!src) throw new Error('미디어 소스 URL 없음');
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('AudioContext 미지원 브라우저');
+
+    const dur = Math.max(0.2, durationSec);
+    const el = document.createElement('audio');
+    el.crossOrigin = 'anonymous'; // src보다 먼저 지정 (CORS 정책 적용)
+    el.preload = 'auto';
+    el.src = src;
+
+    // 메타데이터 로드 대기
+    await new Promise((res, rej) => {
+        const to = setTimeout(() => rej(new Error('오디오 요소 로드 시간초과')), 15000);
+        el.onloadedmetadata = () => { clearTimeout(to); res(); };
+        el.onerror = () => { clearTimeout(to); rej(new Error('오디오 요소 로드 실패')); };
+    });
+
+    const ctx = new AC();
+    if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch { /* 제스처 밖이면 실패 가능 */ }
+    }
+    const captureRate = ctx.sampleRate || 48000;
+
+    const source = ctx.createMediaElementSource(el);
+    const processor = ctx.createScriptProcessor(4096, 1, 1);
+    const gain = ctx.createGain();
+    gain.gain.value = 0; // 스피커로는 안 나가게(무음), 그래프는 흐르게
+
+    source.connect(processor);
+    processor.connect(gain);
+    gain.connect(ctx.destination);
+
+    const chunks = [];
+    let capturedFrames = 0;
+    const targetFrames = Math.ceil(dur * captureRate);
+    let finish;
+    const done = new Promise(r => { finish = r; });
+
+    processor.onaudioprocess = (e) => {
+        const t = el.currentTime;
+        // 구간 범위 내에서만 수집
+        if (t < startSec - 0.05) return;
+        if (capturedFrames < targetFrames && !el.ended && t <= startSec + dur + 0.05) {
+            chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+            capturedFrames += e.inputBuffer.length;
+        }
+        if (capturedFrames >= targetFrames || el.ended || t >= startSec + dur) finish();
+    };
+
+    // 정확한 시작 위치로 탐색 후 재생
+    await new Promise((res) => {
+        const onSeeked = () => { el.removeEventListener('seeked', onSeeked); res(); };
+        el.addEventListener('seeked', onSeeked);
+        el.currentTime = Math.max(0, startSec);
+        // seeked가 안 오는 경우 대비
+        setTimeout(res, 1500);
+    });
+
+    try {
+        await el.play();
+    } catch (err) {
+        // 자동재생 차단 등 → 정리 후 실패
+        try { processor.disconnect(); source.disconnect(); gain.disconnect(); } catch { /* noop */ }
+        try { el.pause(); } catch { /* noop */ }
+        try { await ctx.close(); } catch { /* noop */ }
+        throw new Error(`오디오 재생 차단됨(${err && err.message || 'autoplay'}) — 영상을 한 번 재생한 뒤 다시 시도하세요`);
+    }
+
+    // 완료 또는 안전 타임아웃(구간 길이 + 4초)
+    await Promise.race([done, new Promise(r => setTimeout(r, (dur + 4) * 1000))]);
+
+    try { el.pause(); } catch { /* noop */ }
+    try { processor.disconnect(); source.disconnect(); gain.disconnect(); } catch { /* noop */ }
+
+    // 수집 PCM 합치기
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    if (total === 0) {
+        try { await ctx.close(); } catch { /* noop */ }
+        throw new Error('캡처된 오디오가 없음(무음이거나 캡처 차단)');
+    }
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (const c of chunks) { merged.set(c, off); off += c.length; }
+
+    // captureRate → targetRate 리샘플 (구간만이라 작음)
+    let out = merged;
+    let outRate = captureRate;
+    if (captureRate !== targetRate) {
+        const frames = Math.max(1, Math.ceil(merged.length * targetRate / captureRate));
+        const offline = new OfflineAudioContext(1, frames, targetRate);
+        const buf = offline.createBuffer(1, merged.length, captureRate);
+        buf.copyToChannel(merged, 0);
+        const bs = offline.createBufferSource();
+        bs.buffer = buf;
+        bs.connect(offline.destination);
+        bs.start(0);
+        const rendered = await offline.startRendering();
+        out = rendered.getChannelData(0);
+        outRate = targetRate;
+    }
+    try { await ctx.close(); } catch { /* noop */ }
+
+    return new Blob([encodeWAV(out, outRate)], { type: 'audio/wav' });
+}
+
+/**
  * 미디어 파일에서 오디오 트랙을 디코딩/재인코딩 없이 원본 그대로 복사 적출(Demuxing)합니다.
  * 타임스탬프 왜곡 및 리샘플링 음질 변형 0% 보장.
  * 
