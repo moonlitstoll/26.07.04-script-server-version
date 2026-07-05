@@ -476,15 +476,14 @@ const App = () => {
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
-                        {selectedIdxs.size === 1 && (
-                          <button
-                            onClick={confirmRecover}
-                            title="선택 문장 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (양쪽 자동 확인, 선택 문장 유지, 실측 시각·자동 분석)"
-                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
-                          >
-                            <LifeBuoy size={14} /> 복구
-                          </button>
-                        )}
+                        <button
+                          onClick={confirmRecover}
+                          disabled={selectedIdxs.size !== 1}
+                          title="문장 1개 선택 후 사용 — 그 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (선택 문장 유지·자동 분석)"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <LifeBuoy size={14} /> 복구
+                        </button>
                         <button
                           onClick={confirmReanalyze}
                           disabled={selectedIdxs.size === 0}
