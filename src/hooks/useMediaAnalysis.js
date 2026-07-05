@@ -6,6 +6,7 @@ import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
+import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 
 export const useMediaAnalysis = ({
     setFiles,
@@ -26,7 +27,8 @@ export const useMediaAnalysis = ({
     chunkMinutes,
     realignEnabled,
     stage2AbortRef,
-    showToast
+    showToast,
+    onTrashChange
 }) => {
     const [isDragging, setIsDragging] = useState(false);
     const stage1AbortRef = useRef(null);
@@ -511,15 +513,23 @@ export const useMediaAnalysis = ({
         let targetFile = null;
         let prevData = null; // 실행취소용 삭제 전 스냅샷
         let newData = null;
+        let deletedItems = [];
         setFiles(prev => prev.map(p => {
             if (p.id !== fileId) return p;
             targetFile = p.file;
             prevData = p.data;
+            deletedItems = p.data.filter((_, i) => idxSet.has(i));
             newData = p.data.filter((_, i) => !idxSet.has(i));
             return { ...p, data: newData };
         }));
         await new Promise(r => setTimeout(r, 0));
         if (!targetFile || !newData) return;
+
+        // 휴지통에 보관 (6초 실행취소가 지나도 나중에 복구 가능)
+        if (targetFile.name) {
+            addToTrash(targetFile.name, targetFile.size, deletedItems);
+            if (onTrashChange) onTrashChange();
+        }
 
         // 로컬 캐시 + 클라우드에 상태 반영 (best-effort)
         const persist = (data) => {
@@ -530,10 +540,14 @@ export const useMediaAnalysis = ({
         };
         persist(newData);
 
-        // 실행취소: 삭제 전 데이터로 되돌리고 재저장
+        // 실행취소: 삭제 전 데이터로 되돌리고, 방금 넣은 휴지통 항목도 제거
         const undo = () => {
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: prevData } : p));
             persist(prevData);
+            if (targetFile.name) {
+                removeFromTrash(targetFile.name, targetFile.size, deletedItems);
+                if (onTrashChange) onTrashChange();
+            }
             if (showToast) showToast({ message: '삭제를 취소했습니다.', type: 'success' });
         };
 
@@ -543,6 +557,40 @@ export const useMediaAnalysis = ({
             action: { label: '실행취소', onClick: undo },
             duration: 6000, // 되돌릴 시간 여유
         });
+    };
+
+    /**
+     * [휴지통 복구] 휴지통의 문장들을 대본에 다시 넣는다.
+     * 타임스탬프 기준 정렬이라 원래 위치로 복원된다. 이미 있는(중복) 문장은 건너뛴다.
+     */
+    const restoreSentences = async (fileId, items) => {
+        if (!items || items.length === 0) return;
+        let targetFile = null;
+        let curData = null;
+        setFiles(prev => {
+            const f = prev.find(p => p.id === fileId);
+            if (f) { targetFile = f.file; curData = f.data; }
+            return prev;
+        });
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile || !Array.isArray(curData)) return;
+
+        const existing = new Set(curData.map(sentenceKey));
+        const toAdd = items.filter(it => !existing.has(sentenceKey(it)));
+        const merged = [...curData, ...toAdd];
+        const clean = sanitizeData(merged, 0); // 시각 기준 재정렬 → 원위치 복원
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: clean } : p));
+
+        const status = clean.every(d => d.isAnalyzed) ? 'completed' : (clean.length ? 'analyzing' : 'extracted');
+        saveCacheEntry(targetFile, clean, status);
+        if (refreshCacheKeys) refreshCacheKeys();
+        cloudSaveMeta(targetFile, clean, status, null, 0).catch(e => console.warn('[Cloud] 복구 반영 실패:', e));
+
+        if (targetFile.name) {
+            removeFromTrash(targetFile.name, targetFile.size, items);
+            if (onTrashChange) onTrashChange();
+        }
+        if (showToast) showToast({ message: `${toAdd.length}개 문장 복구됨`, type: 'success' });
     };
 
     // 드래그앤드롭 핸들러
@@ -557,5 +605,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, restoreSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };

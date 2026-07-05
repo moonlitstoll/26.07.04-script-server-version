@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
   AlertCircle, RotateCcw, Wand2, X, Check, Languages, Sparkles, Trash2
 } from 'lucide-react';
@@ -22,8 +22,10 @@ import PassphraseGate from './components/PassphraseGate';
 import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
+import TrashModal from './components/TrashModal';
 import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
+import { getTrash, clearTrash } from './utils/trashUtils';
 
 
 const App = () => {
@@ -51,6 +53,9 @@ const App = () => {
   const [selectedIdxs, setSelectedIdxs] = useState(() => new Set());
   // 고급(Pro+정밀추론) 토글 — 켜면 아래 재분석/재전사가 최고 품질로 동작
   const [advancedMode, setAdvancedMode] = useState(false);
+  // 삭제 문장 휴지통
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashNonce, setTrashNonce] = useState(0);
   const [confirmState, setConfirmState] = useState(null);
   const [toastState, setToastState] = useState(null);
 
@@ -95,11 +100,12 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, restoreSentences } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, advancedModel, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
-    showToast
+    showToast,
+    onTrashChange: () => setTrashNonce(n => n + 1)
   });
 
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
@@ -146,6 +152,33 @@ const App = () => {
       onConfirm: () => {
         retranscribeSentences(fileId, idxs, { highQuality: hq });
         exitSelectMode();
+      },
+    });
+  };
+
+  // 휴지통(삭제 문장) — 현재 파일 기준 (원시값 의존으로 컴파일러 경고 회피)
+  const trashName = activeFile?.file?.name || '';
+  const trashSize = activeFile?.file?.size || 0;
+  const trashItems = useMemo(
+    () => (trashName ? getTrash(trashName, trashSize) : []),
+    // trashNonce: 삭제/복구 후 localStorage 재조회를 강제하는 트리거(의도된 의존)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trashName, trashSize, trashNonce]
+  );
+
+  const handleTrashRestore = (items) => {
+    if (!activeFile) return;
+    restoreSentences(activeFile.id, items);
+  };
+
+  const handleTrashClear = () => {
+    if (!activeFile?.file?.name) return;
+    showConfirm({
+      message: '휴지통을 비울까요? 보관된 삭제 문장들이 영구 삭제되어 더는 복구할 수 없습니다.',
+      onConfirm: () => {
+        clearTrash(activeFile.file.name, activeFile.file.size);
+        setTrashNonce(n => n + 1);
+        setShowTrash(false);
       },
     });
   };
@@ -305,6 +338,14 @@ const App = () => {
         </div>
       )}
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
+      {showTrash && (
+        <TrashModal
+          items={trashItems}
+          onRestore={handleTrashRestore}
+          onClear={handleTrashClear}
+          onClose={() => setShowTrash(false)}
+        />
+      )}
     </>
   );
 
@@ -381,12 +422,23 @@ const App = () => {
               <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto px-3 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
                   {!selectMode ? (
-                    <button
-                      onClick={() => setSelectMode(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
-                    >
-                      <Wand2 size={14} /> 구간 다시 전사 / 분석
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setSelectMode(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
+                      >
+                        <Wand2 size={14} /> 구간 다시 전사 / 분석
+                      </button>
+                      {trashItems.length > 0 && (
+                        <button
+                          onClick={() => setShowTrash(true)}
+                          title="삭제한 문장 복구 (휴지통)"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                        >
+                          <Trash2 size={14} /> 휴지통 ({trashItems.length})
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <span className="text-xs font-bold text-slate-600 shrink-0">
