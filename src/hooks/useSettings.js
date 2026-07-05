@@ -4,6 +4,7 @@ const DEFAULTS = {
     apiKey: '',
     stage1Model: 'gemini-2.5-flash',
     stage2Model: 'gemini-2.5-flash',
+    advancedModel: 'gemini-2.5-pro', // '고급' 재분석/재전사에 쓰는 모델 (+ thinking)
     bufferTime: 0.3,
     temperature: 0.5,
     topP: 0.7,
@@ -19,6 +20,7 @@ const STORAGE_KEYS = {
     apiKey: 'miniapp_gemini_key',
     stage1Model: 'miniapp_stage1_model',
     stage2Model: 'miniapp_stage2_model',
+    advancedModel: 'miniapp_advanced_model',
     bufferTime: 'miniapp_buffer_time',
     temperature: 'miniapp_temperature',
     topP: 'miniapp_top_p',
@@ -35,6 +37,7 @@ function loadFromStorage() {
         apiKey: localStorage.getItem(STORAGE_KEYS.apiKey) || import.meta.env.VITE_GEMINI_API_KEY || DEFAULTS.apiKey,
         stage1Model: localStorage.getItem(STORAGE_KEYS.stage1Model) || DEFAULTS.stage1Model,
         stage2Model: localStorage.getItem(STORAGE_KEYS.stage2Model) || DEFAULTS.stage2Model,
+        advancedModel: localStorage.getItem(STORAGE_KEYS.advancedModel) || DEFAULTS.advancedModel,
         bufferTime: parseFloat(localStorage.getItem(STORAGE_KEYS.bufferTime)) || DEFAULTS.bufferTime,
         temperature: parseFloat(localStorage.getItem(STORAGE_KEYS.temperature)) || DEFAULTS.temperature,
         topP: parseFloat(localStorage.getItem(STORAGE_KEYS.topP)) || DEFAULTS.topP,

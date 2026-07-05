@@ -16,6 +16,7 @@ export const useMediaAnalysis = ({
     apiKey,
     stage1Model,
     stage2Model,
+    advancedModel,
     temperature,
     topP,
     antiRecitation,
@@ -314,9 +315,10 @@ export const useMediaAnalysis = ({
             return;
         }
         if (!indices || indices.length === 0) return;
-        // 고급 모드: 전사·분석 모두 최고 품질 모델(Pro)로 (분석엔 정밀추론까지)
-        const stage1ModelForUse = highQuality ? 'gemini-2.5-pro' : stage1Model;
-        const stage2ModelForUse = highQuality ? 'gemini-2.5-pro' : stage2Model;
+        // 고급 모드: 설정한 '고급 분석 모델'로 전사·분석 (분석엔 thinking까지)
+        const advModel = advancedModel || 'gemini-2.5-pro';
+        const stage1ModelForUse = highQuality ? advModel : stage1Model;
+        const stage2ModelForUse = highQuality ? advModel : stage2Model;
 
         // 현재 파일/데이터 스냅샷 확보
         let targetFile = null;
@@ -486,8 +488,8 @@ export const useMediaAnalysis = ({
         saveCacheEntry(targetFile, resetData, 'analyzing');
         if (refreshCacheKeys) refreshCacheKeys();
 
-        // 고급 분석: 최고 품질 모델(Pro) + thinking 켜서 정확도 우선 (느리고 토큰 더 씀)
-        const modelForReanalyze = highQuality ? 'gemini-2.5-pro' : stage2Model;
+        // 고급 분석: 설정한 '고급 분석 모델' + thinking 켜서 정확도 우선 (느리고 토큰 더 씀)
+        const modelForReanalyze = highQuality ? (advancedModel || 'gemini-2.5-pro') : stage2Model;
         if (showToast) showToast({
             message: highQuality
                 ? `${idxSet.size}개 문장 고급 분석 진행 중... (Pro+정밀추론, 시간이 더 걸립니다)`
