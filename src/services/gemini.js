@@ -281,7 +281,6 @@ async function transcribeStream(model, parts, {
     const matches = [];
     let prevNorm = null; // 직전 줄 정규화 텍스트 (연속 중복 검사용)
     let prevDupTime = -1; // 직전 줄의 상대 시각
-    let dupCount = 0; // 같은 줄이 연속으로 몇 번 나왔는지 (최대 2회까지 허용)
     let lastValidTime = -1; // 상대 시간 기준 역행 방지
     let maxRelTime = 0;
     let lastProgressTime = 0;
@@ -337,14 +336,12 @@ async function transcribeStream(model, parts, {
         const normalizedContent = content.toLowerCase().trim();
 
         // [중복 방어망 - 연속 중복 검사] 바로 '직전 줄'과 동일하고 DEDUP_WINDOW_SEC 이내면
-        // 연속 반복으로 본다. 실제 반복 강조를 살리기 위해 최대 2회까지 허용하고,
-        // 3회째 연속부터 환각 반복(A A A …)으로 보고 제거한다.
-        // 사이에 다른 줄이 끼면(A / B / A) 카운트가 리셋되어 정상 반복(후렴 등)으로 보존된다.
+        // 환각 반복(A A A …)으로 보고 제거한다(연속 동일 줄은 1번만 남김).
+        // 사이에 다른 줄이 끼면(A / B / A) 정상 반복(후렴 등)으로 보고 보존한다.
         const isConsecutiveDup = prevNorm === normalizedContent && (relTime - prevDupTime) <= DEDUP_WINDOW_SEC;
-        dupCount = isConsecutiveDup ? dupCount + 1 : 1;
         prevNorm = normalizedContent;
         prevDupTime = relTime;
-        if (dupCount > 2) return null;
+        if (isConsecutiveDup) return null;
 
         const outMm = Math.floor(absTime / 60).toString().padStart(2, '0');
         const outSs = (absTime % 60).toFixed(2).padStart(5, '0');
