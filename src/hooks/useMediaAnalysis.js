@@ -498,6 +498,36 @@ export const useMediaAnalysis = ({
         runStage2(fileId, targetFile, resetData, apiKey, modelForReanalyze, { thinking: highQuality });
     };
 
+    /**
+     * [구간 선택 삭제]
+     * 선택한 문장(카드)들을 대본에서 제거한다. 중복·불필요 문장 정리용.
+     * 로컬 캐시 + 클라우드에 반영해 다른 기기에서도 사라지게 한다.
+     */
+    const deleteSentences = async (fileId, indices) => {
+        if (!indices || indices.length === 0) return;
+        const idxSet = new Set(indices);
+        let targetFile = null;
+        let newData = null;
+        setFiles(prev => prev.map(p => {
+            if (p.id !== fileId) return p;
+            targetFile = p.file;
+            newData = p.data.filter((_, i) => !idxSet.has(i));
+            return { ...p, data: newData };
+        }));
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile || !newData) return;
+
+        const status = newData.length === 0 ? 'extracted' : (newData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
+        saveCacheEntry(targetFile, newData, status);
+        if (refreshCacheKeys) refreshCacheKeys();
+
+        // 클라우드에도 삭제 반영 (best-effort, mediaUrl은 서버가 기존값 보존)
+        cloudSaveMeta(targetFile, newData, status, null, 0)
+            .catch(e => console.warn('[Cloud] 삭제 반영 실패:', e));
+
+        if (showToast) showToast({ message: `${idxSet.size}개 문장 삭제됨`, type: 'success' });
+    };
+
     // 드래그앤드롭 핸들러
     const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
     const onDragLeave = (e) => {
@@ -510,5 +540,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };

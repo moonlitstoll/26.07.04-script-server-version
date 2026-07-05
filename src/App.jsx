@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Sparkles
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Sparkles, Trash2
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -95,7 +95,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
@@ -145,6 +145,20 @@ const App = () => {
       message: `선택한 ${idxs.length}개 문장의 해당 구간 오디오만 다시 듣고 전사합니다. (전사 후 분석도 새로) 나머지 문장·타임라인은 그대로 유지됩니다.${advNote} 진행할까요?`,
       onConfirm: () => {
         retranscribeSentences(fileId, idxs, { highQuality: hq });
+        exitSelectMode();
+      },
+    });
+  };
+
+  // 선택 문장 삭제 (중복·불필요 정리)
+  const confirmDelete = () => {
+    if (!activeFile || selectedIdxs.size === 0) return;
+    const idxs = [...selectedIdxs];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 ${idxs.length}개 문장을 대본에서 삭제합니다. (이 기기와 클라우드에서 사라집니다) 되돌릴 수 없습니다. 삭제할까요?`,
+      onConfirm: () => {
+        deleteSentences(fileId, idxs);
         exitSelectMode();
       },
     });
@@ -395,6 +409,14 @@ const App = () => {
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
                         >
                           <X size={14} /> 취소
+                        </button>
+                        <button
+                          onClick={confirmDelete}
+                          disabled={selectedIdxs.size === 0}
+                          title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Trash2 size={14} /> 삭제
                         </button>
                         <button
                           onClick={confirmReanalyze}
