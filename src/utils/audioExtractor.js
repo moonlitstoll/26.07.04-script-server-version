@@ -147,14 +147,89 @@ export async function splitAudio(audioBlob, totalDuration, chunkDurationSec, ove
 }
 
 /**
+ * 표준 PCM WAV 헤더를 파싱해 data 청크 위치와 포맷을 찾는다. (WAV가 아니면 null)
+ */
+function parseWavHeader(buf) {
+    if (buf.byteLength < 44) return null;
+    const view = new DataView(buf);
+    if (view.getUint32(0, false) !== 0x52494646) return null; // 'RIFF'
+    if (view.getUint32(8, false) !== 0x57415645) return null; // 'WAVE'
+    let offset = 12;
+    let fmt = null;
+    let dataOffset = -1;
+    let dataLen = 0;
+    while (offset + 8 <= buf.byteLength) {
+        const id = view.getUint32(offset, false);
+        const size = view.getUint32(offset + 4, true);
+        const body = offset + 8;
+        if (id === 0x666d7420) { // 'fmt '
+            fmt = {
+                audioFormat: view.getUint16(body, true),
+                channels: view.getUint16(body + 2, true) || 1,
+                sampleRate: view.getUint32(body + 4, true),
+                bitsPerSample: view.getUint16(body + 14, true) || 16,
+            };
+        } else if (id === 0x64617461) { // 'data'
+            dataOffset = body;
+            dataLen = size;
+            break;
+        }
+        offset = body + size + (size % 2); // 청크는 짝수 바이트 정렬
+    }
+    if (!fmt || dataOffset < 0) return null;
+    if (fmt.audioFormat !== 1) return null; // 표준 PCM만 지원 (그 외는 FFmpeg로)
+    dataLen = Math.min(dataLen, buf.byteLength - dataOffset); // 헤더가 실제보다 크면 클램프
+    return { ...fmt, dataOffset, dataLen };
+}
+
+/**
+ * 이미 PCM WAV인 오디오에서 한 구간을 FFmpeg 없이 바이트 슬라이스로 적출한다.
+ * (모바일 등 FFmpeg.wasm 로드가 불가능한 환경에서도 동작)
+ */
+async function sliceWavBlob(wavBlob, startSec, durationSec) {
+    const buf = await wavBlob.arrayBuffer();
+    const h = parseWavHeader(buf);
+    if (!h) throw new Error('표준 PCM WAV가 아님');
+    const bytesPerFrame = Math.max(1, (h.bitsPerSample / 8) * h.channels);
+    const totalFrames = Math.floor(h.dataLen / bytesPerFrame);
+    const startFrame = Math.min(totalFrames, Math.max(0, Math.floor(Math.max(0, startSec) * h.sampleRate)));
+    const durFrames = Math.ceil(Math.max(0.1, durationSec) * h.sampleRate);
+    const endFrame = Math.min(totalFrames, startFrame + durFrames);
+    const sliceBytes = Math.max(0, (endFrame - startFrame) * bytesPerFrame);
+    if (sliceBytes === 0) throw new Error('빈 구간');
+    const pcm = new Uint8Array(buf, h.dataOffset + startFrame * bytesPerFrame, sliceBytes);
+
+    const out = new ArrayBuffer(44 + pcm.length);
+    const v = new DataView(out);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); v.setUint32(4, 36 + pcm.length, true); ws(8, 'WAVE');
+    ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, h.channels, true); v.setUint32(24, h.sampleRate, true);
+    v.setUint32(28, h.sampleRate * bytesPerFrame, true);
+    v.setUint16(32, bytesPerFrame, true); v.setUint16(34, h.bitsPerSample, true);
+    ws(36, 'data'); v.setUint32(40, pcm.length, true);
+    new Uint8Array(out, 44).set(pcm);
+    return new Blob([out], { type: 'audio/wav' });
+}
+
+/**
  * 오디오 Blob에서 [startSec, startSec+durationSec] 한 구간만 16kHz 모노 WAV로 적출한다.
- * (재청취 정렬용 — 뭉친 블록 구간만 잘라 다시 전사) 어떤 입력 코덱이든 PCM 재인코딩하여 성공.
+ * (재청취 정렬/구간 재전사용) 입력이 PCM WAV면 FFmpeg 없이 바이트 슬라이스(모바일 대응),
+ * 아니면 FFmpeg로 재인코딩하여 어떤 코덱이든 성공하게 한다.
  * @param {Blob} audioBlob 원본 오디오
  * @param {number} startSec 구간 시작(초)
  * @param {number} durationSec 구간 길이(초)
  * @returns {Promise<Blob>} audio/wav Blob
  */
 export async function extractSegmentWav(audioBlob, startSec, durationSec) {
+    // 1순위: 이미 PCM WAV면 FFmpeg 없이 순수 JS로 잘라낸다 (FFmpeg 불가 환경에서도 성공)
+    try {
+        return await sliceWavBlob(audioBlob, startSec, durationSec);
+    } catch (e) {
+        console.warn('[Segment] WAV 직접 슬라이스 불가, FFmpeg로 시도:', e && e.message);
+    }
+
+    // 2순위: FFmpeg 재인코딩 (WAV가 아니거나 파싱 실패 시)
     const ffmpeg = await getFFmpeg();
     const inputName = `seg_in_${Date.now()}.dat`;
     const outputName = `seg_out_${Date.now()}.wav`;

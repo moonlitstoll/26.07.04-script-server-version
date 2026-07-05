@@ -549,10 +549,13 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
                 signal,
                 stripMarker,
             });
-            // 구간 경계 침범분 제거: 이 구간 끝 이전 것만 채택
-            const clean = (segMatches || []).filter(m => m.seconds < blockEnd - 0.05);
+            // 구간 경계 침범분 제거: 이 구간 끝 이전 것만 채택.
+            // 단, 필터로 전부 사라지면(경계 추정 오차 등) 원본 매치를 그대로 사용해 손실을 막는다.
+            const all = segMatches || [];
+            const filtered = all.filter(m => m.seconds < blockEnd - 0.05);
+            const clean = filtered.length > 0 ? filtered : all;
             results.push(clean.length > 0 ? clean : null);
-            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s → ${clean.length}문장`);
+            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s → ${clean.length}문장 (raw ${all.length})`);
         } catch (err) {
             if (err.name === 'AbortError') throw err;
             console.warn(`[Retranscribe] 구간 @${blockStart.toFixed(1)}s 재전사 실패:`, err && err.message);
