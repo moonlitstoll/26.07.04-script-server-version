@@ -8,6 +8,13 @@ import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models
 const resolveModel = (modelId) =>
     VALID_MODELS.find(m => m === modelId) || DEFAULT_MODEL_ID;
 
+// 2.5 계열은 thinking 토큰을 아끼려 budget 0으로 끄지만, 2.5 Pro는 'thinking 전용' 모델이라
+// budget 0을 주면 400(Budget 0 is invalid)이 난다. 따라서 Pro는 끄지 않는다(기본 thinking 사용).
+const disableThinkingConfig = (modelName) =>
+    (modelName.includes('2.5') && !modelName.includes('pro'))
+        ? { thinkingConfig: { thinkingBudget: 0 } }
+        : {};
+
 // [모듈 레벨 상수] 정규식 패턴 및 유틸 — 호출마다 재컴파일/재생성 방지
 const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;
 const SCREEN_TEXT_PATTERNS = /^(Phim:|Film:|Movie:|Sub:|Subtitle:|Ngu\u1ed3n:|Source:|[[({]?(Music|Nh\u1ea1c|\uc74c\uc545|Sound|Effect|Laughter|Applause|Noise|Silence|ti\u1ebfng|background|audio|\u0111\u1ed9ng|thanh)[[)}]?)[:\s-]*$/i;
@@ -563,7 +570,7 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             temperature: temperature || 0.5,
             topP: topP || 0.7,
             maxOutputTokens: 65536,
-            ...(modelName.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+            ...disableThinkingConfig(modelName)
         },
         safetySettings
     }, { apiVersion: "v1beta" });
@@ -717,7 +724,7 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
                 temperature: temperature || 0.5,
                 topP: topP || 0.7,
                 maxOutputTokens: 65536,
-                ...(modelName.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+                ...disableThinkingConfig(modelName)
             },
             safetySettings
         }, { apiVersion: "v1beta" });
@@ -824,7 +831,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
             temperature: 0.3,
             // 2.5 모델은 기본적으로 thinking을 꺼서(0) 토큰을 아끼지만, 고급 분석(thinking=true)일 때는
             // 켜서(기본 budget) 모델이 스스로 추론한 뒤 분석하게 한다 → 애매한 문장 정확도 향상.
-            ...(resolvedModel.includes('2.5') && !thinking ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+            ...(!thinking ? disableThinkingConfig(resolvedModel) : {})
         },
         safetySettings
     });
