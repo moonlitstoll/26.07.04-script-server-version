@@ -291,6 +291,8 @@ const App = () => {
         <Toast
           message={toastState.message}
           type={toastState.type}
+          action={toastState.action}
+          duration={toastState.duration}
           onClose={() => setToastState(null)}
         />
       )}

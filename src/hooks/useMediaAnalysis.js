@@ -509,25 +509,40 @@ export const useMediaAnalysis = ({
         if (!indices || indices.length === 0) return;
         const idxSet = new Set(indices);
         let targetFile = null;
+        let prevData = null; // 실행취소용 삭제 전 스냅샷
         let newData = null;
         setFiles(prev => prev.map(p => {
             if (p.id !== fileId) return p;
             targetFile = p.file;
+            prevData = p.data;
             newData = p.data.filter((_, i) => !idxSet.has(i));
             return { ...p, data: newData };
         }));
         await new Promise(r => setTimeout(r, 0));
         if (!targetFile || !newData) return;
 
-        const status = newData.length === 0 ? 'extracted' : (newData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
-        saveCacheEntry(targetFile, newData, status);
-        if (refreshCacheKeys) refreshCacheKeys();
+        // 로컬 캐시 + 클라우드에 상태 반영 (best-effort)
+        const persist = (data) => {
+            const status = data.length === 0 ? 'extracted' : (data.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
+            saveCacheEntry(targetFile, data, status);
+            if (refreshCacheKeys) refreshCacheKeys();
+            cloudSaveMeta(targetFile, data, status, null, 0).catch(e => console.warn('[Cloud] 반영 실패:', e));
+        };
+        persist(newData);
 
-        // 클라우드에도 삭제 반영 (best-effort, mediaUrl은 서버가 기존값 보존)
-        cloudSaveMeta(targetFile, newData, status, null, 0)
-            .catch(e => console.warn('[Cloud] 삭제 반영 실패:', e));
+        // 실행취소: 삭제 전 데이터로 되돌리고 재저장
+        const undo = () => {
+            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: prevData } : p));
+            persist(prevData);
+            if (showToast) showToast({ message: '삭제를 취소했습니다.', type: 'success' });
+        };
 
-        if (showToast) showToast({ message: `${idxSet.size}개 문장 삭제됨`, type: 'success' });
+        if (showToast) showToast({
+            message: `${idxSet.size}개 문장 삭제됨`,
+            type: 'success',
+            action: { label: '실행취소', onClick: undo },
+            duration: 6000, // 되돌릴 시간 여유
+        });
     };
 
     // 드래그앤드롭 핸들러
