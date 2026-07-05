@@ -157,24 +157,21 @@ const App = () => {
     setLastPos(activeFile.file.name, activeFile.file.size, activeSentenceIdx, item.seconds);
   }, [activeSentenceIdx, activeFile]);
 
-  // [위치 복원] 대본이 실제로 렌더된 뒤(스위칭 종료·데이터 존재) 마지막 위치로 이동 (정지 상태)
-  useEffect(() => {
+  // [위치 복원] 대본이 렌더된 직후, 화면에 그리기 '전에' 저장 위치로 스크롤 (맨 위 깜빡임 방지)
+  useLayoutEffect(() => {
     if (!activeFile || activeFile.isAnalyzing || isSwitchingFile) return;
     if (!activeFile.file?.name || !activeFile.data?.length) return;
     if (restoredForRef.current === activeFile.id) return;
     restoredForRef.current = activeFile.id;
 
     const pos = getLastPos(activeFile.file.name, activeFile.file.size);
-    console.log('[Restore] name=', JSON.stringify(activeFile.file.name), 'size=', activeFile.file.size, 'pos=', pos, 'dataLen=', activeFile.data.length);
     const item = pos ? activeFile.data[pos.idx] : null;
-    if (!item) { console.log('[Restore] 저장 위치 없음/불일치 → 스킵'); return; }
+    if (!item) return;
 
+    // 페인트 전에 동기적으로 스크롤 → 처음부터 그 위치에 그려짐(맨 위로 튀지 않음)
+    const el = scrollContainerRef.current?.querySelector(`[data-idx="${pos.idx}"]`);
+    if (el) el.scrollIntoView({ block: 'start' });
     restoreTo(pos.idx, item.seconds);            // 재생 커서·하이라이트
-    requestAnimationFrame(() => {                // 스크롤 (아이템 마운트 후)
-      const el = scrollContainerRef.current?.querySelector(`[data-idx="${pos.idx}"]`);
-      console.log('[Restore] idx', pos.idx, '스크롤 대상 찾음?', !!el);
-      if (el) el.scrollIntoView({ block: 'start' });
-    });
   }, [activeFile, isSwitchingFile, restoreTo]);
 
   // Keyboard Shortcuts
