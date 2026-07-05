@@ -17,7 +17,6 @@ export const useMediaAnalysis = ({
     apiKey,
     stage1Model,
     stage2Model,
-    advancedModel,
     temperature,
     topP,
     antiRecitation,
@@ -36,8 +35,8 @@ export const useMediaAnalysis = ({
     /**
      * STAGE 2: FULL BATCH ANALYSIS
      */
-    const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId, stage2Opts = {}) => {
-        console.log(`[Stage 2] Starting FULL BATCH Analysis for file ${fileId}...${stage2Opts.thinking ? ' [고급/thinking]' : ''}`);
+    const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId) => {
+        console.log(`[Stage 2] Starting FULL BATCH Analysis for file ${fileId}...`);
 
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
         stage2AbortRef.current = new AbortController();
@@ -89,7 +88,7 @@ export const useMediaAnalysis = ({
                     .slice(0, 40) // 폭주 방지 상한
                     .map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
-                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems, { thinking: stage2Opts.thinking });
+                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems);
                     if (results && !signal.aborted) {
                         let groupSuccess = 0;
                         results.forEach(res => {
@@ -311,16 +310,12 @@ export const useMediaAnalysis = ({
      * 나머지 문장의 타임스탬프·분석은 그대로 보존된다(타임라인 최대 보존).
      * 새로 나온 문장은 미분석 상태로 넣고 runStage2가 그것들만 분석한다.
      */
-    const retranscribeSentences = async (fileId, indices, { highQuality = false } = {}) => {
+    const retranscribeSentences = async (fileId, indices) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
         }
         if (!indices || indices.length === 0) return;
-        // 고급 모드: 설정한 '고급 분석 모델'로 전사·분석 (분석엔 thinking까지)
-        const advModel = advancedModel || 'gemini-2.5-pro';
-        const stage1ModelForUse = highQuality ? advModel : stage1Model;
-        const stage2ModelForUse = highQuality ? advModel : stage2Model;
 
         // 현재 파일/데이터 스냅샷 확보
         let targetFile = null;
@@ -400,7 +395,7 @@ export const useMediaAnalysis = ({
             const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
             const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText, selfText: b.selfText }));
 
-            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1ModelForUse, windows, {
+            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1Model, windows, {
                 totalDuration: duration,
                 temperature,
                 topP,
@@ -437,11 +432,11 @@ export const useMediaAnalysis = ({
 
             if (replacedCount > 0) {
                 if (showToast) showToast({
-                    message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. ${highQuality ? '고급 ' : ''}분석 진행 중...`,
+                    message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
                     type: 'success'
                 });
-                // 새로 들어온(미분석) 문장만 분석 (고급이면 Pro + 정밀추론)
-                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2ModelForUse, { thinking: highQuality });
+                // 새로 들어온(미분석) 문장만 분석
+                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2Model);
             } else {
                 clearRetranscribingFlag();
                 if (showToast) showToast({
@@ -462,7 +457,7 @@ export const useMediaAnalysis = ({
      * 선택 문장의 전사(문장·타임스탬프)는 그대로 두고, 번역/분석만 지우고 다시 분석한다.
      * 오디오 재전사가 없어(텍스트만 전송) 빠르고 타임라인이 완전히 보존된다.
      */
-    const reanalyzeSentences = async (fileId, indices, { highQuality = false } = {}) => {
+    const reanalyzeSentences = async (fileId, indices) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
@@ -490,16 +485,9 @@ export const useMediaAnalysis = ({
         saveCacheEntry(targetFile, resetData, 'analyzing');
         if (refreshCacheKeys) refreshCacheKeys();
 
-        // 고급 분석: 설정한 '고급 분석 모델' + thinking 켜서 정확도 우선 (느리고 토큰 더 씀)
-        const modelForReanalyze = highQuality ? (advancedModel || 'gemini-2.5-pro') : stage2Model;
-        if (showToast) showToast({
-            message: highQuality
-                ? `${idxSet.size}개 문장 고급 분석 진행 중... (Pro+정밀추론, 시간이 더 걸립니다)`
-                : `${idxSet.size}개 문장 분석을 다시 진행 중...`,
-            type: 'success'
-        });
-        // 미분석(리셋된) 문장만 Stage 2가 다시 분석
-        runStage2(fileId, targetFile, resetData, apiKey, modelForReanalyze, { thinking: highQuality });
+        if (showToast) showToast({ message: `${idxSet.size}개 문장 분석을 다시 진행 중...`, type: 'success' });
+        // 미분석(리셋된) 문장만 Stage 2가 다시 분석 (설정의 Stage 2 모델)
+        runStage2(fileId, targetFile, resetData, apiKey, stage2Model);
     };
 
     /**

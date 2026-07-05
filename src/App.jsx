@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Sparkles, Trash2
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -33,7 +33,7 @@ const App = () => {
 
   // 기기 간 동기화용 비밀 암호
   const [passphrase, setPassphraseState] = useState(() => getPassphrase());
-  const { apiKey, stage1Model, stage2Model, advancedModel, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled } = config;
+  const { apiKey, stage1Model, stage2Model, bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled } = config;
 
   // Multi-file state
   const [files, setFiles] = useState([]);
@@ -51,8 +51,6 @@ const App = () => {
   // 구간 선택 재전사 모드
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIdxs, setSelectedIdxs] = useState(() => new Set());
-  // 고급(Pro+정밀추론) 토글 — 켜면 아래 재분석/재전사가 최고 품질로 동작
-  const [advancedMode, setAdvancedMode] = useState(false);
   // 삭제 문장 휴지통
   const [showTrash, setShowTrash] = useState(false);
   const [trashNonce, setTrashNonce] = useState(0);
@@ -103,7 +101,7 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, deleteSentences, restoreSentences } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, stage1Model, stage2Model, advancedModel, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
+    apiKey, stage1Model, stage2Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
     showToast,
     onTrashChange: () => setTrashNonce(n => n + 1)
   });
@@ -139,18 +137,15 @@ const App = () => {
     if (selectedIdxs.size > 0) setSelectedIdxs(new Set());
   }
 
-  const advNote = advancedMode ? ' (고급: Gemini 2.5 Pro + 정밀추론 — 느리지만 정확)' : '';
-
-  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 고급 토글 시 Pro로.
+  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 설정의 Stage 1/2 모델 사용.
   const confirmRetranscribe = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     const idxs = [...selectedIdxs];
     const fileId = activeFile.id;
-    const hq = advancedMode;
     showConfirm({
-      message: `선택한 ${idxs.length}개 문장의 해당 구간 오디오만 다시 듣고 전사합니다. (전사 후 분석도 새로) 나머지 문장·타임라인은 그대로 유지됩니다.${advNote} 진행할까요?`,
+      message: `선택한 ${idxs.length}개 문장의 해당 구간 오디오만 다시 듣고 전사합니다. (전사 후 분석도 새로) 나머지 문장·타임라인은 그대로 유지됩니다. 진행할까요?`,
       onConfirm: () => {
-        retranscribeSentences(fileId, idxs, { highQuality: hq });
+        retranscribeSentences(fileId, idxs);
         exitSelectMode();
       },
     });
@@ -197,16 +192,15 @@ const App = () => {
     });
   };
 
-  // 선택 구간 분석만 다시 (Phase 2만 — 전사는 보존). 고급 토글 시 Pro+정밀추론.
+  // 선택 구간 분석만 다시 (Phase 2만 — 전사는 보존). 설정의 Stage 2 모델 사용.
   const confirmReanalyze = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     const idxs = [...selectedIdxs];
     const fileId = activeFile.id;
-    const hq = advancedMode;
     showConfirm({
-      message: `선택한 ${idxs.length}개 문장의 번역·분석만 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다.${advNote} 진행할까요?`,
+      message: `선택한 ${idxs.length}개 문장의 번역·분석만 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
       onConfirm: () => {
-        reanalyzeSentences(fileId, idxs, { highQuality: hq });
+        reanalyzeSentences(fileId, idxs);
         exitSelectMode();
       },
     });
@@ -445,17 +439,6 @@ const App = () => {
                           : '고칠 문장을 탭하세요'}
                       </span>
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* 고급 토글: 켜면 아래 두 동작이 Pro+정밀추론으로 */}
-                        <button
-                          onClick={() => setAdvancedMode(v => !v)}
-                          title="켜면 아래 '분석만 다시'·'전사부터 다시'가 Gemini 2.5 Pro + 정밀추론으로 실행됩니다 (정확·느림)"
-                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${advancedMode
-                            ? 'text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 border-transparent shadow-sm'
-                            : 'text-slate-500 bg-white border-slate-200 hover:bg-slate-50'}`}
-                        >
-                          <Sparkles size={14} /> 고급 {advancedMode ? 'ON' : 'OFF'}
-                        </button>
-                        <span className="w-px h-5 bg-slate-200" />
                         <button
                           onClick={exitSelectMode}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
@@ -476,7 +459,7 @@ const App = () => {
                           title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
-                          <Languages size={14} /> 분석만 다시{advancedMode && <Sparkles size={11} />}
+                          <Languages size={14} /> 분석만 다시
                         </button>
                         <button
                           onClick={confirmRetranscribe}
@@ -484,7 +467,7 @@ const App = () => {
                           title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
                         >
-                          <Check size={14} /> 전사부터 다시{advancedMode && <Sparkles size={11} />}
+                          <Check size={14} /> 전사부터 다시
                         </button>
                       </div>
                     </>

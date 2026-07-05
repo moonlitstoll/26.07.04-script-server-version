@@ -191,20 +191,6 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         )}
                     </div>
 
-                    {/* Advanced (고급) Model */}
-                    <div className="space-y-3 pt-4 border-t border-slate-50">
-                        {renderModelSelector(
-                            '고급 분석 모델 (재분석·재전사의 ✨고급 토글)',
-                            'text-fuchsia-700',
-                            'advancedModel'
-                        )}
-                        <p className="text-[10px] text-slate-400 leading-relaxed">
-                            선택 모드에서 <span className="font-bold text-fuchsia-600">✨고급</span>을 켜고 재분석/재전사할 때 쓰는 모델입니다.
-                            2.5 계열(Pro·Flash·Flash Lite)을 고르면 <span className="font-bold">정밀추론(thinking)</span>이 함께 켜져 정확도가 더 올라갑니다.
-                            기본은 최고품질 2.5 Pro. 속도·한도가 부담되면 2.5 Flash로 바꿔도 thinking 효과는 유지됩니다.
-                        </p>
-                    </div>
-
                     {/* Buffer Time */}
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">
