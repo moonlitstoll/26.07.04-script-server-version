@@ -33,8 +33,8 @@ export const useMediaAnalysis = ({
     /**
      * STAGE 2: FULL BATCH ANALYSIS
      */
-    const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId) => {
-        console.log(`[Stage 2] Starting FULL BATCH Analysis for file ${fileId}...`);
+    const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId, stage2Opts = {}) => {
+        console.log(`[Stage 2] Starting FULL BATCH Analysis for file ${fileId}...${stage2Opts.thinking ? ' [고급/thinking]' : ''}`);
 
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
         stage2AbortRef.current = new AbortController();
@@ -86,7 +86,7 @@ export const useMediaAnalysis = ({
                     .slice(0, 40) // 폭주 방지 상한
                     .map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
-                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems);
+                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems, { thinking: stage2Opts.thinking });
                     if (results && !signal.aborted) {
                         let groupSuccess = 0;
                         results.forEach(res => {
@@ -453,7 +453,7 @@ export const useMediaAnalysis = ({
      * 선택 문장의 전사(문장·타임스탬프)는 그대로 두고, 번역/분석만 지우고 다시 분석한다.
      * 오디오 재전사가 없어(텍스트만 전송) 빠르고 타임라인이 완전히 보존된다.
      */
-    const reanalyzeSentences = async (fileId, indices) => {
+    const reanalyzeSentences = async (fileId, indices, { highQuality = false } = {}) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
@@ -481,9 +481,16 @@ export const useMediaAnalysis = ({
         saveCacheEntry(targetFile, resetData, 'analyzing');
         if (refreshCacheKeys) refreshCacheKeys();
 
-        if (showToast) showToast({ message: `${idxSet.size}개 문장 분석을 다시 진행 중...`, type: 'success' });
+        // 고급 분석: 최고 품질 모델(Pro) + thinking 켜서 정확도 우선 (느리고 토큰 더 씀)
+        const modelForReanalyze = highQuality ? 'gemini-2.5-pro' : stage2Model;
+        if (showToast) showToast({
+            message: highQuality
+                ? `${idxSet.size}개 문장 고급 분석 진행 중... (Pro+정밀추론, 시간이 더 걸립니다)`
+                : `${idxSet.size}개 문장 분석을 다시 진행 중...`,
+            type: 'success'
+        });
         // 미분석(리셋된) 문장만 Stage 2가 다시 분석
-        runStage2(fileId, targetFile, resetData, apiKey, stage2Model);
+        runStage2(fileId, targetFile, resetData, apiKey, modelForReanalyze, { thinking: highQuality });
     };
 
     // 드래그앤드롭 핸들러

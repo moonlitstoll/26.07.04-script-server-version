@@ -781,7 +781,7 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
 /**
  * [Stage 2] 여러 문장 일괄 분석 (Batch)
  */
-export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = []) {
+export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], { thinking = false } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -790,7 +790,9 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         model: resolvedModel,
         generationConfig: {
             temperature: 0.3,
-            ...(resolvedModel.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+            // 2.5 모델은 기본적으로 thinking을 꺼서(0) 토큰을 아끼지만, 고급 분석(thinking=true)일 때는
+            // 켜서(기본 budget) 모델이 스스로 추론한 뒤 분석하게 한다 → 애매한 문장 정확도 향상.
+            ...(resolvedModel.includes('2.5') && !thinking ? { thinkingConfig: { thinkingBudget: 0 } } : {})
         },
         safetySettings
     });

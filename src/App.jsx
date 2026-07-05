@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Sparkles
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -154,6 +154,20 @@ const App = () => {
       message: `선택한 ${idxs.length}개 문장의 번역·분석만 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
       onConfirm: () => {
         reanalyzeSentences(fileId, idxs);
+        exitSelectMode();
+      },
+    });
+  };
+
+  // 선택 구간 고급 분석 (Phase 2만 — Pro 모델 + 정밀추론으로 정확도 우선)
+  const confirmAdvancedReanalyze = () => {
+    if (!activeFile || selectedIdxs.size === 0) return;
+    const idxs = [...selectedIdxs];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 ${idxs.length}개 문장을 최고 품질(Gemini 2.5 Pro + 정밀추론)로 다시 분석합니다. 전사는 그대로 유지되며, 일반 분석보다 정확하지만 시간이 더 걸리고 토큰을 더 씁니다. 진행할까요?`,
+      onConfirm: () => {
+        reanalyzeSentences(fileId, idxs, { highQuality: true });
         exitSelectMode();
       },
     });
@@ -386,6 +400,14 @@ const App = () => {
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Languages size={14} /> 분석만 다시
+                        </button>
+                        <button
+                          onClick={confirmAdvancedReanalyze}
+                          disabled={selectedIdxs.size === 0}
+                          title="Gemini 2.5 Pro + 정밀추론으로 정확도 우선 재분석 (느리고 토큰 더 씀)"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                        >
+                          <Sparkles size={14} /> 고급 분석
                         </button>
                         <button
                           onClick={confirmRetranscribe}
