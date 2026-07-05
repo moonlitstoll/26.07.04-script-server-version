@@ -22,8 +22,8 @@ import PassphraseGate from './components/PassphraseGate';
 import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
-import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
-import { getLastPos, setLastPos } from './utils/viewPosition';
+import { getPassphrase, setPassphrase as persistPassphrase, getPositions } from './services/cloudSync';
+import { getLastPos, setLastPos, mergeRemotePositions, flushPositions } from './utils/viewPosition';
 
 
 const App = () => {
@@ -119,6 +119,30 @@ const App = () => {
   useEffect(() => {
     if (passphrase) refreshCloud();
   }, [passphrase, refreshCloud]);
+
+  // [위치 동기화] 암호가 있으면 서버의 보던 위치를 받아 로컬과 병합(최근 t 우선)
+  useEffect(() => {
+    if (!passphrase) return;
+    let alive = true;
+    (async () => {
+      try {
+        const remote = await getPositions();
+        if (alive) mergeRemotePositions(remote);
+      } catch (e) { console.warn('[Position] 서버 위치 로드 실패:', e); }
+    })();
+    return () => { alive = false; };
+  }, [passphrase]);
+
+  // 탭 전환/창 닫기 시 대기 중인 위치를 즉시 업로드 (다른 기기가 최신을 받도록)
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushPositions(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', flushPositions);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', flushPositions);
+    };
+  }, []);
 
   // [위치 기억 - 스크롤] 대본을 스크롤할 때 화면 맨 위 문장을 저장 (재생 안 해도 기록됨)
   const saveScrollPos = () => {
