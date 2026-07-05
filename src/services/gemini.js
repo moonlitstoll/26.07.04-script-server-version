@@ -29,6 +29,18 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 //  - mode 'lead' : text의 '앞'과 neighbor의 '뒤'가 겹치면(=앞 문장 꼬리) 앞을 제거
 //  - mode 'trail': text의 '뒤'와 neighbor의 '앞'이 겹치면(=다음 문장 머리) 뒤를 제거
 // 흔한 한 단어 오제거를 막기 위해 '겹친 글자 수 4 이상'일 때만 자른다.
+// 문장 유사도(0~1): a의 단어 중 b에 들어있는 비율(포함도). 딸려온 이웃 문장 판별에 사용.
+const sentenceSim = (a, b) => {
+    if (!a || !b) return 0;
+    const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+    const wa = norm(a);
+    const wb = new Set(norm(b));
+    if (wa.length === 0 || wb.size === 0) return 0;
+    let inter = 0;
+    for (const x of wa) if (wb.has(x)) inter++;
+    return inter / wa.length;
+};
+
 const normWordForTrim = (w) => (w || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 function trimBoundaryOverlap(text, neighbor, mode) {
     if (!text || !neighbor) return text;
@@ -618,13 +630,33 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             //  - 시작 >= blockEnd-0.05 : 다음 문장(뒤 여유로 함께 잡힌 것) → 제거
             // (줄 시작 시각 기준이므로, 이 문장의 끝 단어가 blockEnd를 넘겨도 그 줄은 통째로 보존됨)
             const all = segMatches || [];
-            const inRange = all.filter(m => m.seconds >= blockStart - 0.3 && m.seconds < blockEnd - 0.05);
-            const picked = inRange.length > 0 ? inRange : all;
-            // 한 줄에 여러 문장이 뭉치면 문장별로 분리(기존 파이프라인과 동일: 짧으면 병합)
-            let clean = [...splitMergedSentences(picked)];
+            // 1) 담은 창 밖으로 크게 벗어난 잡음만 러프하게 제거
+            const inWindow = all.filter(m => m.seconds >= winStart - 0.5 && m.seconds <= winEnd + 0.5);
+            // 2) 한 줄 다문장 분리(기존 파이프라인과 동일: 짧으면 병합)
+            const split = [...splitMergedSentences(inWindow.length > 0 ? inWindow : all)];
 
-            // 경계 정리: 첫 문장의 앞은 이전 문장과, 마지막 문장의 뒤는 다음 문장과
-            // 겹치는 단어열을 잘라낸다(마침표 없이 붙어버린 꼬리까지 제거). 빈 문장은 버림.
+            // 3) [핵심] 딸려온 이웃 문장 제거.
+            //    각 문장을 '대상 원문 / 앞문장 / 다음문장'과 비교해, 이웃과 더 비슷하면 버리고
+            //    대상 문장과 가장 잘 맞는 것만 남긴다(짧은 클립의 부정확한 타임스탬프에 안 의존).
+            const selfText = w.selfText || '';
+            const scored = split.map(s => {
+                const t = s.text ?? s.o ?? '';
+                return {
+                    s,
+                    self: sentenceSim(t, selfText),
+                    prev: sentenceSim(t, w.prevText || ''),
+                    next: sentenceSim(t, w.nextText || ''),
+                };
+            });
+            let kept = scored.filter(x => x.self >= x.prev && x.self >= x.next).map(x => x.s);
+            // 분류로 전부 걸러지면(대상 문장이 애매) 대상과 가장 비슷한 1개만 살린다.
+            if (kept.length === 0 && scored.length > 0) {
+                const best = [...scored].sort((a, b) => b.self - a.self)[0];
+                if (best && best.self > 0) kept = [best.s];
+            }
+
+            // 4) 경계 부분 겹침(마침표 없이 붙은 앞/뒤 꼬리) 단어 단위 트림 + 빈 문장 제거
+            let clean = kept;
             if (clean.length > 0) {
                 const first = clean[0];
                 const ft = trimBoundaryOverlap(first.text ?? first.o ?? '', w.prevText, 'lead');
@@ -640,7 +672,7 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
                 sentences: clean.length > 0 ? clean : null,
                 error: clean.length > 0 ? null : '이 구간에서 전사된 문장이 없음(무음/음악이거나 인식 실패)'
             });
-            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length})`);
+            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length}, split ${split.length})`);
         } catch (err) {
             if (err.name === 'AbortError') throw err;
             console.warn(`[Retranscribe] 구간 @${blockStart.toFixed(1)}s 재전사 실패:`, err && err.message);

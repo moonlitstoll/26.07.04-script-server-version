@@ -386,13 +386,15 @@ export const useMediaAnalysis = ({
                 for (let j = hi + 1; j < currentData.length; j++) {
                     if (currentData[j].seconds > t) { end = currentData[j].seconds; nextIdx = j; break; }
                 }
-                // 경계 겹침 제거용 이웃 문장 텍스트 (앞 문장 꼬리/다음 문장 머리 잘라내기)
+                // 경계 겹침/딸려온 이웃 판별용 텍스트
                 const prevText = lo > 0 ? (currentData[lo - 1].text || '') : '';
                 const nextText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
-                blockMap.set(lo, { lo, hi, start: t, end, prevText, nextText });
+                // 대상 블록 자신의 (기존) 텍스트 — 재전사 결과 중 '진짜 대상 문장'을 골라내는 기준
+                const selfText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
+                blockMap.set(lo, { lo, hi, start: t, end, prevText, nextText, selfText });
             }
             const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
-            const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText }));
+            const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText, selfText: b.selfText }));
 
             const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1ModelForUse, windows, {
                 totalDuration: duration,
