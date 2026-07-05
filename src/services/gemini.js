@@ -548,7 +548,11 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
         return await extractSegmentWav(await getWholeAudio(), winStart, winDur);
     };
 
-    const PAD_START = 0.3;
+    // 구간을 넉넉히 잡아 누락 방지. 특히 뒤쪽(PAD_END)을 크게 잡아, 다음 문장 타임스탬프
+    // 경계에서 이 문장의 끝 단어가 잘려나가는 것을 막는다. 앞쪽(PAD_START)은 앞 문장 꼬리가
+    // 딸려오지 않게 작게 유지한다. 넓게 딴 뒤 '이 문장 범위' 밖은 타임스탬프로 잘라낸다.
+    const PAD_START = 0.25;
+    const PAD_END = 2.0;
     const results = []; // 각 원소: { sentences: Array|null, error: string|null }
     let done = 0;
 
@@ -560,7 +564,9 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             ? w.end
             : (totalDuration > blockStart ? totalDuration : blockStart + 8);
         const winStart = Math.max(0, blockStart - PAD_START);
-        const winDur = Math.max(1, blockEnd - winStart);
+        const rawEnd = blockEnd + PAD_END; // 끝 단어 누락 방지용 뒤 여유
+        const winEnd = totalDuration > 0 ? Math.min(totalDuration, rawEnd) : rawEnd;
+        const winDur = Math.max(1, winEnd - winStart);
 
         try {
             const segBlob = await extractWindow(winStart, winDur);
@@ -573,16 +579,20 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
                 signal,
                 stripMarker,
             });
-            // 구간 경계 침범분 제거: 이 구간 끝 이전 것만 채택.
-            // 단, 필터로 전부 사라지면(경계 추정 오차 등) 원본 매치를 그대로 사용해 손실을 막는다.
+            // 이 문장 범위에 속하는 줄만 채택:
+            //  - 시작 < blockStart-0.2 : 앞 문장 꼬리 → 제거
+            //  - 시작 >= blockEnd-0.05 : 다음 문장(뒤 여유로 함께 잡힌 것) → 제거
+            // (줄 시작 시각 기준이므로, 이 문장의 끝 단어가 blockEnd를 넘겨도 그 줄은 통째로 보존됨)
             const all = segMatches || [];
-            const filtered = all.filter(m => m.seconds < blockEnd - 0.05);
-            const clean = filtered.length > 0 ? filtered : all;
+            const inRange = all.filter(m => m.seconds >= blockStart - 0.2 && m.seconds < blockEnd - 0.05);
+            const picked = inRange.length > 0 ? inRange : all;
+            // 한 줄에 여러 문장이 뭉치면 문장별로 분리(기존 파이프라인과 동일: 짧으면 병합)
+            const clean = splitMergedSentences(picked);
             results.push({
                 sentences: clean.length > 0 ? clean : null,
                 error: clean.length > 0 ? null : '이 구간에서 전사된 문장이 없음(무음/음악이거나 인식 실패)'
             });
-            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s → ${clean.length}문장 (raw ${all.length})`);
+            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length})`);
         } catch (err) {
             if (err.name === 'AbortError') throw err;
             console.warn(`[Retranscribe] 구간 @${blockStart.toFixed(1)}s 재전사 실패:`, err && err.message);
