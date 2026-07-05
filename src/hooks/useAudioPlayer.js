@@ -67,21 +67,26 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     }, [triggerManualScroll]);
 
     const togglePlay = useCallback(() => {
-        if (videoRef.current) {
-            lastActionTimeRef.current = Date.now();
+        const v = videoRef.current;
+        if (!v) return;
+        lastActionTimeRef.current = Date.now();
 
-            if (videoRef.current.paused) {
-                setIsPlaying(true);
-                videoRef.current.play().catch((err) => {
-                    if (err.name !== 'AbortError') {
-                        console.error('[Player] togglePlay play() failed:', err);
-                        setIsPlaying(false);
-                    }
-                });
-            } else {
-                setIsPlaying(false);
-                videoRef.current.pause();
+        if (v.paused) {
+            // 재생 시작 직전, 예약된 복원 위치가 있으면 먼저 이동 (모바일: 메타데이터 지연 대응)
+            if (pendingSeekRef.current != null && v.readyState >= 1) {
+                try { v.currentTime = pendingSeekRef.current; } catch { /* noop */ }
+                pendingSeekRef.current = null;
             }
+            setIsPlaying(true);
+            v.play().catch((err) => {
+                if (err.name !== 'AbortError') {
+                    console.error('[Player] togglePlay play() failed:', err);
+                    setIsPlaying(false);
+                }
+            });
+        } else {
+            setIsPlaying(false);
+            v.pause();
         }
     }, []);
 
@@ -136,8 +141,9 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     }, []);
 
     // High-Resolution Sync Engine (Absolute Tracking)
+    // videoNode는 deps에만 두어 '비디오 마운트 시 재실행' 트리거로 쓰고, 실제 요소는 ref로 읽는다.
     useEffect(() => {
-        const v = videoNode; // 마운트된 실제 요소 (videoRef.current와 동일 노드)
+        const v = videoRef.current;
         if (!v || !activeFile?.data) return;
 
         // [Phase 4] 한곡 반복 수정: 한문장 반복이 꺼져있을 때만 전체 반복(native loop) 활성화
@@ -270,16 +276,27 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         };
     }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode]);
 
-    // 예약된 seek을 비디오가 준비되는 대로 적용 (비디오가 늦게 마운트돼도 유실 없음)
+    // 예약된 seek을 비디오가 준비되는 대로 적용 (늦게 마운트되거나 모바일서 메타데이터가 늦어도 유실 없음)
     const applyPendingSeek = useCallback(() => {
         const v = videoRef.current;
-        const t = pendingSeekRef.current;
-        if (v == null || t == null) return;
-        const doSeek = () => { try { v.currentTime = t; } catch { /* noop */ } setCurrentTime(t); pendingSeekRef.current = null; };
-        if (v.readyState >= 1) doSeek();             // 메타데이터 준비됨 → 즉시
-        else v.addEventListener('loadedmetadata', function once() { // 아직이면 로드 후 1회
-            v.removeEventListener('loadedmetadata', once); doSeek();
-        });
+        if (v == null || pendingSeekRef.current == null) return;
+        const doSeek = () => {
+            const t = pendingSeekRef.current;
+            if (t == null) return;
+            try { v.currentTime = t; } catch { /* noop */ }
+            setCurrentTime(t);
+            pendingSeekRef.current = null;
+            v.removeEventListener('loadedmetadata', doSeek);
+            v.removeEventListener('canplay', doSeek);
+            v.removeEventListener('loadeddata', doSeek);
+        };
+        if (v.readyState >= 1) doSeek();             // 이미 준비됨 → 즉시
+        else {
+            // 준비되는 즉시 seek (모바일 대응: 여러 이벤트 중 먼저 오는 것에 반응)
+            v.addEventListener('loadedmetadata', doSeek);
+            v.addEventListener('canplay', doSeek);
+            v.addEventListener('loadeddata', doSeek);
+        }
     }, []);
 
     // 비디오 요소가 (재)마운트되면 예약된 seek 적용
