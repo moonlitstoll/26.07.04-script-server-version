@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
-import { splitMergedSentences, splitIntoSentences, groupSentences } from "../utils/sentenceSplitter";
+import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
 
 const resolveModel = (modelId) =>
@@ -693,6 +693,8 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
                 if (lt !== (last.text ?? last.o)) clean[li] = { ...last, o: lt, text: lt };
                 clean = clean.filter(c => (c.text ?? c.o ?? '').trim().length > 0);
             }
+            // 흩어진 초단문 파편은 인접끼리 병합(선택 구간 재전사에서도 파편 정리)
+            clean = mergeTinyFragments(clean);
 
             results.push({
                 sentences: clean.length > 0 ? clean : null,
@@ -821,7 +823,8 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
         }
 
         // 재정렬로 처리 못 한 뭉친 블록은 '블록 시각 공유'로 최소 분리 보장(시각 추정 없음)
-        return splitMergedSentences(sorted);
+        // 이어서, 흩어진 초단문 파편("À." 등)을 인접끼리 병합해 자잘한 줄 난립을 정리
+        return mergeTinyFragments(splitMergedSentences(sorted));
     } catch (err) {
         if (err.name === 'AbortError') throw err;
         console.error(`Stage 1 Error: `, err);

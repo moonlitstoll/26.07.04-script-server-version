@@ -44,6 +44,54 @@ export const groupSentences = (sentences) => {
     return groups.map(g => g.join(' '));
 };
 
+// [Stage 1 후처리 ②] splitMergedSentences와 '반대' 방향 정리.
+// "À.", "ở." 처럼 감탄사/추임새 한 음절이 '별도 타임스탬프 줄'로 흩어져 나온 경우,
+// 인접한 파편끼리 한 항목으로 병합해 자잘한 카드 난립을 막는다.
+//  - 대상: 단어 1개(또는 2단어 이하이면서 아주 짧은) 항목만 → 정상 문장은 절대 건드리지 않음
+//  - 시간 간격이 TINY_GAP_SEC를 넘으면 서로 다른 발화로 보고 합치지 않음
+//  - 병합 항목은 '첫 파편의 타임스탬프/시각'을 유지(시각 추정 없음)
+const TINY_GAP_SEC = 4;    // 인접 파편으로 볼 최대 시간 간격(초)
+const TINY_MAX = 6;        // 한 번에 합칠 상한(개수)
+
+const tinyWords = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+const tinyChars = (t) => (t || '').replace(/[^\p{L}\p{N}]/gu, '').length;
+// 초단문 파편 판정: 단어 1개, 또는 2단어 이하이면서 글자 6자 이하
+const isTinyFragment = (t) => {
+    const w = tinyWords(t).length;
+    return w <= 1 || (w <= 2 && tinyChars(t) <= 6);
+};
+
+export const mergeTinyFragments = (matches) => {
+    if (!Array.isArray(matches) || matches.length < 2) return matches;
+    const out = [];
+    let i = 0;
+    while (i < matches.length) {
+        const item = matches[i];
+        if (!isTinyFragment(item.text ?? item.o ?? '')) { out.push(item); i++; continue; }
+
+        // 연속 파편 run 수집 (시간 간격/개수 제한)
+        const run = [item];
+        let j = i + 1;
+        while (j < matches.length && run.length < TINY_MAX) {
+            const nxt = matches[j];
+            if (!isTinyFragment(nxt.text ?? nxt.o ?? '')) break;
+            const gap = (nxt.seconds ?? 0) - (run[run.length - 1].seconds ?? 0);
+            if (gap > TINY_GAP_SEC) break;
+            run.push(nxt);
+            j++;
+        }
+
+        if (run.length >= 2) {
+            const merged = run.map(r => (r.text ?? r.o ?? '').trim()).filter(Boolean).join(' ');
+            out.push({ ...run[0], o: merged, text: merged }); // 첫 파편 시각 유지
+        } else {
+            out.push(item);
+        }
+        i = j;
+    }
+    return out;
+};
+
 // 전사 항목 배열을 받아, 여러 문장이 뭉친 항목을 문장별 항목으로 분할한다.
 // 쪼갠 문장들은 원본 항목의 타임스탬프/시각을 그대로 공유한다(시각을 지어내지 않음).
 // 입력 순서를 보존하므로 이후 정렬(안정 정렬)에서도 문장 순서가 유지된다.
