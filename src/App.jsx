@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   AlertCircle, RotateCcw
 } from 'lucide-react';
@@ -84,7 +84,8 @@ const App = () => {
   const restoredForRef = useRef(null);   // 위치 복원을 이미 처리한 activeFile.id
   const scrollRafRef = useRef(0);
   const activeFileRef = useRef(activeFile);
-  useEffect(() => { activeFileRef.current = activeFile; }, [activeFile]);
+  // 렌더 직후 동기화(이벤트 핸들러가 최신 activeFile을 보도록) — 전환 시 지연 방지
+  useLayoutEffect(() => { activeFileRef.current = activeFile; }, [activeFile]);
 
   const refreshCacheKeysRef = useRef(null);
 
@@ -123,9 +124,11 @@ const App = () => {
   const saveScrollPos = () => {
     const c = scrollContainerRef.current;
     const f = activeFileRef.current;
-    if (!c || !f || f.isAnalyzing || !f.file?.name || !f.data?.length) { console.log('[Save] skip', { c: !!c, f: !!f }); return; }
+    if (!c || !f || f.isAnalyzing || !f.file?.name || !f.data?.length) return;
+    // 복원이 끝난 파일만 저장 (전환 중 컨테이너 리셋으로 0이 덮어써지는 것 방지)
+    if (restoredForRef.current !== f.id) return;
     const items = c.querySelectorAll('[data-idx]');
-    if (!items.length) { console.log('[Save] no items'); return; }
+    if (!items.length) return;
     const cTop = c.getBoundingClientRect().top;
     let topIdx = 0;
     for (const el of items) {
@@ -133,7 +136,6 @@ const App = () => {
       if (el.getBoundingClientRect().bottom > cTop + 8) { topIdx = Number(el.dataset.idx); break; }
     }
     const item = f.data[topIdx];
-    console.log('[Save] topIdx=', topIdx, 'items=', items.length, 'cTop=', Math.round(cTop), 'scrollTop=', Math.round(c.scrollTop));
     if (item) setLastPos(f.file.name, f.file.size, topIdx, item.seconds);
   };
 
@@ -149,6 +151,7 @@ const App = () => {
   useEffect(() => {
     if (activeSentenceIdx < 0) return;
     if (!activeFile || activeFile.isAnalyzing || !activeFile.file?.name) return;
+    if (restoredForRef.current !== activeFile.id) return;  // 복원 완료 후에만 저장
     const item = activeFile.data?.[activeSentenceIdx];
     if (!item) return;
     setLastPos(activeFile.file.name, activeFile.file.size, activeSentenceIdx, item.seconds);
