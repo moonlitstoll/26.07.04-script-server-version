@@ -414,19 +414,19 @@ const App = () => {
             {/* 구간 다시 전사 툴바 */}
             {!isAnalyzing && !isSwitchingFile && !activeFile.error && transcriptData.length > 0 && (
               <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-3 md:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="max-w-6xl mx-auto px-3 md:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2">
                   {!selectMode ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => setSelectMode(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
                       >
                         <Wand2 size={14} /> 구간 다시 전사 / 분석
                       </button>
                       <button
                         onClick={() => setShowTrash(true)}
                         title="삭제한 문장 복구 (휴지통)"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
                       >
                         <Trash2 size={14} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
                       </button>
@@ -441,7 +441,7 @@ const App = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={exitSelectMode}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
                         >
                           <X size={14} /> 취소
                         </button>
@@ -449,7 +449,7 @@ const App = () => {
                           onClick={confirmDelete}
                           disabled={selectedIdxs.size === 0}
                           title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
@@ -457,7 +457,7 @@ const App = () => {
                           onClick={confirmReanalyze}
                           disabled={selectedIdxs.size === 0}
                           title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Languages size={14} /> 분석만 다시
                         </button>
@@ -465,7 +465,7 @@ const App = () => {
                           onClick={confirmRetranscribe}
                           disabled={selectedIdxs.size === 0}
                           title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
                         >
                           <Check size={14} /> 전사부터 다시
                         </button>
