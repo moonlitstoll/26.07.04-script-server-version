@@ -1,10 +1,11 @@
-// 연속 반복되는 단위(단어/문구)를 한 번만 남긴다.
+// 연속 반복되는 단위(단어/문구)를 최대 keepMax개까지만 남긴다.
 // 정규식 역참조(백트래킹 폭발/ReDoS) 대신 토큰 배열을 선형 스캔한다.
-// - minRepeat: 이 횟수 이상 연속 반복되면 1개로 축약
+// - minRepeat: 이 횟수 이상 연속 반복되면 축약 대상
 // - maxUnit: 반복 단위로 인정하는 최대 단어 수
+// - keepMax: 반복 시 보존할 최대 단위 수 (실제 반복 강조는 살리되 환각 루프는 자름)
 const PUNCT_STRIP = /[.,!?;:…"'`()[\]{}<>~\-—«»「」『』、。，！？]+/g;
 
-function collapseConsecutiveRepeats(text, { minRepeat = 2, maxUnit = 8 } = {}) {
+function collapseConsecutiveRepeats(text, { minRepeat = 2, maxUnit = 8, keepMax = 2 } = {}) {
     const tokens = text.split(/\s+/).filter(Boolean);
     const n = tokens.length;
     if (n < 2) return { text, changed: false };
@@ -39,9 +40,12 @@ function collapseConsecutiveRepeats(text, { minRepeat = 2, maxUnit = 8 } = {}) {
             }
 
             if (reps >= minRepeat) {
-                for (let k = 0; k < unitLen; k++) out.push(tokens[i + k]); // 단위 1개만 보존
+                const keep = Math.min(reps, keepMax); // 최대 keepMax 단위 보존
+                for (let r = 0; r < keep; r++) {
+                    for (let k = 0; k < unitLen; k++) out.push(tokens[i + r * unitLen + k]);
+                }
                 i += reps * unitLen;
-                changed = true;
+                if (reps > keep) changed = true; // 실제로 줄였을 때만 표시
                 collapsed = true;
                 break;
             }
