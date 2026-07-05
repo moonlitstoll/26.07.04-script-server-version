@@ -86,7 +86,7 @@ export const useMediaCache = ({
                 const metadata = entry?.metadata;
                 if (!entry || !metadata?.name) continue;
                 try {
-                    const blob = await mediaStore.getFile(metadata.name, metadata.size);
+                    const blob = await mediaStore.getFileFlexible(metadata.name, metadata.size);
                     let mediaUrl = null;
                     let dur = metadata.duration || 0;
                     if (blob) {
@@ -306,9 +306,10 @@ export const useMediaCache = ({
             let mediaUrl = matchingFile ? matchingFile.url : null;
             let fileForDuration = matchingFile ? matchingFile.file : null;
 
-            if (!mediaUrl && metadata.name && metadata.size) {
+            if (!mediaUrl && metadata.name) {
                 try {
-                    mediaBlob = await mediaStore.getFile(metadata.name, metadata.size);
+                    // 정확 매칭 실패 시 이름 폴백 + 자가 치유 (온디맨드 파일 키 불일치 복구)
+                    mediaBlob = await mediaStore.getFileFlexible(metadata.name, metadata.size);
                     if (mediaBlob) {
                         mediaUrl = URL.createObjectURL(mediaBlob);
                         fileForDuration = mediaBlob;
@@ -367,15 +368,16 @@ export const useMediaCache = ({
             // 한 번 받으면 이후엔 재다운로드 없이 로컬 재생 → seek 시 끊김 없음.
             // 다운로드 실패 시엔 기존처럼 원격 URL 스트리밍으로 폴백.
             let mediaUrl = null;
-            if (item.mediaUrl && item.name && item.size) {
+            if (item.mediaUrl && item.name) {
                 try {
-                    let blob = await mediaStore.getFile(item.name, item.size);
+                    let blob = await mediaStore.getFileFlexible(item.name, item.size);
                     if (!blob) {
                         setCloudDownload({ percent: 0 });
                         const downloaded = await fetchBlobWithProgress(item.mediaUrl, (percent) => setCloudDownload({ percent }));
                         blob = new File([downloaded], item.name, { type: item.type || downloaded.type || 'video/mp4' });
                         try {
-                            await mediaStore.saveFile(blob);
+                            // item 신원(name/size)으로 저장 → 이후 loadCache가 동일 키로 찾음
+                            await mediaStore.saveFile(blob, { name: item.name, size: item.size });
                             setLocalVideoIds(prev => new Set(prev).add(`${item.name}_${item.size}`));
                         } catch (e) { console.warn('[Cloud] 영상 로컬 저장 실패:', e); }
                     }

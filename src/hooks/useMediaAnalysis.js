@@ -208,7 +208,9 @@ export const useMediaAnalysis = ({
 
         if (saveMedia) {
             try {
-                await mediaStore.saveFile(fileForAnalysis);
+                // 캐시/클라우드 메타는 sourceFile 신원으로 저장되므로 미디어도 동일 신원으로 저장해야
+                // 나중에 loadCache가 name_size로 찾을 수 있다 (온디맨드 파일 크기 불일치 방지)
+                await mediaStore.saveFile(fileForAnalysis, { name: sourceFile.name, size: sourceFile.size });
             } catch (storageError) {
                 console.warn("Failed to save media file to store", storageError);
             }
