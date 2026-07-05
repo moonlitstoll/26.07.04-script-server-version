@@ -664,13 +664,21 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             // 3) 채택 문장 선별 — 모드별 분기
             let kept;
             if (w.recover) {
-                // [복구 모드] 유사도 필터를 끄고 '앵커 시각 ~ 다음 문장 직전' 구간의 문장을 전량 채택.
+                // [복구 모드] 유사도 필터를 끄고 '구간(빈칸)' 안의 문장을 전량 채택.
                 // 삭제됐던 문장도 버려지지 않고 되살아나며, 각 문장은 실측 절대 시각을 그대로 유지
                 // → 사이에 있던 문장이 제자리(실측 시각)에 정확히 들어간다.
                 kept = split.filter(s => {
                     const sec = s.seconds ?? 0;
                     return sec >= blockStart - 0.3 && sec < blockEnd - 0.05;
                 });
+                // 유지되는 경계 문장(앵커/이웃)과 겹치는 재전사본은 제거 → 유지 문장과 중복 방지
+                const drops = Array.isArray(w.dropSimilarTo) ? w.dropSimilarTo.filter(Boolean) : [];
+                if (drops.length) {
+                    kept = kept.filter(s => {
+                        const t = s.text ?? s.o ?? '';
+                        return !drops.some(b => Math.max(sentenceSim(t, b), sentenceSim(b, t)) >= 0.7);
+                    });
+                }
             } else {
                 // [교체 모드] 딸려온 이웃 문장 제거.
                 //  각 문장을 '대상 원문 / 앞문장 / 다음문장'과 비교해, 이웃과 더 비슷하면 버리고

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -98,7 +98,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverForward, deleteSentences, restoreSentences } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
@@ -192,15 +192,27 @@ const App = () => {
     });
   };
 
-  // 이후 구간 복구 — 앵커 문장 1개 기준, 그 시각~다음 문장 직전 구간을 통째로 재전사(삭제분 복구)
-  const confirmRecover = () => {
+  // 빈칸 구간 복구 — 선택 문장은 그대로 두고, 그 옆(앞/뒤) 빈칸에서 지워진 문장만 복구
+  const confirmRecoverBackward = () => {
     if (!activeFile || selectedIdxs.size !== 1) return;
     const anchorIndex = [...selectedIdxs][0];
     const fileId = activeFile.id;
     showConfirm({
-      message: `선택한 문장 시각부터 다음 문장 직전까지를 통째로 다시 듣고 전사합니다. 그 사이에 실수로 지워진 문장이 있으면 함께 복구되고, 그 구간의 기존 문장도 새로 전사·분석됩니다. (실측 시각 유지) 진행할까요?`,
+      message: `선택한 문장은 그대로 두고, 그 "앞"(위쪽) 빈칸에서 실수로 지워진 문장을 다시 듣고 복구합니다. (맨 앞 구간 포함, 실측 시각·자동 분석) 진행할까요?`,
       onConfirm: () => {
-        recoverForward(fileId, anchorIndex);
+        recoverGap(fileId, anchorIndex, 'backward');
+        exitSelectMode();
+      },
+    });
+  };
+  const confirmRecoverForward = () => {
+    if (!activeFile || selectedIdxs.size !== 1) return;
+    const anchorIndex = [...selectedIdxs][0];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 문장은 그대로 두고, 그 "뒤"(아래쪽) 빈칸에서 실수로 지워진 문장을 다시 듣고 복구합니다. (실측 시각·자동 분석) 진행할까요?`,
+      onConfirm: () => {
+        recoverGap(fileId, anchorIndex, 'forward');
         exitSelectMode();
       },
     });
@@ -452,10 +464,10 @@ const App = () => {
                           ? `${selectedIdxs.size}개 선택`
                           : '문장 선택'}
                       </span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1 overflow-x-auto">
                         <button
                           onClick={exitSelectMode}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
                         >
                           <X size={14} /> 취소
                         </button>
@@ -463,15 +475,33 @@ const App = () => {
                           onClick={confirmDelete}
                           disabled={selectedIdxs.size === 0}
                           title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
+                        {selectedIdxs.size === 1 && (
+                          <button
+                            onClick={confirmRecoverBackward}
+                            title="선택 문장 앞(위쪽) 빈칸에서 실수로 지워진 문장 복구 — 맨 앞 구간 포함 (선택 문장은 유지, 실측 시각·자동 분석)"
+                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                          >
+                            <ArrowUp size={14} /> 앞복구
+                          </button>
+                        )}
+                        {selectedIdxs.size === 1 && (
+                          <button
+                            onClick={confirmRecoverForward}
+                            title="선택 문장 뒤(아래쪽) 빈칸에서 실수로 지워진 문장 복구 (선택 문장은 유지, 실측 시각·자동 분석)"
+                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                          >
+                            <ArrowDown size={14} /> 뒤복구
+                          </button>
+                        )}
                         <button
                           onClick={confirmReanalyze}
                           disabled={selectedIdxs.size === 0}
                           title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Languages size={14} /> 분석
                         </button>
@@ -479,19 +509,10 @@ const App = () => {
                           onClick={confirmRetranscribe}
                           disabled={selectedIdxs.size === 0}
                           title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
                         >
                           <Check size={14} /> 전사
                         </button>
-                        {selectedIdxs.size === 1 && (
-                          <button
-                            onClick={confirmRecover}
-                            title="이 문장 시각부터 다음 문장 직전까지 통째로 다시 전사 — 실수로 지운 문장 복구 (실측 시각 유지, 자동 분석)"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
-                          >
-                            <LifeBuoy size={14} /> 복구
-                          </button>
-                        )}
                       </div>
                     </>
                   )}

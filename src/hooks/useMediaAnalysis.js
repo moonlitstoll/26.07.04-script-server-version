@@ -494,13 +494,14 @@ export const useMediaAnalysis = ({
     };
 
     /**
-     * [이후 구간 복구]
-     * 실수로 문장을 지워 빈칸이 생긴 경우, 선택한 '앵커' 문장 1개를 기준으로
-     * [앵커 시각 ~ 다음 살아있는 문장 직전] 구간을 통째로 다시 들어(raw 모드)
-     * 삭제됐던 문장까지 전부 복구한다. 각 문장은 재청취로 얻은 '실측 시각'을 유지하므로
-     * 사이에 있던 문장도 제자리에 정확히 들어간다. 복구 문장은 곧바로 자동 재분석(Stage 3).
+     * [빈칸 구간 복구]
+     * 실수로 문장을 지워 빈칸이 생긴 경우, 선택한 '앵커' 문장 1개는 그대로 두고
+     * 그 옆(direction) 빈칸 구간만 다시 들어(raw 모드) 삭제됐던 문장을 복구한다.
+     *  - direction 'forward' : 앵커 ~ 다음 살아있는 문장 사이(뒤 빈칸)
+     *  - direction 'backward': 이전 살아있는 문장 ~ 앵커 사이(앞 빈칸, 맨 앞 포함)
+     * 앵커/이웃 문장은 유지(분석 보존)하고, 복구된 문장만 실측 시각으로 삽입 → 자동 재분석(Stage 3).
      */
-    const recoverForward = async (fileId, anchorIndex) => {
+    const recoverGap = async (fileId, anchorIndex, direction = 'forward') => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
@@ -554,19 +555,46 @@ export const useMediaAnalysis = ({
             let duration = 0;
             try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
 
-            // 앵커 블록(동일 시각) 경계 계산
+            // 앵커 블록(동일 시각) 경계
             let lo = anchorIndex; while (lo > 0 && currentData[lo - 1].seconds === anchorSec) lo--;
             let hi = anchorIndex; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
-            // 구간 끝 = 다음(더 큰) 시각의 살아있는 문장, 없으면 영상 끝
-            let end = duration > anchorSec ? duration : anchorSec + 8;
-            let nextIdx = -1;
-            for (let j = hi + 1; j < currentData.length; j++) {
-                if (currentData[j].seconds > anchorSec) { end = currentData[j].seconds; nextIdx = j; break; }
-            }
-            const prevText = lo > 0 ? (currentData[lo - 1].text || '') : '';
-            const nextText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
+            const sBlockText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
 
-            const windows = [{ start: anchorSec, end, prevText, nextText, recover: true }];
+            // 방향별 구간(빈칸) 및 유지 경계 문장 계산
+            let winStart, winEnd, prevText, nextText;
+            if (direction === 'backward') {
+                // 앞 빈칸: 이전 살아있는 문장(P) ~ 앵커(S) 사이. 맨 앞이면 0 ~ S.
+                let prevIdx = -1;
+                for (let j = lo - 1; j >= 0; j--) { if (currentData[j].seconds < anchorSec) { prevIdx = j; break; } }
+                const pSec = prevIdx >= 0 ? currentData[prevIdx].seconds : 0;
+                const pText = prevIdx >= 0 ? (currentData[prevIdx].text || '') : '';
+                winStart = pSec; winEnd = anchorSec;
+                prevText = pText; nextText = sBlockText; // 유지 경계: 앞=P, 뒤=S
+            } else {
+                // 뒤 빈칸: 앵커(S) ~ 다음 살아있는 문장(N) 사이. 마지막이면 S ~ 영상 끝.
+                let nextIdx = -1;
+                for (let j = hi + 1; j < currentData.length; j++) { if (currentData[j].seconds > anchorSec) { nextIdx = j; break; } }
+                const nSec = nextIdx >= 0 ? currentData[nextIdx].seconds : (duration > anchorSec ? duration : anchorSec + 8);
+                const nText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
+                winStart = anchorSec; winEnd = nSec;
+                prevText = sBlockText; nextText = nText; // 유지 경계: 앞=S, 뒤=N
+            }
+
+            if (winEnd - winStart < 0.5) {
+                clearRetranscribingFlag();
+                if (showToast) showToast({ message: '복구할 구간이 없습니다.', type: 'error' });
+                return;
+            }
+
+            // dropSimilarTo: 유지되는 경계 문장(앞/뒤)과 겹치는 재전사본을 제거 → 중복 방지
+            const windows = [{
+                start: winStart,
+                end: winEnd,
+                prevText,
+                nextText,
+                recover: true,
+                dropSimilarTo: [prevText, nextText].filter(Boolean),
+            }];
 
             const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
                 totalDuration: duration,
@@ -583,15 +611,14 @@ export const useMediaAnalysis = ({
             if (!fresh || fresh.length === 0) {
                 clearRetranscribingFlag();
                 if (showToast) showToast({
-                    message: `구간 복구 실패: ${perWindow[0]?.error || '전사된 내용이 없음'}`,
+                    message: `복구할 내용이 없습니다 (${perWindow[0]?.error || '전사된 내용 없음'}).`,
                     type: 'error'
                 });
                 return;
             }
 
-            // 구간 [앵커 시각 ~ end) 안의 기존 문장을 모두 제거하고, 실측 시각을 가진 새 문장을 삽입
-            const kept = currentData.filter(d => !(d.seconds >= anchorSec - 1e-6 && d.seconds < end - 1e-6));
-            const cleanData = sanitizeData([...kept, ...fresh], duration);
+            // 기존 문장은 그대로 유지하고, 복구된(실측 시각) 문장만 삽입 → 정렬
+            const cleanData = sanitizeData([...currentData, ...fresh], duration);
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
 
             const allDone = cleanData.every(d => d.isAnalyzed);
@@ -712,5 +739,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverForward, deleteSentences, restoreSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop };
 };
