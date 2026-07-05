@@ -17,6 +17,7 @@ export const useMediaAnalysis = ({
     apiKey,
     stage1Model,
     stage2Model,
+    stage3Model, // 재전사/재분석 전용 모델
     temperature,
     topP,
     antiRecitation,
@@ -395,7 +396,7 @@ export const useMediaAnalysis = ({
             const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
             const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText, selfText: b.selfText }));
 
-            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage1Model, windows, {
+            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
                 totalDuration: duration,
                 temperature,
                 topP,
@@ -435,8 +436,8 @@ export const useMediaAnalysis = ({
                     message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
                     type: 'success'
                 });
-                // 새로 들어온(미분석) 문장만 분석
-                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage2Model);
+                // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
+                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage3Model);
             } else {
                 clearRetranscribingFlag();
                 if (showToast) showToast({
@@ -486,8 +487,8 @@ export const useMediaAnalysis = ({
         if (refreshCacheKeys) refreshCacheKeys();
 
         if (showToast) showToast({ message: `${idxSet.size}개 문장 분석을 다시 진행 중...`, type: 'success' });
-        // 미분석(리셋된) 문장만 Stage 2가 다시 분석 (설정의 Stage 2 모델)
-        runStage2(fileId, targetFile, resetData, apiKey, stage2Model);
+        // 미분석(리셋된) 문장만 다시 분석 (재분석 → 설정의 Stage 3 모델)
+        runStage2(fileId, targetFile, resetData, apiKey, stage3Model);
     };
 
     /**

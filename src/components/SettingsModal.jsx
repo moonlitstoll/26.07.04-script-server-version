@@ -191,6 +191,18 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         )}
                     </div>
 
+                    {/* Stage 3 Model — 재전사/재분석 전용 */}
+                    <div className="space-y-3 pt-4 border-t border-slate-50">
+                        {renderModelSelector(
+                            'Stage 3 — 재전사 · 재분석 (Re-do)',
+                            'text-rose-700',
+                            'stage3Model'
+                        )}
+                        <p className="text-[11px] text-slate-400 leading-relaxed px-1">
+                            구간 선택 후 <span className="font-bold text-slate-500">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 잘못된 부분을 정밀하게 고칠 때 고품질 모델(예: 2.5 Pro)을 권장합니다.
+                        </p>
+                    </div>
+
                     {/* Buffer Time */}
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">
