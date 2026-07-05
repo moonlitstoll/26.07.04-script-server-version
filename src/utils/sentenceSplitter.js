@@ -47,18 +47,17 @@ export const groupSentences = (sentences) => {
 // [Stage 1 후처리 ②] splitMergedSentences와 '반대' 방향 정리.
 // "À.", "ở." 처럼 감탄사/추임새 한 음절이 '별도 타임스탬프 줄'로 흩어져 나온 경우,
 // 인접한 파편끼리 한 항목으로 병합해 자잘한 카드 난립을 막는다.
-//  - 대상: 단어 1개(또는 2단어 이하이면서 아주 짧은) 항목만 → 정상 문장은 절대 건드리지 않음
+//  - 대상: 단어 2개 이하인 항목만("Phát.", "Uầy, sướng." 등) → 3단어 이상 정상 문장은 불변
 //  - 시간 간격이 TINY_GAP_SEC를 넘으면 서로 다른 발화로 보고 합치지 않음
 //  - 병합 항목은 '첫 파편의 타임스탬프/시각'을 유지(시각 추정 없음)
 const TINY_GAP_SEC = 4;    // 인접 파편으로 볼 최대 시간 간격(초)
 const TINY_MAX = 6;        // 한 번에 합칠 상한(개수)
 
 const tinyWords = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
-const tinyChars = (t) => (t || '').replace(/[^\p{L}\p{N}]/gu, '').length;
-// 초단문 파편 판정: 단어 1개, 또는 2단어 이하이면서 글자 6자 이하
+// 초단문 파편 판정: 단어 2개 이하(감탄사·짧은 반응 등)
 const isTinyFragment = (t) => {
     const w = tinyWords(t).length;
-    return w <= 1 || (w <= 2 && tinyChars(t) <= 6);
+    return w >= 1 && w <= 2;
 };
 
 export const mergeTinyFragments = (matches) => {
