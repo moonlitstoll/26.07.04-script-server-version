@@ -283,6 +283,38 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         };
     }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode]);
 
+    // ─────────────────────────────────────────────────────────────
+    // MediaSession: 알림/잠금화면에 '이전/다음 문장' 버튼만 추가한다.
+    //  - play/pause는 등록하지 않는다 → 크롬 기본 재생 동작을 그대로 유지
+    //    (과거 play/pause를 덮어썼다가 백그라운드에서 '타임라인만 흐르고 소리 없음' 회귀 발생).
+    //  - setPositionState/playbackState도 등록하지 않는다(가짜 재생 표시 방지).
+    //  - prev/next 핸들러는 알림 버튼 탭(=사용자 제스처)으로 실행되므로 백그라운드에서도
+    //    seek+play가 정상 동작한다. 최신 인덱스는 activeIdxRef.current에서 읽는다.
+    // ─────────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+        const ms = navigator.mediaSession;
+
+        try {
+            ms.metadata = new window.MediaMetadata({
+                title: activeFile?.file?.name || 'Media Analyzer',
+                artist: 'AI Shadowing Helper',
+            });
+        } catch { /* MediaMetadata 미지원 시 무시 */ }
+
+        const safeSet = (action, handler) => {
+            try { ms.setActionHandler(action, handler); } catch { /* 미지원 액션 무시 */ }
+        };
+        safeSet('previoustrack', () => handlePrev(activeIdxRef.current < 0 ? 0 : activeIdxRef.current));
+        safeSet('nexttrack', () => handleNext(activeIdxRef.current < 0 ? 0 : activeIdxRef.current));
+
+        return () => {
+            ['previoustrack', 'nexttrack'].forEach(a => {
+                try { ms.setActionHandler(a, null); } catch { /* noop */ }
+            });
+        };
+    }, [activeFile, handlePrev, handleNext]);
+
     // 예약된 seek을 비디오가 준비되는 대로 적용 (늦게 마운트되거나 모바일서 메타데이터가 늦어도 유실 없음)
     const applyPendingSeek = useCallback(() => {
         const v = videoRef.current;
