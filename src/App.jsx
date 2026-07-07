@@ -8,6 +8,7 @@ import { useMediaCache } from './hooks/useMediaCache';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFavorites } from './hooks/useFavorites';
+import { useAppUpdate } from './hooks/useAppUpdate';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -26,6 +27,7 @@ import TrashModal from './components/TrashModal';
 import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
 import { getTrash, clearTrash } from './utils/trashUtils';
+import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
 
 
 const App = () => {
@@ -81,6 +83,21 @@ const App = () => {
   const mediaUrl = activeFile?.url || null;
   const isAnalyzing = activeFile?.isAnalyzing || false;
 
+  // [캐시 버저닝] 활성 파일의 분석이 옛 규칙(낮은 version)으로 만들어졌는지 판정 → 재분석 권장 배너.
+  //  분석 진행 정도(analyzedCount)가 바뀔 때만 캐시 메타를 다시 읽어 반응(재분석하면 배너 사라짐).
+  const analyzedCount = transcriptData.filter(d => d.isAnalyzed).length;
+  const isStaleAnalysis = useMemo(() => {
+    if (!activeFile?.file?.name || transcriptData.length === 0) return false;
+    if (analyzedCount === 0) return false; // 아직 분석 전이면 배너 불필요
+    const key = `gemini_analysis_${activeFile.file.name}_${activeFile.file.size}`;
+    const meta = parseCacheEntry(key)?.metadata;
+    return meta ? isCacheStale(meta) : false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFile?.id, analyzedCount, transcriptData.length]);
+
+  // [자동 업데이트] 배포된 새 번들 감지 → 새로고침 안내 배너
+  const updateReady = useAppUpdate();
+
   // Hooks
   const {
     videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
@@ -98,7 +115,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, stage2Progress } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
@@ -181,18 +198,13 @@ const App = () => {
   };
 
   // 선택 문장 삭제 (중복·불필요 정리)
+  // 확인창 없이 바로 삭제 — 6초 '실행취소' 토스트 + 휴지통으로 복구 가능하므로 별도 확인 불필요.
   const confirmDelete = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     const idxs = [...selectedIdxs];
     const fileId = activeFile.id;
-    showConfirm({
-      message: `선택한 ${idxs.length}개 문장을 대본에서 삭제합니다. (이 기기와 클라우드에서 사라집니다) 되돌릴 수 없습니다. 삭제할까요?`,
-      confirmText: '확인',
-      onConfirm: () => {
-        deleteSentences(fileId, idxs);
-        exitSelectMode();
-      },
-    });
+    deleteSentences(fileId, idxs);
+    exitSelectMode();
   };
 
   // 빈칸 구간 복구 — 선택 문장은 그대로 두고, 그 앞·뒤 이웃 사이 빈칸에서 지워진 문장 복구
@@ -224,6 +236,19 @@ const App = () => {
         reanalyzeSentences(fileId, idxs);
         exitSelectMode();
       },
+    });
+  };
+
+  // [캐시 버저닝] 낡은 분석을 최신 규칙으로 전체 재분석 (전사·타임스탬프는 보존, 분석만 다시).
+  const confirmReanalyzeAll = () => {
+    if (!activeFile || transcriptData.length === 0) return;
+    const fileId = activeFile.id;
+    const allIdxs = transcriptData.map((_, i) => i);
+    showConfirm({
+      message: `이 대본 전체(${allIdxs.length}개 문장)의 번역·분석을 최신 규칙으로 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
+      confirmText: '전체 재분석',
+      danger: false,
+      onConfirm: () => reanalyzeSentences(fileId, allIdxs),
     });
   };
 
@@ -294,6 +319,7 @@ const App = () => {
     mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis,
     jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef,
     onToggleHelp: () => setShowShortcuts(s => !s),
+    playbackRate, handleRateChange,
   });
 
   const removeFile = (id, e) => {
@@ -347,7 +373,7 @@ const App = () => {
         />
       )}
       {cloudDownload && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-5 py-3 bg-slate-900/90 text-white rounded-2xl shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-5 py-3 bg-slate-900/90 text-white rounded-2xl shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           <span className="text-sm font-bold whitespace-nowrap">
             영상 받는 중{cloudDownload.percent != null ? ` ${cloudDownload.percent}%` : '...'}
@@ -429,6 +455,44 @@ const App = () => {
         onOpenSettings={() => setShowSettings(true)}
         onShowShortcuts={() => setShowShortcuts(true)}
       />
+
+      {/* [자동 업데이트] 새 번들 배포 감지 → 새로고침 안내 (모바일 stale 번들 방지) */}
+      {updateReady && (
+        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm">
+          <RotateCcw size={14} className="shrink-0" />
+          <span className="flex-1 min-w-0 truncate font-medium">새 버전이 나왔어요. 새로고침하면 최신 기능이 적용됩니다.</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-white text-indigo-700 font-bold hover:bg-indigo-50 transition-colors"
+          >
+            새로고침
+          </button>
+        </div>
+      )}
+
+      {/* [캐시 버저닝] 옛 규칙으로 분석된 파일 → 최신 규칙으로 재분석 권장 배너 */}
+      {isStaleAnalysis && !isAnalyzing && !isSwitchingFile && (
+        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs sm:text-sm">
+          <RotateCcw size={14} className="shrink-0" />
+          <span className="flex-1 min-w-0 truncate font-medium">분석 규칙이 업데이트됐어요. 재분석하면 청크 분할·회화 패턴이 개선됩니다.</span>
+          <button
+            onClick={confirmReanalyzeAll}
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors"
+          >
+            전체 재분석
+          </button>
+        </div>
+      )}
+
+      {/* [재분석 진행] 전체 스피너가 없는 백그라운드 분석(재분석·이어서분석) 중 상단에 진행률 표시 */}
+      {stage2Progress && stage2Progress.fileId === activeFileId && !isAnalyzing && !isSwitchingFile && (
+        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs sm:text-sm">
+          <div className="w-3.5 h-3.5 shrink-0 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
+          <span className="flex-1 min-w-0 truncate font-medium">
+            분석 중… {stage2Progress.done}/{stage2Progress.total}
+          </span>
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -518,7 +582,7 @@ const App = () => {
                       <h3 className="text-lg font-bold text-slate-900">Analyzing {activeFile.file.name}...</h3>
                       <p className="text-slate-500">
                         {activeFile.data && activeFile.data.length > 0
-                          ? `Applying 8 Principles & Deep Scan (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
+                          ? `Applying 9 Principles & Deep Scan (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
                           : "Extracting timeline using Gemini 2.5..."
                         }
                       </p>
@@ -542,7 +606,7 @@ const App = () => {
                     <p>Analysis complete but no text found.</p>
                   </div>
                 ) : (
-                  <div key={activeFileId} className="space-y-2 min-h-[200px] relative">
+                  <div key={activeFileId} className="space-y-1 min-h-[200px] relative">
                     <ErrorBoundary>
                       {transcriptData.map((item, idx) => {
                         const isActive = idx === activeSentenceIdx;

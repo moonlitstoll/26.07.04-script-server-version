@@ -14,22 +14,25 @@ export const parseTime = (timeStr) => {
     if (!clean) return 0;
 
     // 3. Mathematical Absolute Normalization
+    // (아래 연산(split/reverse/parseFloat/산술)은 예외를 던지지 않으므로 try/catch가 불필요)
     const parts = clean.split(':');
-    try {
-        if (parts.length >= 2) {
-            // Handle [SS.ms, MM, HH] in reverse to be agnostic to depth
-            const rev = parts.reverse();
-            const s = parseFloat(rev[0]) || 0;
-            const m = parseFloat(rev[1]) || 0;
-            const h = parseFloat(rev[2]) || 0;
-            // Formula: H*3600 + M*60 + S (All as high-precision floats)
-            return (h * 3600) + (m * 60) + s;
-        } else {
-            // Raw seconds (e.g., "79.5", "14")
-            return parseFloat(clean) || 0;
-        }
-    } catch (e) {
-        console.error("Critical: Universal Sync Engine Parse Error:", timeStr, e);
-        return 0;
+    if (parts.length >= 2) {
+        // Handle [SS.ms, MM, HH] in reverse to be agnostic to depth
+        const rev = parts.reverse();
+        const s = parseFloat(rev[0]) || 0;
+        const m = parseFloat(rev[1]) || 0;
+        const h = parseFloat(rev[2]) || 0;
+        // Formula: H*3600 + M*60 + S (All as high-precision floats)
+        return (h * 3600) + (m * 60) + s;
     }
+    // Raw seconds (e.g., "79.5", "14")
+    return parseFloat(clean) || 0;
+};
+
+/**
+ * 초를 "MM:SS" 시계 표기로 변환(음수/NaN은 0으로 가드). 재생 컨트롤 시간 표시용.
+ */
+export const formatClock = (sec) => {
+    const s = Number.isFinite(sec) && sec > 0 ? sec : 0;
+    return new Date(s * 1000).toISOString().slice(14, 19);
 };

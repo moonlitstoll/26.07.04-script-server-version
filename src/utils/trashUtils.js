@@ -21,8 +21,6 @@ export const getTrash = (name, size) => {
     }
 };
 
-export const getTrashCount = (name, size) => getTrash(name, size).length;
-
 // 삭제된 문장들을 휴지통에 추가(중복은 건너뜀, 최신이 앞).
 export const addToTrash = (name, size, items) => {
     if (!items || items.length === 0) return;

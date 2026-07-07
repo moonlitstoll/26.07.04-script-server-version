@@ -38,9 +38,11 @@ function loadFromStorage() {
         stage1Model: localStorage.getItem(STORAGE_KEYS.stage1Model) || DEFAULTS.stage1Model,
         stage2Model: localStorage.getItem(STORAGE_KEYS.stage2Model) || DEFAULTS.stage2Model,
         stage3Model: localStorage.getItem(STORAGE_KEYS.stage3Model) || DEFAULTS.stage3Model,
-        bufferTime: parseFloat(localStorage.getItem(STORAGE_KEYS.bufferTime)) || DEFAULTS.bufferTime,
-        temperature: parseFloat(localStorage.getItem(STORAGE_KEYS.temperature)) || DEFAULTS.temperature,
-        topP: parseFloat(localStorage.getItem(STORAGE_KEYS.topP)) || DEFAULTS.topP,
+        // parseFloat(...) || DEFAULT 패턴은 저장값 0을 falsy로 삼켜 기본값으로 되돌린다.
+        // Number.isFinite로 검사해 유효한 0(예: bufferTime 0 = 여유 없이 시작)을 존중한다.
+        bufferTime: (() => { const n = parseFloat(localStorage.getItem(STORAGE_KEYS.bufferTime)); return Number.isFinite(n) ? n : DEFAULTS.bufferTime; })(),
+        temperature: (() => { const n = parseFloat(localStorage.getItem(STORAGE_KEYS.temperature)); return Number.isFinite(n) ? n : DEFAULTS.temperature; })(),
+        topP: (() => { const n = parseFloat(localStorage.getItem(STORAGE_KEYS.topP)); return Number.isFinite(n) ? n : DEFAULTS.topP; })(),
         antiRecitation: localStorage.getItem(STORAGE_KEYS.antiRecitation) === 'true',
         markerChar: localStorage.getItem(STORAGE_KEYS.markerChar) || DEFAULTS.markerChar,
         markerInterval: localStorage.getItem(STORAGE_KEYS.markerInterval) !== null

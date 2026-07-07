@@ -59,8 +59,11 @@ export const MODEL_IDS = MODELS.map(m => m.id);
 // 잘못된/미지정 모델일 때의 기본값
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
 
+// Stage 2(분석) 기본 동시 요청 수 (모델 미지정 시 폴백)
+export const DEFAULT_STAGE2_CONCURRENCY = 3;
+
 // Stage 2(분석) 동시 요청 수 — 모델별 차등 (Pro는 RPM 한도가 낮아 2)
 export function getStage2Concurrency(modelId) {
     const m = MODELS.find(x => x.id === modelId);
-    return m ? m.stage2Concurrency : 3;
+    return m ? m.stage2Concurrency : DEFAULT_STAGE2_CONCURRENCY;
 }

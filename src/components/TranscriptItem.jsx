@@ -3,6 +3,22 @@ import {
     Play, Repeat, Clock, Languages, BookOpen, Loader2, Check
 } from 'lucide-react';
 
+// [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
+// 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
+const _normWords = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+const dedupeSentenceInAnalysis = (analysis, sentence) => {
+    if (!analysis || !sentence) return analysis;
+    const sw = _normWords(sentence);
+    if (sw.length < 6) return analysis;
+    return analysis.split('\n').map(line => {
+        const m = line.match(/^\s*\*\*(.+?)\*\*\s*:?\s*/);
+        if (!m) return line;
+        const cw = new Set(_normWords(m[1]));
+        const covered = cw.size ? sw.filter(w => cw.has(w)).length / sw.length : 0;
+        return covered >= 0.8 ? line.slice(m[0].length) : line; // 문장 전체 반복 볼드 제거, 뜻/풀이만 남김
+    }).join('\n');
+};
+
 const TranscriptItem = memo(({
     item, idx, isActive, isGlobalLooping, manualScrollNonce,
     seekTo, jumpToSentence,
@@ -46,7 +62,7 @@ const TranscriptItem = memo(({
             ref={itemRef}
             data-idx={idx}
             className={`
-        group relative transition-all duration-300 ease-out mb-2 rounded-xl border border-l-[4px] p-2.5 sm:px-4 sm:py-5
+        group relative transition-all duration-300 ease-out mb-1 rounded-xl border border-l-[4px] p-2 sm:px-4 sm:py-3
         ${isSelected
                     ? 'bg-indigo-50 border-l-indigo-500 border-t-indigo-200 border-r-indigo-200 border-b-indigo-200 ring-2 ring-indigo-300 shadow-md z-10'
                     : isActive
@@ -110,7 +126,7 @@ const TranscriptItem = memo(({
                 <div
                     onClick={() => jumpToSentence(idx)}
                     className={`
-            text-xl sm:text-2xl md:text-3xl leading-snug cursor-pointer transition-all duration-300 mb-1 px-1 font-bold
+            text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-1 px-1 font-bold
             ${isActive ? 'text-black' : 'text-slate-900'}
           `}
                 >
@@ -141,11 +157,11 @@ const TranscriptItem = memo(({
 
                     {/* Translation */}
                     {showAnalysis && item.translation && (
-                        <div className={`rounded-xl px-3 py-2 border transition-colors duration-300 mb-2 ${showAnalysis ? 'bg-indigo-50/80 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                        <div className={`rounded-xl px-3 py-1.5 border transition-colors duration-300 mb-1.5 ${showAnalysis ? 'bg-indigo-50/80 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
                             <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-[11px] uppercase tracking-wider mb-0.5">
                                 <Languages size={12} /> Translation
                             </div>
-                            <p className="text-slate-700 text-base leading-snug whitespace-pre-line font-medium">
+                            <p className="text-slate-700 text-[15px] leading-snug whitespace-pre-line font-medium">
                                 {item.translation?.replace(/\\n/g, '\n')}
                             </p>
                         </div>
@@ -157,10 +173,10 @@ const TranscriptItem = memo(({
                             <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[11px] uppercase tracking-wider mb-1 px-1">
                                 <BookOpen size={12} /> Detailed Analysis
                             </div>
-                            <div className="p-3 bg-white border border-emerald-100 rounded-xl">
-                                <p className="text-slate-800 text-[15px] sm:text-[16px] leading-[1.6] whitespace-pre-line font-medium">
+                            <div className="p-2.5 bg-white border border-emerald-100 rounded-xl">
+                                <p className="text-slate-800 text-[14px] sm:text-[15px] leading-[1.5] whitespace-pre-line font-medium">
                                     {typeof item.analysis === 'string'
-                                        ? item.analysis.replace(/\\n/g, '\n').split(/(\*\*.*?\*\*)/).map((part, i) =>
+                                        ? dedupeSentenceInAnalysis(item.analysis, item.text).replace(/\\n/g, '\n').split(/(\*\*.*?\*\*)/).map((part, i) =>
                                             part.startsWith('**') && part.endsWith('**')
                                                 ? <strong key={i} className="text-emerald-800 font-extrabold">{part.slice(2, -2)}</strong>
                                                 : part

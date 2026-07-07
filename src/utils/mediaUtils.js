@@ -1,5 +1,10 @@
 import { parseTime } from './timeUtils';
 
+// 종료 시각(endSeconds) 미지정 시 기본으로 채우는 구간 길이(초)
+const DEFAULT_GAP_SEC = 3.0;
+// startSeconds 오름차순 정렬 비교자
+const byStart = (a, b) => a.startSeconds - b.startSeconds;
+
 /**
  * Helper: Get Media Duration
  */
@@ -70,7 +75,7 @@ export const sanitizeData = (data, duration = 0) => {
             startSeconds = isNaN(startSeconds) ? 0 : startSeconds;
 
             const seconds = startSeconds;
-            let endSeconds = seconds + 3.0; // Default gap-fill: 3s
+            let endSeconds = seconds + DEFAULT_GAP_SEC;
             if (typeof endValue === 'number') {
                 endSeconds = endValue;
             }
@@ -90,7 +95,7 @@ export const sanitizeData = (data, duration = 0) => {
             };
         })
         .filter(item => item.text && item.text.trim() !== "")
-        .sort((a, b) => a.startSeconds - b.startSeconds);
+        .sort(byStart);
 
     // [자동 보정] AI가 HH:MM:SS 형태로 타임스탬프를 출력하여
     // 모든 startSeconds가 영상 길이를 초과하는 경우, 3파트 타임스탬프를 재해석
@@ -120,13 +125,13 @@ export const sanitizeData = (data, duration = 0) => {
                         ...item,
                         seconds: corrected,
                         startSeconds: corrected,
-                        endSeconds: corrected + 3.0,
+                        endSeconds: corrected + DEFAULT_GAP_SEC,
                         timestamp: correctedTimestamp,
                         s: correctedTimestamp
                     };
                 }
                 return item;
-            }).sort((a, b) => a.startSeconds - b.startSeconds);
+            }).sort(byStart);
             console.log(`[SanitizeData] 보정 완료. 첫 번째 항목: ${result[0]?.startSeconds}s, 마지막: ${result[result.length - 1]?.startSeconds}s`);
         }
     }

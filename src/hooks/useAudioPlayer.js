@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
+const MAX_SEEK_FALLBACK = 999999; // duration 미확정 시 상한 폴백(초)
 
 export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
@@ -54,7 +55,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             lastActionTimeRef.current = Date.now();
             setIsPlaying(true);
 
-            const targetTime = Math.max(0, Math.min(s, v.duration || 999999));
+            const targetTime = Math.max(0, Math.min(s, v.duration || MAX_SEEK_FALLBACK));
             v.currentTime = targetTime;
 
             v.play().catch((err) => {
@@ -130,8 +131,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         }
     }, [jumpToSentence, activeFile]);
 
-    // ABSOLUTE TRACKING ENGINE (Float Comparison)
-    // INVINCIBLE TRACKING ENGINE (Mathematical Absolute Comparison)
+    // 현재 재생 시각(초)에 해당하는 문장 인덱스: 뒤에서부터 startSeconds<=now인 첫 인덱스를 찾는다.
     const findActiveIndex = useCallback((currentSeconds, data) => {
         if (!data || data.length === 0) return 0;
         for (let i = data.length - 1; i >= 0; i--) {
@@ -169,7 +169,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             if (isWithinActionGuard && targetIdx !== null && data[targetIdx]) {
                 const item = data[targetIdx];
                 const bufferStart = Math.max(0, item.seconds - (bufferTime + 0.2)); // 약간의 마진 포함
-                const itemEnd = data[targetIdx + 1] ? data[targetIdx + 1].seconds : (v.duration || 999999);
+                const itemEnd = data[targetIdx + 1] ? data[targetIdx + 1].seconds : (v.duration || MAX_SEEK_FALLBACK);
 
                 // 현재 재생 위치가 타겟 문장의 버퍼 구간~끝 구간 내에 있다면 하이라이트 고정
                 if (now >= bufferStart && now < itemEnd) {
@@ -191,11 +191,18 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
                 if (data[loopIdx]) {
                     const item = data[loopIdx];
                     const start = Math.max(0, item.seconds - bufferTime);
-                    const nextItem = data[loopIdx + 1];
-                    // [Phase 4] 조기 종료 버그 수정: 5초 제한을 제거하고 실제 다음 문장 시작 전(+버퍼 버퍼)까지 재생
+                    // [A] 같은 시각(블록) 형제 문장을 건너뛰고, '실제로 더 뒤에 있는' 다음 문장을 끝 경계로 삼는다.
+                    //   (다음 항목이 현재와 같은 seconds면 끝≈시작이 되어 대사가 끝나기 전에 즉시 반복되던 버그 방지)
+                    let nb = loopIdx + 1;
+                    while (nb < data.length && data[nb].seconds <= item.seconds) nb++;
+                    const nextItem = data[nb];
+                    // [A] 꼬리 여유: 타임스탬프가 실제 대사 끝보다 이르게 찍혀도 잘리지 않게 최소 0.35초 확보.
+                    //   (다음 문장이 끝에 섞이는 걸 줄이려 0.5→0.35로 축소)
+                    const tailPad = Math.max(bufferTime, 0.35);
+                    // [Phase 4] 조기 종료 버그 수정: 5초 제한을 제거하고 실제 다음 문장 시작 전(+꼬리 여유)까지 재생
                     const end = nextItem
-                        ? nextItem.seconds + bufferTime
-                        : (v.duration ? v.duration + bufferTime : 999999);
+                        ? nextItem.seconds + tailPad
+                        : (v.duration ? v.duration + bufferTime : MAX_SEEK_FALLBACK);
 
                     // [Phase 4] 수동 시크(Seek) 대응: 사용자가 루프 범위 밖으로 강제 이동했다면 루프 타겟 재설정
                     if (v.currentTime < start - 2.0 || v.currentTime > end + 2.0) {
@@ -275,6 +282,75 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             if (pulseId) clearInterval(pulseId);
         };
     }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode]);
+
+    // ─────────────────────────────────────────────────────────────
+    // MediaSession (백그라운드 재생 + OS 알림/잠금화면 컨트롤)
+    //  - 안드로이드(크롬/삼성): metadata + play/pause 핸들러가 있으면 오디오 포커스를 잡아
+    //    화면을 꺼도 재생이 지속됨. PWA 설치 불필요.
+    //  - 다음/이전 문장은 previoustrack/nexttrack 버튼에 매핑.
+    //  - '반복' 토글은 표준에 해당 액션이 없어 알림 버튼으로는 불가(앱 내부 버튼 유지).
+    //  - 주의: prev/next는 현재 인덱스를 인자로 받으므로 activeIdxRef.current(최신값)를 읽는다.
+    // ─────────────────────────────────────────────────────────────
+
+    // 액션 핸들러 + 메타데이터 (파일/비디오 요소 교체 시 재등록)
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+        const ms = navigator.mediaSession;
+
+        try {
+            ms.metadata = new window.MediaMetadata({
+                title: activeFile?.file?.name || 'Media Analyzer',
+                artist: 'AI Shadowing Helper',
+            });
+        } catch { /* MediaMetadata 미지원 시 무시 */ }
+
+        const safeSet = (action, handler) => {
+            try { ms.setActionHandler(action, handler); } catch { /* 미지원 액션 무시 */ }
+        };
+
+        // play/pause는 실제 요소 상태를 읽어 중복 토글을 방지
+        safeSet('play', () => { if (videoRef.current?.paused) togglePlay(); });
+        safeSet('pause', () => { if (videoRef.current && !videoRef.current.paused) togglePlay(); });
+        // 이전/다음 문장 (최신 인덱스는 ref에서 읽는다 — stale closure 방지)
+        safeSet('previoustrack', () => handlePrev(activeIdxRef.current < 0 ? 0 : activeIdxRef.current));
+        safeSet('nexttrack', () => handleNext(activeIdxRef.current < 0 ? 0 : activeIdxRef.current));
+        // 알림 스크러버 seek (재생 강제 없이 위치만 이동)
+        safeSet('seekto', (d) => {
+            const v = videoRef.current;
+            if (!v || d.seekTime == null) return;
+            if (d.fastSeek && typeof v.fastSeek === 'function') v.fastSeek(d.seekTime);
+            else v.currentTime = d.seekTime;
+            setCurrentTime(d.seekTime);
+        });
+
+        return () => {
+            // 파일 교체/언마운트 시 핸들러 해제 (스테일 요소를 가리키지 않도록)
+            ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'].forEach(a => {
+                try { ms.setActionHandler(a, null); } catch { /* noop */ }
+            });
+        };
+    }, [videoNode, activeFile, togglePlay, handlePrev, handleNext]);
+
+    // 재생 상태 동기화 (알림의 재생/정지 아이콘이 앱 상태와 어긋나지 않도록)
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }, [isPlaying]);
+
+    // 위치/길이/배속 동기화 (알림 스크러버). 매 틱이 아니라 이산 변화에만 갱신 —
+    // 크롬이 playbackRate로 사이 위치를 자동 보간하므로 이걸로 충분하다.
+    useEffect(() => {
+        if (!('mediaSession' in navigator) || typeof navigator.mediaSession.setPositionState !== 'function') return;
+        const v = videoRef.current;
+        if (!v || !duration || !isFinite(duration)) return;
+        try {
+            navigator.mediaSession.setPositionState({
+                duration,
+                playbackRate: playbackRate || 1,
+                position: Math.max(0, Math.min(v.currentTime || 0, duration)),
+            });
+        } catch { /* 잘못된 position 값 등은 무시 */ }
+    }, [duration, playbackRate, isPlaying, activeSentenceIdx]);
 
     // 예약된 seek을 비디오가 준비되는 대로 적용 (늦게 마운트되거나 모바일서 메타데이터가 늦어도 유실 없음)
     const applyPendingSeek = useCallback(() => {

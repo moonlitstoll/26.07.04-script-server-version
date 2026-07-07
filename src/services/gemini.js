@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav } from "../utils/audioExtractor";
+import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav, snapSegmentToSilence } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
@@ -32,10 +32,6 @@ const DEDUP_WINDOW_SEC = 8;
 // 정규식 특수문자 이스케이프
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// [구간 재전사 경계 정리] 이웃 문장과 겹치는 경계 단어열을 잘라낸다.
-//  - mode 'lead' : text의 '앞'과 neighbor의 '뒤'가 겹치면(=앞 문장 꼬리) 앞을 제거
-//  - mode 'trail': text의 '뒤'와 neighbor의 '앞'이 겹치면(=다음 문장 머리) 뒤를 제거
-// 흔한 한 단어 오제거를 막기 위해 '겹친 글자 수 4 이상'일 때만 자른다.
 // 문장 유사도(0~1): a의 단어 중 b에 들어있는 비율(포함도). 딸려온 이웃 문장 판별에 사용.
 const sentenceSim = (a, b) => {
     if (!a || !b) return 0;
@@ -48,7 +44,14 @@ const sentenceSim = (a, b) => {
     return inter / wa.length;
 };
 
+// 문장 객체에서 표시 텍스트 추출 (text 우선, 없으면 o, 둘 다 없으면 빈 문자열)
+const textOf = (s) => s.text ?? s.o ?? '';
+
 const normWordForTrim = (w) => (w || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+// [구간 재전사 경계 정리] 이웃 문장과 겹치는 경계 단어열을 잘라낸다.
+//  - mode 'lead' : text의 '앞'과 neighbor의 '뒤'가 겹치면(=앞 문장 꼬리) 앞을 제거
+//  - mode 'trail': text의 '뒤'와 neighbor의 '앞'이 겹치면(=다음 문장 머리) 뒤를 제거
+// 흔한 한 단어 오제거를 막기 위해 '겹친 글자 수 4 이상'일 때만 자른다.
 function trimBoundaryOverlap(text, neighbor, mode) {
     if (!text || !neighbor) return text;
     const words = text.split(/\s+/).filter(Boolean);
@@ -76,6 +79,19 @@ function trimBoundaryOverlap(text, neighbor, mode) {
             : words.slice(0, words.length - best).join(' ');
     }
     return text;
+}
+
+// 경계 파편 판정: 짧은 조각(≤3단어)이 이웃 문장 단어와 크게 겹치면(≥60%) 새어나온 파편으로 본다.
+// 프롬프트 문맥 지침이 놓친 잔여 파편을 2차로 제거하기 위한 보수적 안전망.
+function isBoundaryLeakFragment(text, neighbor) {
+    const norm = (s) => (s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+    const w = norm(text);
+    const nb = norm(neighbor);
+    if (w.length === 0 || nb.length === 0) return false;
+    if (w.length > 3) return false; // 짧은 조각만 대상(진짜 문장 오삭제 방지)
+    const nbSet = new Set(nb);
+    const hit = w.filter(x => nbSet.has(x)).length;
+    return hit / w.length >= 0.6;
 }
 
 // 분절 기호 제거 함수 생성. antiRecitation이 켜졌을 때만 사용한다(임의 문자 오제거 방지).
@@ -217,14 +233,13 @@ async function blobToGeminiPart(blob, apiKey) {
     return await blobToGenerativePart(blob, blob.type || 'audio/aac');
 }
 
-// 청크 경계 오버랩 구간 중복 제거
 // 청크 오버랩 경계에서 두 번 잡힌 문장 제거 (강화판).
 //  (1) 직전 1개만이 아니라, 시간 창(WINDOW_SEC) 안의 '최근 kept 전부'와 비교
 //      → 청크 간 타임스탬프 지터로 벌어졌거나 사이에 다른 문장이 낀 중복도 포착.
 //  (2) 정규화 시 공백뿐 아니라 구두점·기호까지 제거(문장부호만 다른 중복 포착, 다국어 문자/숫자는 보존).
 //  (3) 판정: 완전일치 · (충분히 긴 경우) 포함 · 양방향 단어 유사도 3중.
 //      짧은 문장은 포함/유사도 판정에서 제외해 서로 다른 짧은 발화의 오제거를 방지.
-function deduplicateOverlap(matches) {
+export function deduplicateOverlap(matches) {
     if (matches.length < 2) return matches;
     matches.sort((a, b) => a.seconds - b.seconds);
 
@@ -274,11 +289,30 @@ const safetySettings = [
  * @param {boolean} antiRecitation - RECITATION 회피(분절 기호 삽입) 적용 여부
  * @param {string} markerChar - 삽입할 분절 기호
  * @param {number} markerInterval - 몇 단어마다 기호를 삽입할지
+ * @param {{before?: string[], after?: string[]}|null} context - 구간 재전사·복구 시 앞/뒤 문맥 문장(경계 파편 차단용)
  */
-function buildStage1Prompt(durationSec, antiRecitation, markerChar = DEFAULT_RECITATION_MARKER, markerInterval = 2) {
+function buildStage1Prompt(durationSec, antiRecitation, markerChar = DEFAULT_RECITATION_MARKER, markerInterval = 2, context = null) {
     let dynamicPrompt = STAGE1_PROMPT;
     if (durationSec > 0) {
         dynamicPrompt += `\n[미디어 길이 정보] 00:00:00.000부터 ${formatTime(durationSec)}까지의 전체 분량에 대해 타임스탬프를 작성하세요.\n`;
+    }
+
+    // [구간 재전사·복구 전용] 앞뒤 문맥 문장 주입 → 경계 파편(반쪽 단어) 차단 + 타임라인 정합
+    const ctxBefore = (context && Array.isArray(context.before) ? context.before : []).filter(Boolean);
+    const ctxAfter = (context && Array.isArray(context.after) ? context.after : []).filter(Boolean);
+    if (ctxBefore.length > 0 || ctxAfter.length > 0) {
+        const fmt = (arr) => arr.map((t, i) => `  ${i + 1}) ${t}`).join('\n');
+        dynamicPrompt += `
+[구간 재전사 문맥 정렬 — 매우 중요]
+이 오디오는 전체 영상에서 잘라낸 '일부 구간'입니다. 아래는 이 구간을 둘러싼, 이미 전사가 끝난 이웃 문장들입니다.
+${ctxBefore.length ? `· 이 구간 '바로 앞' 문장(이미 전사됨):\n${fmt(ctxBefore)}` : `· 이 구간 앞: (없음 — 영상 시작 부근)`}
+${ctxAfter.length ? `· 이 구간 '바로 뒤' 문장(이미 전사됨):\n${fmt(ctxAfter)}` : `· 이 구간 뒤: (없음 — 영상 끝 부근)`}
+[경계 규칙 — 반드시 준수]
+1. 위 앞/뒤 문장은 이미 전사됐으니 결과에 **다시 출력하지 마십시오.**
+2. 클립의 시작·끝에서 위 앞/뒤 문장의 **잘린 조각(반쪽 단어·미완성 파편)**이 들려도, 그 파편은 **버리고** 첫 번째 '온전한 새 문장'부터 마지막 '온전한 문장'까지만 전사하십시오.
+3. 위 앞 문장과 뒤 문장 '사이'의 새로운 발화만 정확히 전사하고, 각 문장의 시작 시각을 정확히 잡으십시오.
+4. 위 문맥은 '경계 식별용 참고'일 뿐입니다. 실제로 들리지 않는 말을 문맥에 억지로 맞춰 지어내지 말고, 오직 '지금 들리는 소리'만 전사하십시오.
+`;
     }
 
     dynamicPrompt += `
@@ -500,7 +534,7 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
     // 1) 뭉친 블록 탐지 (문장 2개 이상)
     const targets = [];
     for (let i = 0; i < sorted.length; i++) {
-        const groups = groupSentences(splitIntoSentences(sorted[i].text ?? sorted[i].o ?? ''));
+        const groups = groupSentences(splitIntoSentences(textOf(sorted[i])));
         if (groups.length > 1) targets.push(i);
     }
     if (targets.length === 0) return sorted;
@@ -567,7 +601,7 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
  * @param {object} opts - { totalDuration, temperature, topP, signal, antiRecitation, markerChar, markerInterval, onProgress }
  * @returns {Promise<Array<{sentences: Array|null, error: string|null}>>} windows와 같은 길이/순서.
  */
-export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-flash", windows = [], {
+export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL_ID, windows = [], {
     totalDuration = 0,
     temperature = 0.5,
     topP = 0.7,
@@ -577,16 +611,21 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
     markerInterval = 2,
     onProgress = null,
     mediaSrc = null, // 있으면 실시간 캡처 우선 (모바일 등 통짜 디코딩 불가 환경 대응)
+    concurrency = 1,       // >1 → 서브창 병렬 전사 (복구 등). 기본 1 = 순차(기존 동작)
+    singleExtract = false, // true → 모든 창을 포괄하는 유니온 오디오를 1회만 추출 후 슬라이스(복구)
 } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     if (!windows || windows.length === 0) return [];
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const modelName = resolveModel(modelId);
+    // [전사 전용 저온도] 재전사·복구는 '받아쓰기'라 창작 온도가 필요 없다.
+    //  낮게(≤0.2) 고정해 환각을 줄이고 정확도를 높인다(0은 일부 모델 반복루프 → 0.2 하한).
+    const txTemp = Math.min(typeof temperature === 'number' ? temperature : 0.2, 0.2);
     const model = genAI.getGenerativeModel({
         model: modelName,
         generationConfig: {
-            temperature: temperature || 0.5,
+            temperature: txTemp,
             topP: topP || 0.7,
             maxOutputTokens: 65536,
             ...disableThinkingConfig(modelName)
@@ -625,10 +664,31 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
     //  2) 한 줄로 붙어버린 경계는 이웃 문장 텍스트와 겹치는 단어를 잘라내 정리
     const PAD_START = 2.0;
     const PAD_END = 3.0;
-    const results = []; // 각 원소: { sentences: Array|null, error: string|null }
+
+    // [복구 최적화] singleExtract: 모든 창을 포괄하는 유니온 구간 오디오를 실시간 캡처 대신
+    // 전체 오디오 1회 디먹스 후 잘라 WAV로 확보 → 각 서브창은 이 WAV에서 즉시 슬라이스(실시간 대기 0).
+    let gapWav = null;
+    let gapWavStart = 0;
+    if (singleExtract && windows.length > 0) {
+        const blockEndOf = (w) => (typeof w.end === 'number' && w.end > w.start)
+            ? w.end : (totalDuration > w.start ? totalDuration : w.start + 8);
+        const us = Math.max(0, Math.min(...windows.map(w => Math.max(0, w.start))) - PAD_START);
+        const rawUe = Math.max(...windows.map(blockEndOf)) + PAD_END;
+        const ue = totalDuration > 0 ? Math.min(totalDuration, rawUe) : rawUe;
+        const uDur = Math.max(1, ue - us);
+        try {
+            gapWav = await extractSegmentWav(await getWholeAudio(), us, uDur);
+            gapWavStart = us;
+            console.log(`[Retranscribe] 유니온 1회 추출 완료 @${us.toFixed(1)}~${ue.toFixed(1)}s → 서브창 즉시 슬라이스`);
+        } catch (e) {
+            console.warn('[Retranscribe] 유니온 1회 추출 실패, 창별 추출로 폴백:', e && e.message);
+            gapWav = null;
+        }
+    }
+
     let done = 0;
 
-    for (const w of windows) {
+    const processOne = async (w) => {
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
         const blockStart = Math.max(0, w.start);
@@ -641,12 +701,37 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
         const winDur = Math.max(1, winEnd - winStart);
 
         try {
-            const segBlob = await extractWindow(winStart, winDur);
+            // 유니온 WAV가 있으면 즉시 슬라이스(실시간 대기 0), 없으면 창별 추출로 폴백
+            let segBlob = gapWav
+                ? await extractSegmentWav(gapWav, winStart - gapWavStart, winDur)
+                : await extractWindow(winStart, winDur);
+            // [무음 스냅] 경계(대상 시작/다음 시작) 근처의 실제 무음에서 클립을 잘라
+            //   이웃 파편은 안 담고, 무음이 없으면(붙여 말함) 원본 보존을 위해 안 자름.
+            //   타임스탬프가 부정확해도 '실제 소리'로 컷을 정하므로 원본 잘림 위험이 낮다.
+            let segOffset = winStart;
+            let segDur = winDur;
+            try {
+                const snapped = await snapSegmentToSilence(segBlob, {
+                    headBoundarySec: blockStart - winStart, // 클립 기준 앞 경계(대략)
+                    tailBoundarySec: blockEnd - winStart,   // 클립 기준 뒤 경계(대략)
+                });
+                if (snapped.headTrimSec > 0 || (snapped.durationSec > 0 && snapped.durationSec < winDur - 0.05)) {
+                    segBlob = snapped.blob;
+                    segOffset = winStart + snapped.headTrimSec;
+                    segDur = snapped.durationSec || winDur;
+                }
+            } catch (e) {
+                console.warn('[Retranscribe] 무음 스냅 실패, 원본 클립 사용:', e && e.message);
+            }
             const segPart = await blobToGeminiPart(segBlob, apiKey);
-            const prompt = buildStage1Prompt(winDur, antiRecitation, markerChar, markerInterval);
+            // 앞뒤 이웃 문장을 문맥으로 넣어 경계 파편을 원천 차단 + 타임라인 정합 유도
+            const prompt = buildStage1Prompt(segDur, antiRecitation, markerChar, markerInterval, {
+                before: w.contextBefore,
+                after: w.contextAfter,
+            });
             const segMatches = await transcribeStream(model, [segPart, prompt], {
-                segDuration: winDur,
-                offset: winStart,
+                segDuration: segDur,
+                offset: segOffset,
                 hardLimit: totalDuration,
                 signal,
                 stripMarker,
@@ -671,11 +756,20 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
                     const sec = s.seconds ?? 0;
                     return sec >= blockStart - 0.3 && sec < blockEnd - 0.05;
                 });
+                // [근접 가드] 시작 시각이 '살아있는 이웃 문장 시작'과 0.35초 이내면 그건 이웃 파편 →
+                //   무음 스냅이 못 잡은(붙여 말하는) 경우의 뒤/앞 파편을 시각 기준으로 결정적 제거.
+                const bts = Array.isArray(w.boundaryTimes) ? w.boundaryTimes : [];
+                if (bts.length) {
+                    kept = kept.filter(s => {
+                        const sec = s.seconds ?? 0;
+                        return !bts.some(bt => Math.abs(sec - bt) <= 0.35);
+                    });
+                }
                 // 유지되는 경계 문장(앵커/이웃)과 겹치는 재전사본은 제거 → 유지 문장과 중복 방지
                 const drops = Array.isArray(w.dropSimilarTo) ? w.dropSimilarTo.filter(Boolean) : [];
                 if (drops.length) {
                     kept = kept.filter(s => {
-                        const t = s.text ?? s.o ?? '';
+                        const t = textOf(s);
                         return !drops.some(b => Math.max(sentenceSim(t, b), sentenceSim(b, t)) >= 0.7);
                     });
                 }
@@ -685,7 +779,7 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
                 //  대상 문장과 가장 잘 맞는 것만 남긴다(짧은 클립의 부정확한 타임스탬프에 안 의존).
                 const selfText = w.selfText || '';
                 const scored = split.map(s => {
-                    const t = s.text ?? s.o ?? '';
+                    const t = textOf(s);
                     return {
                         s,
                         self: sentenceSim(t, selfText),
@@ -705,36 +799,57 @@ export async function retranscribeSegments(file, apiKey, modelId = "gemini-2.5-f
             let clean = kept;
             if (clean.length > 0) {
                 const first = clean[0];
-                const ft = trimBoundaryOverlap(first.text ?? first.o ?? '', w.prevText, 'lead');
+                const ft = trimBoundaryOverlap(textOf(first), w.prevText, 'lead');
                 if (ft !== (first.text ?? first.o)) clean[0] = { ...first, o: ft, text: ft };
                 const li = clean.length - 1;
                 const last = clean[li];
-                const lt = trimBoundaryOverlap(last.text ?? last.o ?? '', w.nextText, 'trail');
+                const lt = trimBoundaryOverlap(textOf(last), w.nextText, 'trail');
                 if (lt !== (last.text ?? last.o)) clean[li] = { ...last, o: lt, text: lt };
-                clean = clean.filter(c => (c.text ?? c.o ?? '').trim().length > 0);
+                clean = clean.filter(c => textOf(c).trim().length > 0);
+            }
+            // 4-2) 경계 파편 안전망: 프롬프트가 놓친, 첫/마지막 줄의 짧은 조각(≤3단어)이
+            //      이웃 문장 단어와 크게 겹치면(≥60%) 새어나온 파편으로 보고 통째 제거.
+            if (clean.length > 0 && isBoundaryLeakFragment(clean[0].text ?? clean[0].o, w.prevText)) {
+                clean = clean.slice(1);
+            }
+            if (clean.length > 0 && isBoundaryLeakFragment(clean[clean.length - 1].text ?? clean[clean.length - 1].o, w.nextText)) {
+                clean = clean.slice(0, -1);
             }
             // 흩어진 초단문 파편은 인접끼리 병합(선택 구간 재전사에서도 파편 정리)
             clean = mergeTinyFragments(clean);
 
-            results.push({
+            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length}, split ${split.length})`);
+            return {
                 sentences: clean.length > 0 ? clean : null,
                 error: clean.length > 0 ? null : '이 구간에서 전사된 문장이 없음(무음/음악이거나 인식 실패)'
-            });
-            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length}, split ${split.length})`);
+            };
         } catch (err) {
             if (err.name === 'AbortError') throw err;
             console.warn(`[Retranscribe] 구간 @${blockStart.toFixed(1)}s 재전사 실패:`, err && err.message);
-            results.push({ sentences: null, error: err && err.message || String(err) });
+            return { sentences: null, error: err && err.message || String(err) };
         }
+    };
 
-        done++;
-        if (onProgress) onProgress(done, windows.length);
-    }
+    // 창 순서 보존 + 동시성 제한 워커풀. 유니온 1회추출 성공 시에만 병렬(실시간 캡처 충돌 방지),
+    // 실패해 창별 추출로 폴백하면 순차(concurrency=1)로 안전하게.
+    const results = new Array(windows.length);
+    const effConcurrency = Math.max(1, gapWav ? concurrency : 1);
+    let cursor = 0;
+    const runWorker = async () => {
+        while (true) {
+            const i = cursor++;
+            if (i >= windows.length) break;
+            results[i] = await processOne(windows[i]);
+            done++;
+            if (onProgress) onProgress(done, windows.length);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(effConcurrency, windows.length) }, () => runWorker()));
 
     return results;
 }
 
-export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flash", {
+export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID, {
     totalDuration = 0,
     onProgress = null,
     temperature = 0.5,
@@ -862,11 +977,11 @@ export async function extractTranscript(file, apiKey, modelId = "gemini-2.5-flas
 /**
  * [Stage 2] 여러 문장 일괄 분석 (Batch)
  */
-export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = []) {
+export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
     const genAI = new GoogleGenerativeAI(apiKey);
-    const resolvedModel = modelId || "gemini-2.5-flash";
+    const resolvedModel = modelId || DEFAULT_MODEL_ID;
     const model = genAI.getGenerativeModel({
         model: resolvedModel,
         generationConfig: {
@@ -895,7 +1010,11 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         ? `\n\n[문맥 활용 규칙 — 최우선]\n아래 목록은 대본의 '연속된 흐름'이며 두 종류가 섞여 있습니다.\n- [분석대상]: 실제 분석할 문장. 이 INDEX들에 대해서만 번역/분석과 START/END 마커를 출력합니다.\n- [문맥참고]: 앞뒤 맥락을 '이해'하는 용도로만 읽습니다. 절대 분석·번역·출력하지 마십시오. START/END 마커를 만들지 마십시오.\n※ 앞의 "입력된 모든 문장을 분석" 규칙에서 '모든 문장'은 오직 [분석대상]만을 뜻합니다. [문맥참고]는 분석 대상이 아닙니다.`
         : '';
 
-    const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}\n\n분석할 문장 목록:\n${flow}`;
+    // [강제 분할] 이전 분석에서 문장 전체가 1청크로 뭉친 것을 재분석할 때, 잘게 쪼개도록 강하게 지시.
+    const forceSplitRule = forceSplit
+        ? `\n\n[강제 분할 지시 — 최우선]\n아래 문장은 직전 분석에서 문장 전체가 하나의 청크로 뭉쳐 나왔습니다. 이번에는 반드시 여러 의미 청크로 잘게 나눠 각각 [분석] 줄로 출력하십시오(규칙 13 엄수). 문장 전체를 하나의 [분석] 줄로 출력하면 실패입니다.`
+        : '';
+    const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}${forceSplitRule}\n\n분석할 문장 목록:\n${flow}`;
 
     try {
         const result = await model.generateContent({

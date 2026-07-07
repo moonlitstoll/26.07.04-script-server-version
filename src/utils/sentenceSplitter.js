@@ -9,6 +9,9 @@
 const MERGE_MIN_LEN = 15;   // 이 글자 수 미만이면 "너무 짧은 문장"으로 보고 인접과 병합
 const MAX_MERGE = 5;        // 병합 상한(문장 개수)
 
+// 전사 항목에서 표시 텍스트 추출 (text 우선, 없으면 o, 둘 다 없으면 빈 문자열)
+const pickText = (m) => m?.text ?? m?.o ?? '';
+
 // 종결부호(.?!… 및 CJK 변형) 뒤 공백을 경계로 분리. 숫자 사이 소수점(3.5)은 뒤에
 // 공백이 없어 분리되지 않는다.
 export const splitIntoSentences = (text) => {
@@ -66,14 +69,14 @@ export const mergeTinyFragments = (matches) => {
     let i = 0;
     while (i < matches.length) {
         const item = matches[i];
-        if (!isTinyFragment(item.text ?? item.o ?? '')) { out.push(item); i++; continue; }
+        if (!isTinyFragment(pickText(item))) { out.push(item); i++; continue; }
 
         // 연속 파편 run 수집 (시간 간격/개수 제한)
         const run = [item];
         let j = i + 1;
         while (j < matches.length && run.length < TINY_MAX) {
             const nxt = matches[j];
-            if (!isTinyFragment(nxt.text ?? nxt.o ?? '')) break;
+            if (!isTinyFragment(pickText(nxt))) break;
             const gap = (nxt.seconds ?? 0) - (run[run.length - 1].seconds ?? 0);
             if (gap > TINY_GAP_SEC) break;
             run.push(nxt);
@@ -81,7 +84,7 @@ export const mergeTinyFragments = (matches) => {
         }
 
         if (run.length >= 2) {
-            const merged = run.map(r => (r.text ?? r.o ?? '').trim()).filter(Boolean).join(' ');
+            const merged = run.map(r => pickText(r).trim()).filter(Boolean).join(' ');
             out.push({ ...run[0], o: merged, text: merged }); // 첫 파편 시각 유지
         } else {
             out.push(item);
@@ -99,7 +102,7 @@ export const splitMergedSentences = (matches) => {
     const out = [];
 
     for (const item of matches) {
-        const groups = groupSentences(splitIntoSentences(item.text ?? item.o ?? ''));
+        const groups = groupSentences(splitIntoSentences(pickText(item)));
 
         // 분할할 게 없으면(문장 1개) 원본 그대로 유지
         if (groups.length <= 1) {

@@ -172,7 +172,7 @@ export const useMediaCache = ({
                         const fileToRemove = prev.find(f => f.id === matchingFile.id);
                         if (fileToRemove && fileToRemove.url) URL.revokeObjectURL(fileToRemove.url);
                         const newFiles = prev.filter(f => f.id !== matchingFile.id);
-                        if (setActiveFileId && matchingFile.id === files.find(f => f.id)?.id) {
+                        if (setActiveFileId && matchingFile.id === files[0]?.id) {
                             setActiveFileId(newFiles.length > 0 ? newFiles[0].id : null);
                         }
                         return newFiles;

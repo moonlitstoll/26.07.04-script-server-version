@@ -274,6 +274,84 @@ export async function extractSegmentWav(audioBlob, startSec, durationSec) {
 }
 
 /**
+ * [구간 재전사 무음 스냅] 클립 가장자리를 '실제 무음'에 스냅해 물리적으로 잘라낸다.
+ * 모델 타임스탬프가 부정확(±0.5~1.5s)해도, 경계 근처를 스캔해 진짜 조용한 지점에서 자르므로
+ * 원본 문장 잘림과 이웃 파편을 동시에 방지한다. 무음이 없으면(붙여 말하는 구간) 그 쪽은 자르지 않는다.
+ *  - 안전 편향: head는 경계 '이전' 위주로, tail은 경계 '이후' 위주로 탐색 → 대상 문장 보호 우선
+ * @param {Blob} wavBlob 16kHz 모노 PCM WAV 클립
+ * @param {object} opts { headBoundarySec, tailBoundarySec, radius, safeMargin, frameSec, silenceRms }
+ * @returns {Promise<{blob: Blob, headTrimSec: number, durationSec: number}>}
+ */
+export async function snapSegmentToSilence(wavBlob, {
+    headBoundarySec = null, // 클립 기준(초) 대략적 앞 경계. null이면 head 미스냅
+    tailBoundarySec = null, // 클립 기준(초) 대략적 뒤 경계. null이면 tail 미스냅
+    radius = 1.2,           // 경계에서 탐색할 반경(초)
+    safeMargin = 0.3,       // 경계 너머 대상 보호 여유(초)
+    frameSec = 0.02,        // RMS 프레임 길이
+    silenceRms = 0.02,      // 이 이하 RMS만 무음으로 인정(초과면 붙여 말하는 것 → 스냅 포기)
+} = {}) {
+    const noop = { blob: wavBlob, headTrimSec: 0, durationSec: 0 };
+    let buf;
+    try { buf = await wavBlob.arrayBuffer(); } catch { return noop; }
+    const h = parseWavHeader(buf);
+    if (!h || h.bitsPerSample !== 16) return noop;
+    const sr = h.sampleRate;
+    const ch = Math.max(1, h.channels);
+    const bytesPerFrame = 2 * ch;
+    const totalFrames = Math.floor(h.dataLen / bytesPerFrame);
+    const totalSec = totalFrames / sr;
+    if (totalSec < 1.0) return { ...noop, durationSec: totalSec };
+
+    const view = new DataView(buf, h.dataOffset, totalFrames * bytesPerFrame);
+    const frameLen = Math.max(1, Math.floor(frameSec * sr));
+    const nFrames = Math.floor(totalFrames / frameLen);
+    const rms = new Float32Array(nFrames);
+    for (let f = 0; f < nFrames; f++) {
+        let sum = 0;
+        const base = f * frameLen;
+        for (let i = 0; i < frameLen; i++) {
+            let s = 0;
+            for (let c = 0; c < ch; c++) s += view.getInt16((base + i) * bytesPerFrame + c * 2, true);
+            s = (s / ch) / 32768;
+            sum += s * s;
+        }
+        rms[f] = Math.sqrt(sum / frameLen);
+    }
+    const t2f = (t) => Math.max(0, Math.min(nFrames - 1, Math.round(t / frameSec)));
+    // [lo, hi](초)에서 가장 조용한 지점(초) 반환. 충분히 조용하지 않으면 null(스냅 포기).
+    const quietestIn = (lo, hi) => {
+        const a = t2f(Math.max(0, lo));
+        const b = t2f(Math.min(totalSec, hi));
+        if (b <= a) return null;
+        let best = -1, bestVal = Infinity;
+        for (let f = a; f <= b; f++) if (rms[f] < bestVal) { bestVal = rms[f]; best = f; }
+        if (best < 0 || bestVal > silenceRms) return null;
+        return (best + 0.5) * frameSec;
+    };
+
+    let newStart = 0;
+    let newEnd = totalSec;
+    if (headBoundarySec != null) {
+        const snap = quietestIn(headBoundarySec - radius, headBoundarySec + safeMargin);
+        if (snap != null && snap > 0.05) newStart = snap;
+    }
+    if (tailBoundarySec != null) {
+        const snap = quietestIn(tailBoundarySec - safeMargin, tailBoundarySec + radius);
+        if (snap != null && snap < totalSec - 0.05) newEnd = snap;
+    }
+    // 과다 트림 방지: 남는 길이가 너무 짧으면 스냅 취소(원본 보존 우선)
+    if (newEnd - newStart < 1.0 || (newStart <= 0.02 && newEnd >= totalSec - 0.02)) {
+        return { blob: wavBlob, headTrimSec: 0, durationSec: totalSec };
+    }
+    try {
+        const trimmed = await sliceWavBlob(wavBlob, newStart, newEnd - newStart);
+        return { blob: trimmed, headTrimSec: newStart, durationSec: newEnd - newStart };
+    } catch {
+        return { blob: wavBlob, headTrimSec: 0, durationSec: totalSec };
+    }
+}
+
+/**
  * [모바일 대응 - 실시간 구간 캡처]
  * 긴 영상을 통째로 디코딩하면(WebAudio/FFmpeg) 모바일에서 메모리 초과로 실패한다.
  * 대신 브라우저가 스트리밍으로 잘 재생하는 능력을 이용해, 숨은 오디오 요소로 해당 구간만
