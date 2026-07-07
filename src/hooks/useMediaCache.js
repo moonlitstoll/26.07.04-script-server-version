@@ -45,6 +45,8 @@ export const useMediaCache = ({
 }) => {
     const [cacheKeys, setCacheKeys] = useState([]);
     const [cloudItems, setCloudItems] = useState([]);
+    // 진단: 클라우드 조회 상태 (로딩/개수/오류) — 조용한 catch로 안 보이던 문제를 화면에 노출
+    const [cloudStatus, setCloudStatus] = useState(null);
     // 클라우드 영상 다운로드 진행률: null(비활성) | { percent: number|null }
     const [cloudDownload, setCloudDownload] = useState(null);
     // 로컬에 영상이 저장된 항목 id 집합 ("{name}_{size}") — 초록 테두리/로컬 삭제 표시용
@@ -114,12 +116,15 @@ export const useMediaCache = ({
 
     // 클라우드(다른 기기) 보관함 목록 새로고침 — best-effort. 조회 후 미업로드분 자동 재업로드.
     const refreshCloud = useCallback(async () => {
+        setCloudStatus({ loading: true, count: null, error: null });
         try {
             const items = await cloudListItems();
             setCloudItems(items);
+            setCloudStatus({ loading: false, count: items.length, error: null });
             retryPendingUploads(items);
         } catch (e) {
             console.warn('[Cloud] 목록 조회 실패:', e);
+            setCloudStatus({ loading: false, count: null, error: e.message || String(e) });
         }
     }, [retryPendingUploads]);
 
@@ -429,6 +434,7 @@ export const useMediaCache = ({
         loadCache,
         refreshCacheKeys,
         cloudItems,
+        cloudStatus,
         refreshCloud,
         loadCloud,
         localVideoIds,

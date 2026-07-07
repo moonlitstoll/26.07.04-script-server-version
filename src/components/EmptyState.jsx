@@ -14,7 +14,7 @@ const EmptyState = ({
     config, updateField, onLockVault,
     cacheKeys, loadCache, deleteLocal, deleteServer, clearLocalCache, localVideoIds = new Set(),
     isFavorite = () => false, toggleFavorite = () => {},
-    cloudItems = [], loadCloud
+    cloudItems = [], cloudStatus = null, loadCloud
 }) => {
     // 즐겨찾기 우선 정렬: 별표한 항목을 맨 위로
     const favKeys = cacheKeys.filter(k => isFavorite(favIdFromKey(k)));
@@ -170,6 +170,15 @@ const EmptyState = ({
                         <Settings size={14} className="text-indigo-500" />
                         최근 작업 히스토리
                     </h4>
+                    {/* 진단: 클라우드 조회 상태 (조용한 catch로 안 보이던 문제 노출) */}
+                    {cloudStatus && (
+                        <div className={`mb-2 mx-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${cloudStatus.error ? 'bg-red-50 text-red-600' : cloudStatus.loading ? 'bg-slate-100 text-slate-400' : 'bg-sky-50 text-sky-600'}`}>
+                            <Cloud size={12} />
+                            {cloudStatus.loading ? '클라우드 조회 중…'
+                                : cloudStatus.error ? `클라우드 오류: ${cloudStatus.error}`
+                                    : `클라우드 ${cloudStatus.count}개 (다른기기 ${cloudOnlyItems.length}개)`}
+                        </div>
+                    )}
                     <div className="space-y-1.5 max-h-[calc(100vh-320px)] min-h-[45vh] overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200">
                         {!hasAnyItems ? (
                             <div className="bg-slate-50/50 rounded-2xl p-8 border border-slate-100">

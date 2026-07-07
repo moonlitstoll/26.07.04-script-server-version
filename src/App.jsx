@@ -124,7 +124,7 @@ const App = () => {
   });
 
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
-    loadCache, refreshCacheKeys, cloudItems, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
+    loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
   });
@@ -423,6 +423,7 @@ const App = () => {
         isFavorite={isFavorite}
         toggleFavorite={toggleFavorite}
         cloudItems={cloudItems}
+        cloudStatus={cloudStatus}
         loadCloud={loadCloud}
       />
       {overlays}
