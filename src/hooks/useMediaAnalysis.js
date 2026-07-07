@@ -401,6 +401,14 @@ export const useMediaAnalysis = ({
                     try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
                     const data = sanitizeData(cacheEntry.rawData, cacheDuration);
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data, isAnalyzing: false, isFromCache: true } : p));
+                    // 캐시된 대본이 있어도 미디어가 IndexedDB에 없으면 (재)저장 → 새로고침 후에도 재생 복원.
+                    // (사이트 데이터 삭제 등으로 미디어 스토어가 비면, '연결하기'/재업로드 한 번으로 다시 채워짐)
+                    try {
+                        const existing = await mediaStore.getFileFlexible(fItem.file.name, fItem.file.size);
+                        if (!existing) {
+                            await mediaStore.saveFile(fItem.file, { name: fItem.file.name, size: fItem.file.size });
+                        }
+                    } catch (e) { console.warn("캐시 히트 미디어 저장 실패:", e); }
                     return;
                 }
 
