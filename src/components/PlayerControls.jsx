@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import {
     Play, Pause, Eye, EyeOff, Repeat, AlertCircle,
     SkipBack, SkipForward
@@ -16,20 +17,46 @@ const PlayerControls = ({
     setShowAnalysis, setShowSpeedMenu,
     processFiles
 }) => {
+    // 백그라운드 재생 안정화: 사운드+클럭은 <audio> 요소가 담당(videoRef가 여기 붙음).
+    // <video>는 음소거된 시각 프리뷰로만 사용 — 백그라운드에서 <video>의 오디오가
+    // 정지되는 문제(타임라인은 흐르나 소리 없음)를 피하기 위함.
+    const visualVideoRef = useRef(null);
+
+    // 뮤트 프리뷰 영상: 재생/정지 상태를 오디오에 맞춰 따라감
+    useEffect(() => {
+        const vid = visualVideoRef.current;
+        if (!vid) return;
+        if (isPlaying && vid.paused) vid.play().catch(() => { /* noop */ });
+        else if (!isPlaying && !vid.paused) vid.pause();
+    }, [isPlaying, mediaUrl]);
+
+    // 뮤트 프리뷰 영상: 큰 드리프트(시크 등)만 오디오 위치로 보정 (미세 드리프트는 무시 — 뮤트 프리뷰라 무해)
+    useEffect(() => {
+        const vid = visualVideoRef.current;
+        if (!vid) return;
+        if (Math.abs((vid.currentTime || 0) - currentTime) > 0.4) {
+            try { vid.currentTime = currentTime; } catch { /* noop */ }
+        }
+    }, [currentTime]);
+
     return (
         <div className="flex-none bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 shadow-lg pb-safe">
             <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
+
+                {/* 사운드+클럭 드라이버: 오디오 요소(백그라운드 재생 안정). 화면엔 안 보임. */}
+                {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="hidden" />}
 
                 {/* Left: Video Thumbnail or Recovery UI */}
                 <div className="relative bg-black w-[104px] sm:w-[140px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
                     {mediaUrl ? (
                         <>
                             <video
-                                ref={attachVideo}
+                                ref={visualVideoRef}
                                 src={mediaUrl}
                                 className="w-full h-full object-contain"
                                 onClick={togglePlay}
                                 playsInline
+                                muted
                             />
                             {!isPlaying && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
