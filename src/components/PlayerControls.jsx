@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import {
     Play, Pause, Eye, EyeOff, Repeat, AlertCircle,
     SkipBack, SkipForward
@@ -16,20 +17,59 @@ const PlayerControls = ({
     setShowAnalysis, setShowSpeedMenu,
     processFiles
 }) => {
+    // 백그라운드 연속재생: 소리는 <audio>가 담당(videoRef가 여기 붙음).
+    // 크롬은 <video>를 화면 꺼짐 시 자동 정지시키나 <audio>는 계속 재생하므로,
+    // 재생/클럭을 오디오로 옮기고 <video>는 음소거 시각 프리뷰로만 쓴다.
+    const visualVideoRef = useRef(null);
+
+    // 뮤트 프리뷰 영상: 재생/정지 따라감 (백그라운드에선 재생 안 함)
+    useEffect(() => {
+        const vid = visualVideoRef.current;
+        if (!vid) return;
+        if (isPlaying && vid.paused && !document.hidden) vid.play().catch(() => { /* noop */ });
+        else if (!isPlaying && !vid.paused) vid.pause();
+    }, [isPlaying, mediaUrl]);
+
+    // 화면 꺼짐 시 뮤트 프리뷰 정지 / 복귀 시 재개 (소리는 <audio>가 계속 냄)
+    useEffect(() => {
+        const onVis = () => {
+            const vid = visualVideoRef.current;
+            if (!vid) return;
+            if (document.hidden) { try { vid.pause(); } catch { /* noop */ } }
+            else if (isPlaying) vid.play().catch(() => { /* noop */ });
+        };
+        document.addEventListener('visibilitychange', onVis);
+        return () => document.removeEventListener('visibilitychange', onVis);
+    }, [isPlaying]);
+
+    // 뮤트 프리뷰: 큰 드리프트(시크 등)만 오디오 위치로 보정 (미세 드리프트는 무시)
+    useEffect(() => {
+        const vid = visualVideoRef.current;
+        if (!vid) return;
+        if (Math.abs((vid.currentTime || 0) - currentTime) > 0.4) {
+            try { vid.currentTime = currentTime; } catch { /* noop */ }
+        }
+    }, [currentTime]);
+
     return (
         <div className="flex-none bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 shadow-lg pb-safe">
             <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
+
+                {/* 사운드+클럭 드라이버: 오디오 요소(화면 꺼져도 자동정지 안 됨).
+                    display:none은 피하고 sr-only로 렌더 트리에 유지. */}
+                {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="sr-only" />}
 
                 {/* Left: Video Thumbnail or Recovery UI */}
                 <div className="relative bg-black w-[104px] sm:w-[140px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
                     {mediaUrl ? (
                         <>
                             <video
-                                ref={attachVideo}
+                                ref={visualVideoRef}
                                 src={mediaUrl}
                                 className="w-full h-full object-contain"
                                 onClick={togglePlay}
                                 playsInline
+                                muted
                             />
                             {!isPlaying && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
