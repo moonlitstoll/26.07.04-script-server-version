@@ -403,12 +403,21 @@ export const useMediaAnalysis = ({
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data, isAnalyzing: false, isFromCache: true } : p));
                     // 캐시된 대본이 있어도 미디어가 IndexedDB에 없으면 (재)저장 → 새로고침 후에도 재생 복원.
                     // (사이트 데이터 삭제 등으로 미디어 스토어가 비면, '연결하기'/재업로드 한 번으로 다시 채워짐)
+                    // 진단용 토스트로 저장 성공/실패를 화면에 노출 (콘솔 없이도 원인 파악)
                     try {
                         const existing = await mediaStore.getFileFlexible(fItem.file.name, fItem.file.size);
-                        if (!existing) {
+                        if (existing) {
+                            if (showToast) showToast({ message: `영상 이미 저장됨 (${(fItem.file.size / 1048576).toFixed(0)}MB) — 새로고침 유지 정상`, type: 'success' });
+                        } else if (!fItem.file.size) {
+                            if (showToast) showToast({ message: '영상 저장 불가: 빈 파일(0바이트) — 온디맨드/클라우드 파일일 수 있음', type: 'error' });
+                        } else {
                             await mediaStore.saveFile(fItem.file, { name: fItem.file.name, size: fItem.file.size });
+                            if (showToast) showToast({ message: `영상 저장 완료 (${(fItem.file.size / 1048576).toFixed(0)}MB) — 이제 새로고침해도 유지`, type: 'success' });
                         }
-                    } catch (e) { console.warn("캐시 히트 미디어 저장 실패:", e); }
+                    } catch (e) {
+                        console.warn("캐시 히트 미디어 저장 실패:", e);
+                        if (showToast) showToast({ message: `영상 저장 실패: ${e.name || ''} ${e.message || e}`, type: 'error' });
+                    }
                     return;
                 }
 
