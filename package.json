@@ -9,8 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "echo \"이 사이트는 Vercel이 main 브랜치에서 자동 배포합니다. 배포하려면: git add -A && git commit -m ... && git push origin main (gh-pages 아님)\" && exit 1"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.6",
