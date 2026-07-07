@@ -21,7 +21,7 @@ const PlayerControls = ({
             <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
 
                 {/* Left: Video Thumbnail or Recovery UI */}
-                <div className="relative bg-black w-[110px] sm:w-[140px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
+                <div className="relative bg-black w-[64px] sm:w-[120px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
                     {mediaUrl ? (
                         <>
                             <video
@@ -38,9 +38,9 @@ const PlayerControls = ({
                             )}
                         </>
                     ) : (
-                        <div className="flex flex-col items-center justify-center p-2 text-center space-y-2">
-                            <AlertCircle size={24} className="text-red-400" />
-                            <div className="text-[10px] font-bold text-slate-300 leading-tight">
+                        <div className="flex flex-col items-center justify-center p-1 text-center space-y-1.5">
+                            <AlertCircle size={20} className="text-red-400" />
+                            <div className="text-[9px] font-bold text-slate-300 leading-tight">
                                 원본 파일을<br />찾을 수 없습니다
                             </div>
                             <label className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded cursor-pointer transition-colors">
@@ -80,7 +80,7 @@ const PlayerControls = ({
                     </div>
 
                     {/* Row 2: Control Buttons */}
-                    <div className="flex items-center justify-between px-3 pl-1 py-1 gap-1">
+                    <div className="flex items-center justify-between px-2 pl-1 py-1 gap-1">
 
                         {/* Speed & Analysis */}
                         <div className="flex items-center gap-1">
@@ -123,7 +123,7 @@ const PlayerControls = ({
                         </div>
 
                         {/* Main Controls */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                             <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
                                 <SkipBack size={18} className="fill-current" />
                             </button>
