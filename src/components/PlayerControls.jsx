@@ -22,13 +22,26 @@ const PlayerControls = ({
     // 정지되는 문제(타임라인은 흐르나 소리 없음)를 피하기 위함.
     const visualVideoRef = useRef(null);
 
-    // 뮤트 프리뷰 영상: 재생/정지 상태를 오디오에 맞춰 따라감
+    // 뮤트 프리뷰 영상: 재생/정지 상태를 오디오에 맞춰 따라감 (백그라운드에선 재생 안 함)
     useEffect(() => {
         const vid = visualVideoRef.current;
         if (!vid) return;
-        if (isPlaying && vid.paused) vid.play().catch(() => { /* noop */ });
+        if (isPlaying && vid.paused && !document.hidden) vid.play().catch(() => { /* noop */ });
         else if (!isPlaying && !vid.paused) vid.pause();
     }, [isPlaying, mediaUrl]);
+
+    // 백그라운드(화면 꺼짐/탭 숨김)에선 장식용 뮤트 영상을 정지시켜 <audio>만 단독 재생되게 한다.
+    // (뮤트 영상까지 '재생 중'이면 일부 브라우저가 백그라운드에서 오디오 출력을 함께 끊는 현상 방지)
+    useEffect(() => {
+        const onVis = () => {
+            const vid = visualVideoRef.current;
+            if (!vid) return;
+            if (document.hidden) { try { vid.pause(); } catch { /* noop */ } }
+            else if (isPlaying) vid.play().catch(() => { /* noop */ });
+        };
+        document.addEventListener('visibilitychange', onVis);
+        return () => document.removeEventListener('visibilitychange', onVis);
+    }, [isPlaying]);
 
     // 뮤트 프리뷰 영상: 큰 드리프트(시크 등)만 오디오 위치로 보정 (미세 드리프트는 무시 — 뮤트 프리뷰라 무해)
     useEffect(() => {
@@ -43,8 +56,9 @@ const PlayerControls = ({
         <div className="flex-none bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 shadow-lg pb-safe">
             <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
 
-                {/* 사운드+클럭 드라이버: 오디오 요소(백그라운드 재생 안정). 화면엔 안 보임. */}
-                {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="hidden" />}
+                {/* 사운드+클럭 드라이버: 오디오 요소(백그라운드 재생 안정). 화면엔 안 보이되
+                    display:none은 피함 — 일부 모바일 브라우저가 display:none 미디어를 백그라운드에서 정지시킴. */}
+                {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="sr-only" />}
 
                 {/* Left: Video Thumbnail or Recovery UI */}
                 <div className="relative bg-black w-[104px] sm:w-[140px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
