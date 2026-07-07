@@ -3,7 +3,6 @@ import {
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { getCacheDisplayName } from '../utils/cacheStatus';
-import { getPassphrase } from '../services/cloudSync';
 
 const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
 const favIdFromItem = (item) => `${item.name}_${item.size}`;
@@ -171,18 +170,12 @@ const EmptyState = ({
                         <Settings size={14} className="text-indigo-500" />
                         최근 작업 히스토리
                     </h4>
-                    {/* 진단: 클라우드 조회 상태 + 앱이 실제 사용 중인 암호 (URL에서 통한 암호와 대조용) */}
-                    {cloudStatus && (
-                        <div className="mb-2 flex flex-col items-center gap-1">
-                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${cloudStatus.error ? 'bg-red-50 text-red-600' : cloudStatus.loading ? 'bg-slate-100 text-slate-400' : 'bg-sky-50 text-sky-600'}`}>
-                                <Cloud size={12} />
-                                {cloudStatus.loading ? '클라우드 조회 중…'
-                                    : cloudStatus.error ? `클라우드 오류: ${cloudStatus.error}`
-                                        : `클라우드 ${cloudStatus.count}개 (다른기기 ${cloudOnlyItems.length}개)`}
-                            </div>
-                            <div className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                앱 암호: "{getPassphrase()}"
-                            </div>
+                    {/* 클라우드 조회 상태 (동기화 확인용) */}
+                    {cloudStatus && (cloudStatus.error || cloudStatus.count > 0) && (
+                        <div className={`mb-2 mx-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${cloudStatus.error ? 'bg-red-50 text-red-600' : 'bg-sky-50 text-sky-600'}`}>
+                            <Cloud size={12} />
+                            {cloudStatus.error ? `클라우드 오류: ${cloudStatus.error}`
+                                : `클라우드 ${cloudStatus.count}개 (다른기기 ${cloudOnlyItems.length}개)`}
                         </div>
                     )}
                     <div className="space-y-1.5 max-h-[calc(100vh-320px)] min-h-[45vh] overflow-y-auto mb-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200">
