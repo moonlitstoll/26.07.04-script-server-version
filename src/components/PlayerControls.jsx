@@ -21,7 +21,7 @@ const PlayerControls = ({
             <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
 
                 {/* Left: Video Thumbnail or Recovery UI */}
-                <div className="relative bg-black w-[64px] sm:w-[120px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
+                <div className="relative bg-black w-[104px] sm:w-[140px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
                     {mediaUrl ? (
                         <>
                             <video
@@ -38,9 +38,9 @@ const PlayerControls = ({
                             )}
                         </>
                     ) : (
-                        <div className="flex flex-col items-center justify-center p-1 text-center space-y-1.5">
-                            <AlertCircle size={20} className="text-red-400" />
-                            <div className="text-[9px] font-bold text-slate-300 leading-tight">
+                        <div className="flex flex-col items-center justify-center p-2 text-center space-y-2">
+                            <AlertCircle size={24} className="text-red-400" />
+                            <div className="text-[10px] font-bold text-slate-300 leading-tight">
                                 원본 파일을<br />찾을 수 없습니다
                             </div>
                             <label className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded cursor-pointer transition-colors">
@@ -90,7 +90,7 @@ const PlayerControls = ({
                                     aria-label={`재생 속도 ${playbackRate.toFixed(1)}x`}
                                     aria-expanded={showSpeedMenu}
                                     className={`
-                    flex items-center justify-center gap-0.5 px-2 rounded-lg text-[11px] font-bold transition-all min-w-[44px] min-h-[44px] border
+                    flex items-center justify-center gap-0.5 px-1.5 sm:px-2 rounded-lg text-[11px] font-bold transition-all min-w-[38px] sm:min-w-[44px] min-h-[44px] border
                     ${showSpeedMenu ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}
                   `}
                                 >
@@ -116,7 +116,7 @@ const PlayerControls = ({
                             <button
                                 onClick={() => setShowAnalysis(!showAnalysis)}
                                 aria-label={showAnalysis ? '번역/분석 숨기기' : '번역/분석 보기'}
-                                className={`flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg border transition-all ${showAnalysis ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-400 border-slate-200'}`}
+                                className={`flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] rounded-lg border transition-all ${showAnalysis ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-400 border-slate-200'}`}
                             >
                                 {showAnalysis ? <Eye size={16} /> : <EyeOff size={16} />}
                             </button>
@@ -124,19 +124,19 @@ const PlayerControls = ({
 
                         {/* Main Controls */}
                         <div className="flex items-center gap-1.5">
-                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
                                 <SkipBack size={18} className="fill-current" />
                             </button>
 
                             <button
                                 onClick={togglePlay}
                                 aria-label={isPlaying ? '일시정지' : '재생'}
-                                className="w-11 h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform active:scale-95"
+                                className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform active:scale-95"
                             >
                                 {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
                             </button>
 
-                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
                                 <SkipForward size={18} className="fill-current" />
                             </button>
                         </div>
@@ -147,7 +147,7 @@ const PlayerControls = ({
                                 onClick={toggleLoop}
                                 aria-label={isGlobalLoopActive ? '문장 반복 끄기' : '문장 반복 켜기'}
                                 aria-pressed={isGlobalLoopActive}
-                                className={`flex items-center justify-center min-w-[44px] min-h-[44px] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
+                                className={`flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
                                 title="Toggle Global Sentence Loop"
                             >
                                 <Repeat size={16} className={isGlobalLoopActive ? 'animate-pulse' : ''} />
