@@ -10,7 +10,7 @@ import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 
 // 분석이 '뭉침/과편중'인지 감지: 모든 볼드 청크 중 '가장 큰 것'이 문장의 60% 이상을 덮으면 뭉침.
 // (문장 전체를 1청크로 낸 경우뿐 아니라, 한 청크가 지나치게 큰 편중 분할도 재교정 대상에 포함)
-// 짧은 문장(6단어 미만)은 1청크가 정상이라 제외. 💡패턴/⚡실제 태그는 원어 볼드가 아니라 영향 미미.
+// 짧은 문장(6단어 미만)은 1청크가 정상이라 제외. ⚡실제 태그는 원어 볼드가 아니라 영향 미미.
 const NORM_WORDS = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
 const isLumpedAnalysis = (sentence, analysis) => {
     if (!analysis || !sentence) return false;

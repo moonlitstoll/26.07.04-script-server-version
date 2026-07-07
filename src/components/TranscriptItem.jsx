@@ -5,6 +5,10 @@ import {
 
 // [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
 // 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
+// [폐지된 기능] 💡 재사용 문형 태그 제거 — 기존 분석에 남아있어도 표시에서 숨긴다.
+//  ⚡실제 태그(〔⚡…〕)는 유지. 앞의 공백까지 함께 제거해 어색한 간격이 안 남게 한다.
+const stripPatternTags = (s) => (s || '').replace(/\s*〔💡[^〕]*〕/g, '');
+
 const _normWords = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
 const dedupeSentenceInAnalysis = (analysis, sentence) => {
     if (!analysis || !sentence) return analysis;
@@ -176,7 +180,7 @@ const TranscriptItem = memo(({
                             <div className="p-2.5 bg-white border border-emerald-100 rounded-xl">
                                 <p className="text-slate-800 text-[14px] sm:text-[15px] leading-[1.5] whitespace-pre-line font-medium">
                                     {typeof item.analysis === 'string'
-                                        ? dedupeSentenceInAnalysis(item.analysis, item.text).replace(/\\n/g, '\n').split(/(\*\*.*?\*\*)/).map((part, i) =>
+                                        ? stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n').split(/(\*\*.*?\*\*)/).map((part, i) =>
                                             part.startsWith('**') && part.endsWith('**')
                                                 ? <strong key={i} className="text-emerald-800 font-extrabold">{part.slice(2, -2)}</strong>
                                                 : part
