@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Eye, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { buildCloze } from '../utils/clozeUtils';
 
 // 한 문장의 빈칸 학습 UI. TranscriptItem 안에서 원문/분석 대신 렌더된다.
@@ -38,9 +38,13 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
             {/* 클로즈 문장 */}
             <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 mb-2">
                 {drill.wholeSentence && !allRevealed ? (
-                    <span className="inline-flex items-center px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-400 tracking-widest">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); revealAll(); }}
+                        title="탭하면 정답 공개"
+                        className="inline-flex items-center px-3 py-1 rounded-lg bg-amber-50 border-b-2 border-amber-300 text-amber-400 hover:bg-amber-100 tracking-widest transition-colors"
+                    >
                         _______________
-                    </span>
+                    </button>
                 ) : (
                     drill.parts.map((p, i) => {
                         if (p.type === 'text') return <span key={i}>{p.value} </span>;
@@ -81,15 +85,8 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
                 </div>
             )}
 
-            {/* 컨트롤: 통째 가림이면 '정답 보기', 전부 공개되면 '알았음/몰랐음' */}
-            {drill.wholeSentence && !allRevealed ? (
-                <button
-                    onClick={(e) => { e.stopPropagation(); revealAll(); }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
-                >
-                    <Eye size={14} /> 정답 보기
-                </button>
-            ) : allRevealed ? (
+            {/* 컨트롤: 전부 공개되면 '알았음/몰랐음', 아니면 안내 (통째 가림도 빈칸을 직접 탭해 공개) */}
+            {allRevealed ? (
                 <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold text-slate-400">알았나요?</span>
                     <button
