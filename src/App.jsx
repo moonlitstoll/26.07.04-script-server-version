@@ -615,29 +615,29 @@ const App = () => {
             {/* 구간 다시 전사 툴바 */}
             {!isAnalyzing && !isSwitchingFile && !activeFile.error && transcriptData.length > 0 && (
               <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-3 md:px-6 py-1.5 flex items-center justify-between gap-1.5">
+                <div className="max-w-6xl mx-auto px-3 md:px-6 py-1 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         onClick={() => setSelectMode(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
                       >
-                        <Wand2 size={14} /> 구간 다시 전사 / 분석
+                        <Wand2 size={13} /> 재전사/분석
                       </button>
                       <button
                         onClick={() => setShowTrash(true)}
                         title="삭제한 문장 복구 (휴지통)"
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
                       >
-                        <Trash2 size={14} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
+                        <Trash2 size={13} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
                       </button>
 
                       {/* 🙈 가리기 학습 (클로즈) */}
                       <button
                         onClick={() => setDrillMode(d => !d)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border transition-colors ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'}`}
                       >
-                        <EyeOff size={14} /> 가리기 학습
+                        <EyeOff size={13} /> 가리기
                       </button>
                       {drillMode && (
                         <>
@@ -646,7 +646,7 @@ const App = () => {
                               <button
                                 key={v}
                                 onClick={() => setDifficulty(v)}
-                                className={`px-2.5 py-1 text-xs font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                                className={`px-2 py-0.5 text-xs font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                               >
                                 {label}
                               </button>
@@ -655,9 +655,9 @@ const App = () => {
                           <button
                             onClick={() => { setDrillRound(r => r + 1); clearLearnProgress(); }}
                             title="빈칸을 새로 섞고 이 영상의 오답 표시를 초기화합니다"
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
                           >
-                            <Shuffle size={14} /> 새 문제
+                            <Shuffle size={13} /> 새 문제
                           </button>
                         </>
                       )}
@@ -666,9 +666,9 @@ const App = () => {
                       {(wrongIndices.length > 0 || mistakeOnly) && (
                         <button
                           onClick={toggleMistakeOnly}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'}`}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border transition-colors ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'}`}
                         >
-                          <AlertTriangle size={14} /> 오답만 보기 ({wrongIndices.length})
+                          <AlertTriangle size={13} /> 오답 ({wrongIndices.length})
                         </button>
                       )}
                     </div>
