@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle
 } from 'lucide-react';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
@@ -9,6 +9,7 @@ import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFavorites } from './hooks/useFavorites';
 import { useAppUpdate } from './hooks/useAppUpdate';
+import { useLearningProgress } from './hooks/useLearningProgress';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -79,7 +80,7 @@ const App = () => {
 
   // Derived active file
   const activeFile = files.find(f => f.id === activeFileId);
-  const transcriptData = activeFile?.data || [];
+  const transcriptData = useMemo(() => activeFile?.data || [], [activeFile?.data]);
   const mediaUrl = activeFile?.url || null;
   const isAnalyzing = activeFile?.isAnalyzing || false;
 
@@ -101,9 +102,113 @@ const App = () => {
   // Hooks
   const {
     videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
-    manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, jumpToSentence,
+    manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
     handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo
   } = useAudioPlayer({ activeFile, bufferTime });
+
+  // ─── 가리기 학습(클로즈) + 오답 복습 ───
+  const [drillMode, setDrillMode] = useState(false);
+  const [difficulty, setDifficulty] = useState('easy'); // 'easy' | 'mid' | 'hard'
+  const [drillRound, setDrillRound] = useState(0);       // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
+  const [mistakeOnly, setMistakeOnly] = useState(false);
+  const prevLoopRef = useRef(false);                     // 오답 모드 진입 전 반복 상태 (복원용)
+
+  const learnFileKey = activeFile?.file ? `${activeFile.file.name}_${activeFile.file.size}` : null;
+  const { mark: markProgress, wrongIndices, isWrong } = useLearningProgress(learnFileKey, transcriptData);
+  const wrongSet = useMemo(() => new Set(wrongIndices), [wrongIndices]);
+
+  // [함정 #1] 화면은 걸러진 목록이지만 점프는 '원래 문장 번호'로. wrongIndices(원래 인덱스)를 그대로 사용.
+  // [함정 #4] 반복 재조준은 jumpToSentence가 loopTargetIdxRef를 갱신하므로 자동 해결.
+  const goNext = useCallback((fromArg) => {
+    const cur = (typeof fromArg === 'number' && fromArg >= 0) ? fromArg : (activeIdxRef.current ?? -1);
+    if (mistakeOnly) {
+      if (wrongIndices.length === 0) return;
+      if (cur < 0) { jumpToSentence(wrongIndices[0]); return; } // [함정 #6] 미재생 → 첫 오답
+      const nx = wrongIndices.find(w => w > cur);
+      jumpToSentence(nx !== undefined ? nx : wrongIndices[0]); // 없으면 순환(첫 오답)
+    } else {
+      if (transcriptData.length === 0) return;
+      if (cur < 0) { jumpToSentence(0); return; }               // [함정 #6] 미재생 → 첫 문장(건너뜀 방지)
+      handleNext(cur);
+    }
+  }, [mistakeOnly, wrongIndices, jumpToSentence, handleNext, activeIdxRef, transcriptData.length]);
+
+  const goPrev = useCallback((fromArg) => {
+    const cur = (typeof fromArg === 'number' && fromArg >= 0) ? fromArg : (activeIdxRef.current ?? -1);
+    if (mistakeOnly) {
+      if (wrongIndices.length === 0) return;
+      if (cur < 0) { jumpToSentence(wrongIndices[0]); return; } // 미재생 → 첫 오답
+      let prev;
+      for (let i = wrongIndices.length - 1; i >= 0; i--) { if (wrongIndices[i] < cur) { prev = wrongIndices[i]; break; } }
+      jumpToSentence(prev !== undefined ? prev : wrongIndices[wrongIndices.length - 1]); // 없으면 순환(마지막 오답)
+    } else {
+      if (transcriptData.length === 0) return;
+      if (cur < 0) { jumpToSentence(0); return; }               // 미재생 → 첫 문장
+      handlePrev(cur);
+    }
+  }, [mistakeOnly, wrongIndices, jumpToSentence, handlePrev, activeIdxRef, transcriptData.length]);
+
+  // 정답 후 자가표시 저장. 오답 모드에서 '알았음'이면 목록서 빠지므로 다음 오답으로 이동.
+  // [함정 #5/#11] goNext(stale wrongIndices)로 자기 자신에 점프하는 문제 → idx 제외한 remaining으로 직접 계산.
+  const markAnswer = useCallback((idx, known) => {
+    markProgress(transcriptData[idx], known);
+    if (known && mistakeOnly) {
+      const remaining = wrongIndices.filter(w => w !== idx);
+      if (remaining.length) {
+        const nx = remaining.find(w => w > idx);
+        jumpToSentence(nx !== undefined ? nx : remaining[0]);
+      }
+      // 남은 오답 없으면 점프하지 않음 → 정복 화면이 조용히 뜸
+    }
+  }, [markProgress, transcriptData, mistakeOnly, wrongIndices, jumpToSentence]);
+
+  const toggleMistakeOnly = useCallback(() => {
+    if (!mistakeOnly) {
+      prevLoopRef.current = isGlobalLoopActive; // 진입 전 반복 상태 기억
+      setMistakeOnly(true);
+    } else {
+      setMistakeOnly(false);
+      setLoopActive(prevLoopRef.current);       // 이탈 시 원래 반복 상태 복원
+    }
+  }, [mistakeOnly, isGlobalLoopActive, setLoopActive]);
+
+  // 오답 모드 동안 반복 강제 ON → 소리가 숨긴(오답 아닌) 문장으로 새지 않게.
+  useEffect(() => {
+    if (mistakeOnly && !isGlobalLoopActive) setLoopActive(true);
+  }, [mistakeOnly, isGlobalLoopActive, setLoopActive]);
+
+  // [함정 #2] 오답 모드 진입 시 현재 위치가 오답이 아니면 '절대 최근접' 오답으로 스냅 (진입 시 1회).
+  useEffect(() => {
+    if (!mistakeOnly || wrongIndices.length === 0) return;
+    const cur = activeIdxRef.current ?? -1;
+    if (!wrongIndices.includes(cur)) {
+      const target = cur < 0
+        ? wrongIndices[0]
+        : wrongIndices.reduce((best, w) => Math.abs(w - cur) < Math.abs(best - cur) ? w : best, wrongIndices[0]);
+      // [회귀방지] 일시정지 상태를 존중 — 자동 재생 없이 커서/하이라이트만 이동 (restoreTo).
+      restoreTo(target, transcriptData[target]?.seconds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mistakeOnly]);
+
+  // [함정 #3/#9] 파일 전환 시 오답 모드 해제 + 반복 복원 (새 파일의 가짜 정복 화면/데드락 방지).
+  useEffect(() => {
+    if (mistakeOnly) {
+      setMistakeOnly(false);
+      setLoopActive(prevLoopRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFileId]);
+
+  // [함정 #8] 잠금화면/알림(MediaSession)의 이전·다음도 오답 인식 네비게이션으로 통일.
+  // useAudioPlayer의 기본 등록 이후 App이 덮어써 최종 승자가 된다.
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    const set = (a, h) => { try { ms.setActionHandler(a, h); } catch { /* 미지원 무시 */ } };
+    set('previoustrack', () => goPrev());
+    set('nexttrack', () => goNext());
+  }, [goPrev, goNext]);
 
   // 대본 스크롤 컨테이너 (위치 저장/복원용)
   const scrollContainerRef = useRef(null);
@@ -122,6 +227,13 @@ const App = () => {
     showToast,
     onTrashChange: () => setTrashNonce(n => n + 1)
   });
+
+  // [회귀방지] TranscriptItem(memo)에 넘길 콜백을 안정화 — 재생 중 currentTime 틱마다
+  // 인라인 함수가 새로 생겨 모든 문장 카드가 리렌더되던 문제 방지. reanalyzeSentences는
+  // 매 렌더 새 신원일 수 있어 ref로 최신값을 참조하고, 콜백 자체는 activeFileId에만 의존.
+  const reanalyzeRef = useRef(reanalyzeSentences);
+  useEffect(() => { reanalyzeRef.current = reanalyzeSentences; });
+  const handleRetryOne = useCallback((i) => reanalyzeRef.current(activeFileId, [i]), [activeFileId]);
 
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
@@ -320,6 +432,7 @@ const App = () => {
     jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef,
     onToggleHelp: () => setShowShortcuts(s => !s),
     playbackRate, handleRateChange,
+    onPrevSentence: goPrev, onNextSentence: goNext,
   });
 
   const removeFile = (id, e) => {
@@ -518,6 +631,46 @@ const App = () => {
                       >
                         <Trash2 size={14} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
                       </button>
+
+                      {/* 🙈 가리기 학습 (클로즈) */}
+                      <button
+                        onClick={() => setDrillMode(d => !d)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'}`}
+                      >
+                        <EyeOff size={14} /> 가리기 학습
+                      </button>
+                      {drillMode && (
+                        <>
+                          <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+                            {[['easy', '초급'], ['mid', '중급'], ['hard', '고급']].map(([v, label]) => (
+                              <button
+                                key={v}
+                                onClick={() => setDifficulty(v)}
+                                className={`px-2.5 py-1 text-xs font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setDrillRound(r => r + 1)}
+                            title="빈칸을 새로 섞습니다"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                          >
+                            <Shuffle size={14} /> 새 문제
+                          </button>
+                        </>
+                      )}
+
+                      {/* ❗ 오답만 보기 (오답 있을 때 표시 — 모드 중엔 0개여도 유지해 빠져나갈 수 있게) */}
+                      {(wrongIndices.length > 0 || mistakeOnly) && (
+                        <button
+                          onClick={toggleMistakeOnly}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'}`}
+                        >
+                          <AlertTriangle size={14} /> 오답만 보기 ({wrongIndices.length})
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -617,29 +770,50 @@ const App = () => {
                 ) : (
                   <div key={activeFileId} className="space-y-1 min-h-[200px] relative">
                     <ErrorBoundary>
-                      {transcriptData.map((item, idx) => {
-                        const isActive = idx === activeSentenceIdx;
-                        const compositeKey = `${activeFileId}-${idx}-${item.seconds}`;
-                        return (
-                          <TranscriptItem
-                            key={compositeKey}
-                            item={item}
-                            idx={idx}
-                            isActive={isActive}
-                            manualScrollNonce={isActive ? manualScrollNonce : 0}
-                            seekTo={seekTo}
-                            jumpToSentence={jumpToSentence}
-                            toggleLoop={toggleLoop}
-                            isLooping={isActive && isGlobalLoopActive}
-                            isGlobalLooping={isGlobalLoopActive}
-                            showAnalysis={showAnalysis}
-                            toggleGlobalAnalysis={toggleGlobalAnalysis}
-                            selectMode={selectMode}
-                            isSelected={selectedIdxs.has(idx)}
-                            onToggleSelect={toggleSelectIdx}
-                          />
-                        );
-                      })}
+                      {mistakeOnly && wrongIndices.length === 0 ? (
+                        <div className="text-center py-20">
+                          <div className="text-4xl mb-3">🎉</div>
+                          <p className="text-slate-600 font-bold">이 영상의 오답을 다 맞혔어요!</p>
+                          <button
+                            onClick={toggleMistakeOnly}
+                            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100"
+                          >
+                            전체 대본으로 돌아가기
+                          </button>
+                        </div>
+                      ) : (
+                        transcriptData.map((item, idx) => {
+                          // [함정 #1] 오답 모드: 원래 idx는 유지한 채 오답 아닌 문장만 렌더에서 제외
+                          if (mistakeOnly && !wrongSet.has(idx)) return null;
+                          const isActive = idx === activeSentenceIdx;
+                          const compositeKey = `${activeFileId}-${idx}-${item.seconds}`;
+                          return (
+                            <TranscriptItem
+                              key={compositeKey}
+                              item={item}
+                              idx={idx}
+                              isActive={isActive}
+                              manualScrollNonce={isActive ? manualScrollNonce : 0}
+                              seekTo={seekTo}
+                              jumpToSentence={jumpToSentence}
+                              toggleLoop={toggleLoop}
+                              isLooping={isActive && isGlobalLoopActive}
+                              isGlobalLooping={isGlobalLoopActive}
+                              showAnalysis={showAnalysis}
+                              toggleGlobalAnalysis={toggleGlobalAnalysis}
+                              selectMode={selectMode}
+                              isSelected={selectedIdxs.has(idx)}
+                              onToggleSelect={toggleSelectIdx}
+                              onRetryAnalysis={handleRetryOne}
+                              drillMode={drillMode}
+                              difficulty={difficulty}
+                              drillRound={drillRound}
+                              onMarkAnswer={markAnswer}
+                              isWrong={isWrong(idx)}
+                            />
+                          );
+                        })
+                      )}
                     </ErrorBoundary>
                   </div>
                 )}
@@ -660,8 +834,8 @@ const App = () => {
               showSpeedMenu={showSpeedMenu}
               togglePlay={togglePlay}
               seekTo={seekTo}
-              handlePrev={handlePrev}
-              handleNext={handleNext}
+              handlePrev={goPrev}
+              handleNext={goNext}
               handleRateChange={handleRateChange}
               toggleLoop={toggleLoop}
               setShowAnalysis={setShowAnalysis}

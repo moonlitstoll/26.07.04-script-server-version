@@ -108,6 +108,18 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         });
     }, [triggerManualScroll]);
 
+    // 문장 반복을 특정 값으로 설정 (toggleLoop의 '값 지정' 버전).
+    // 오답 모드 진입 시 반복 강제 ON, 이탈 시 이전 상태 복원에 사용.
+    const setLoopActive = useCallback((val) => {
+        setIsGlobalLoopActive(prev => {
+            if (prev === val) return prev;
+            localStorage.setItem('miniapp_loop_active', val.toString());
+            if (val) loopTargetIdxRef.current = activeIdxRef.current;
+            if (videoRef.current) videoRef.current.loop = !val;
+            return val;
+        });
+    }, []);
+
     const jumpToSentence = useCallback((index) => {
         if (activeFile?.data && index >= 0 && index < activeFile.data.length) {
             triggerManualScroll();
@@ -383,6 +395,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         seekTo,
         togglePlay,
         toggleLoop,
+        setLoopActive,
         jumpToSentence,
         handlePrev,
         handleNext,

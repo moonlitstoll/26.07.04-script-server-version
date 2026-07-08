@@ -239,6 +239,15 @@ export const useMediaAnalysis = ({
         // 최종적으로 여전히 미분석인 대상 = 실패 문장
         const failedIndices = pendingIndices.filter(idx => !workingData[idx].isAnalyzed);
 
+        // [실패 표시] 분석이 끝났는데도 미분석으로 남은 문장에 analysisFailed 플래그를 단다.
+        // → 무한 로딩 스피너 대신, 문장 카드에 '분석 실패 · 다시 시도' UI가 뜬다.
+        // (취소/파일전환으로 중단된 경우는 실패가 아니므로 제외)
+        if (!signal.aborted && failedIndices.length > 0) {
+            failedIndices.forEach(idx => { workingData[idx] = { ...workingData[idx], analysisFailed: true }; });
+            updateGlobalState(workingData);
+            persistCache(fileInfo, workingData, workingData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
+        }
+
         if (!signal.aborted && totalSuccessCount === 0 && pendingIndices.length > 0) {
             console.error('[Stage 2] All batches failed.');
             if (showToast) showToast({ message: '분석 실패: API 오류가 발생했습니다. 설정에서 모델을 확인해주세요.', type: 'error' });
@@ -642,7 +651,8 @@ export const useMediaAnalysis = ({
                 if (!idxSet.has(i)) return d;
                 // 원본이 분석돼 있었으면 복원용으로 보관
                 if (d.isAnalyzed) snapshot.set(i, { translation: d.translation, analysis: d.analysis, a: d.a, isAnalyzed: true });
-                return { ...d, translation: '', analysis: '', a: '', isAnalyzed: false };
+                // analysisFailed 해제 → 재시도 동안은 실패 UI가 아니라 로딩 스피너로 표시
+                return { ...d, translation: '', analysis: '', a: '', isAnalyzed: false, analysisFailed: false };
             });
             return { ...p, data: resetData };
         }));
@@ -666,7 +676,7 @@ export const useMediaAnalysis = ({
                 if (p.id !== fileId) return p;
                 restoredData = p.data.map((d, i) => {
                     if (!snapshot.has(i) || d.isAnalyzed) return d; // 성공분은 새 결과 유지
-                    return { ...d, ...snapshot.get(i) };            // 실패분은 원본 복원
+                    return { ...d, ...snapshot.get(i), analysisFailed: false }; // 실패분은 원본 분석으로 복원(실패 표시 해제)
                 });
                 return { ...p, data: restoredData };
             }));

@@ -16,6 +16,8 @@ export const useKeyboardShortcuts = ({
     onToggleHelp,
     playbackRate,
     handleRateChange,
+    onPrevSentence,
+    onNextSentence,
 }) => {
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -54,7 +56,10 @@ export const useKeyboardShortcuts = ({
                     break;
                 case 'ArrowLeft':
                     e.preventDefault();
-                    if (data.length > 0) {
+                    // 버튼과 동일한 네비게이션 로직 사용 (오답 모드면 오답만 순회) — 없으면 기존 ±1 폴백
+                    if (onPrevSentence) {
+                        onPrevSentence();
+                    } else if (data.length > 0) {
                         const idx = activeIdxRef.current ?? 0;
                         const prevIdx = Math.max(0, idx - 1);
                         if (prevIdx !== idx) jumpToSentence(prevIdx);
@@ -62,7 +67,9 @@ export const useKeyboardShortcuts = ({
                     break;
                 case 'ArrowRight':
                     e.preventDefault();
-                    if (data.length > 0) {
+                    if (onNextSentence) {
+                        onNextSentence();
+                    } else if (data.length > 0) {
                         const idx = activeIdxRef.current ?? 0;
                         const nextIdx = Math.min(data.length - 1, idx + 1);
                         if (nextIdx !== idx) jumpToSentence(nextIdx);
@@ -94,5 +101,5 @@ export const useKeyboardShortcuts = ({
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis, jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef, onToggleHelp, playbackRate, handleRateChange]);
+    }, [mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis, jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef, onToggleHelp, playbackRate, handleRateChange, onPrevSentence, onNextSentence]);
 };

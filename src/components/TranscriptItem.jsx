@@ -1,7 +1,8 @@
 import { useRef, useEffect, useLayoutEffect, memo } from 'react';
 import {
-    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check
+    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check, AlertTriangle, RotateCcw
 } from 'lucide-react';
+import ClozeDrill from './ClozeDrill';
 
 // [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
 // 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
@@ -27,7 +28,9 @@ const TranscriptItem = memo(({
     item, idx, isActive, isGlobalLooping, manualScrollNonce,
     seekTo, jumpToSentence,
     isLooping, showAnalysis,
-    selectMode = false, isSelected = false, onToggleSelect
+    selectMode = false, isSelected = false, onToggleSelect,
+    onRetryAnalysis,
+    drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false
 }) => {
     const itemRef = useRef(null);
 
@@ -101,6 +104,11 @@ const TranscriptItem = memo(({
                 {/* Header: Timestamp & Looping Indicator */}
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                     <div className="flex items-center gap-2">
+                        {isWrong && (
+                            <span title="이 문장을 몰랐어요 (오답)" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-600 border border-amber-300 text-[11px] font-black">
+                                !
+                            </span>
+                        )}
                         <button
                             onClick={() => seekTo(item.seconds)}
                             className={`
@@ -127,6 +135,17 @@ const TranscriptItem = memo(({
                         </div>
                     )}
                 </div>
+                {drillMode ? (
+                    <ClozeDrill
+                        key={`cloze-${difficulty}-${drillRound}`}
+                        item={item}
+                        idx={idx}
+                        difficulty={difficulty}
+                        round={drillRound}
+                        onMark={(known) => onMarkAnswer && onMarkAnswer(idx, known)}
+                    />
+                ) : (
+                <>
                 <div
                     onClick={() => jumpToSentence(idx)}
                     className={`
@@ -145,8 +164,24 @@ const TranscriptItem = memo(({
                 {/* Detailed Analysis Section */}
                 <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-1 pt-1 border-t border-slate-100' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
 
-                    {/* Stage 2 Loading State */}
-                    {!item.isAnalyzed && (
+                    {/* Stage 2 실패 상태: 분석이 끝났는데도 실패로 남은 문장 → 다시 시도 */}
+                    {!item.isAnalyzed && item.analysisFailed ? (
+                        <div className="py-3 px-3 my-1 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-amber-700 min-w-0">
+                                <AlertTriangle size={15} className="shrink-0 text-amber-500" />
+                                <span className="text-[13px] font-bold leading-tight">이 문장 분석에 실패했어요</span>
+                            </div>
+                            {onRetryAnalysis && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onRetryAnalysis(idx); }}
+                                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors"
+                                >
+                                    <RotateCcw size={13} /> 다시 시도
+                                </button>
+                            )}
+                        </div>
+                    ) : !item.isAnalyzed ? (
+                        /* Stage 2 Loading State */
                         <div className="py-4 px-2 space-y-3 animate-pulse">
                             <div className="h-4 bg-slate-100 rounded-md w-3/4" />
                             <div className="space-y-2">
@@ -157,7 +192,7 @@ const TranscriptItem = memo(({
                                 <Clock size={12} className="animate-spin" /> Analyzing Sentence Details...
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     {/* Translation */}
                     {showAnalysis && item.translation && (
@@ -192,6 +227,8 @@ const TranscriptItem = memo(({
                         </div>
                     )}
                 </div>
+                </>
+                )}
 
             </div>
         </div>
