@@ -153,6 +153,16 @@ const EmptyState = ({
                     </h1>
                 </div>
 
+                {!config.apiKey && (
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-all text-left"
+                    >
+                        <Settings size={18} className="shrink-0 text-amber-500" />
+                        <span className="text-sm font-bold leading-tight">Gemini API 키를 먼저 설정하세요 — 클릭해서 설정 열기</span>
+                    </button>
+                )}
+
                 <div className="group relative flex items-center gap-3.5 px-5 py-3.5 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer border-slate-200 hover:border-indigo-300 hover:bg-white bg-white/60 text-left">
                     <input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={(e) => processFiles(e.target.files)} accept="audio/*,video/*" />
                     <div className="shrink-0 p-2.5 bg-indigo-100 text-indigo-600 rounded-xl group-hover:scale-110 transition-transform">

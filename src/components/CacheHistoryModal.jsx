@@ -3,6 +3,7 @@ import {
     X, Upload, Search, FileVideo, BookOpen, Check, Clock, Star, HardDrive, Cloud
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 // 즐겨찾기/통합 식별자: "{name}_{size}" (로컬 캐시 키/클라우드 항목 공통)
 const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
@@ -16,6 +17,7 @@ const CacheHistoryModal = ({
     setActiveFileId, cloudItems = [], loadCloud,
     isFavorite = () => false, toggleFavorite = () => {}, onClose
 }) => {
+    useEscapeToClose(onClose);
     const analyzingFiles = useMemo(() => files.filter(f => f.isAnalyzing), [files]);
 
     // 로컬 + 클라우드를 "{name}_{size}" 기준으로 하나로 병합 (같은 녹음은 한 줄)
@@ -144,8 +146,8 @@ const CacheHistoryModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="p-3 px-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-10">
                     <div className="flex items-center gap-2">
                         <button

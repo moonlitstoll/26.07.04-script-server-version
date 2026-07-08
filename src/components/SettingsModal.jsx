@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Settings, X, Check, Info, Lock, HardDrive, Trash2
 } from 'lucide-react';
 import { MODELS } from '../constants/models';
 import { mediaStore } from '../utils/MediaStore';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 const MARKER_PRESETS = ['※', '#', '|', '·', '❖', '∂', '¤'];
 
@@ -15,6 +16,21 @@ const formatBytes = (b) => {
 
 const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
     const [showModelInfo, setShowModelInfo] = useState(false);
+
+    // 모달 열릴 때의 설정 스냅샷. Cancel 시 변경된 필드만 되돌린다.
+    // (모든 설정은 updateField 즉시 localStorage에 저장되므로, 취소=스냅샷 복원)
+    const initialConfigRef = useRef(config);
+    const handleCancel = () => {
+        const initial = initialConfigRef.current;
+        Object.keys(initial).forEach(k => {
+            if (config[k] !== initial[k]) updateField(k, initial[k]);
+        });
+        onClose();
+    };
+
+    // ESC / 배경 클릭은 "그냥 닫기(변경 유지)". 실수로 닫아도 값이 날아가지 않도록,
+    // 되돌리기는 명시적인 Cancel 버튼에서만 수행한다.
+    useEscapeToClose(onClose);
 
     // 저장공간 사용량 + 영상 캐시 비우기
     const [usage, setUsage] = useState(null);
@@ -83,8 +99,8 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
     );
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="bg-slate-100 p-2 rounded-xl">
@@ -493,7 +509,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
 
                 <div className="p-6 bg-slate-50 flex gap-3">
                     <button
-                        onClick={onClose}
+                        onClick={handleCancel}
                         className="flex-1 py-3 text-slate-600 font-bold hover:bg-white rounded-2xl transition-all"
                     >
                         Cancel

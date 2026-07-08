@@ -963,6 +963,15 @@ export const useMediaAnalysis = ({
         if (showToast) showToast({ message: `${toAdd.length}개 문장 복구됨`, type: 'success' });
     };
 
+    // 진행 중인 Stage1 전사를 사용자가 취소.
+    // abort 후 해당 파일을 취소 상태로 전환 → 무한 스피너 대신 재시도 가능한 에러 카드 노출.
+    const cancelStage1 = (fileId) => {
+        if (stage1AbortRef.current) stage1AbortRef.current.abort();
+        setFiles(prev => prev.map(p => p.id === fileId
+            ? { ...p, isAnalyzing: false, error: "전사를 취소했습니다. 다시 시도할 수 있습니다." }
+            : p));
+    };
+
     // 드래그앤드롭 핸들러
     const onDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
     const onDragLeave = (e) => {
@@ -975,5 +984,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress };
 };

@@ -1,10 +1,12 @@
 import { Trash2, X, RotateCcw, Clock } from 'lucide-react';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 // 삭제한 문장 휴지통. 개별/전체 복구, 비우기 지원.
 const TrashModal = ({ items = [], onRestore, onClear, onClose }) => {
+    useEscapeToClose(onClose);
     return (
-        <div className="fixed inset-0 z-[110] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[110] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2.5">

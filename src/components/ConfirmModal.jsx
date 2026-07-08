@@ -1,9 +1,11 @@
 import { AlertTriangle } from 'lucide-react';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 const ConfirmModal = ({ message, onConfirm, onCancel, confirmText = "삭제", cancelText = "취소", danger = true }) => {
+    useEscapeToClose(onCancel);
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onCancel}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 <div className="p-6 text-center space-y-4">
                     <div className={`inline-flex p-3 rounded-2xl ${danger ? 'bg-red-50' : 'bg-indigo-50'}`}>
                         <AlertTriangle size={28} className={danger ? 'text-red-500' : 'text-indigo-500'} />
