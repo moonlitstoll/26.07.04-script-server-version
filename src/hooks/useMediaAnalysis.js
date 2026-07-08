@@ -65,6 +65,8 @@ export const useMediaAnalysis = ({
     // 최초 전체분석은 isAnalyzing 전체 스피너가 있으므로, 이 배너는 그 외(재분석/이어서 분석)에서 사용.
     const [stage2Progress, setStage2Progress] = useState(null);
     const stage1AbortRef = useRef(null);
+    const analysisQueueRef = useRef([]);   // 순차 분석 대기 파일 목록
+    const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
     const stage2RunIdRef = useRef(0); // 최신 Stage 2 실행만 진행배너를 정리(옛 실행이 새 배너를 지우지 않게)
     const quotaWarnedRef = useRef(false); // 용량 경고 세션당 1회만(반복 저장 스팸 방지)
 
@@ -317,7 +319,7 @@ export const useMediaAnalysis = ({
     // 신규 업로드(processFiles)와 재시도(retryAnalysis)가 공유한다.
     //  - saveMedia: 원본을 IndexedDB에 저장 (재생 복원용)
     //  - syncCloud: 원본 영상 업로드 + 대본 저장 (다른 기기 열람용)
-    const runFullAnalysis = async (fileId, sourceFile, { saveMedia = false, syncCloud = false } = {}) => {
+    const runFullAnalysis = async (fileId, sourceFile, { saveMedia = false, syncCloud = false, awaitStage2 = false } = {}) => {
         if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
 
         // 전사(분석)용으로만 파일을 메모리에 적재 시도 (클라우드/온디맨드 파일 대응).
@@ -343,7 +345,7 @@ export const useMediaAnalysis = ({
         persistCache(sourceFile, data, 'extracted');
         if (refreshCacheKeys) refreshCacheKeys();
 
-        runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model);
+        const stage2Promise = runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model);
 
         if (saveMedia) {
             try {
@@ -370,6 +372,38 @@ export const useMediaAnalysis = ({
                     console.warn('[Cloud] 대본 저장 실패:', e);
                 }
             })();
+        }
+
+        // 순차 큐: 다음 파일로 넘어가기 전에 이 파일의 Stage2까지 완료 대기 (공유 abort ref 충돌 방지)
+        if (awaitStage2) { try { await stage2Promise; } catch { /* 개별 실패는 runStage2가 처리 */ } }
+    };
+
+    // 순차 분석 큐: 여러 파일을 동시에 올려도 하나씩 '끝까지'(Stage1+Stage2) 처리한다.
+    // (이전엔 파일마다 공유 abort ref를 새로 잡아 뒤 파일이 앞 파일을 중단시켜, 사실상
+    //  한 파일만 완료되고 나머지는 스피너로 갇혔다. 큐로 직렬화해 모두 완료시킨다.)
+    const processAnalysisQueue = async () => {
+        if (queueRunningRef.current) return;      // 워커 중복 실행 방지
+        queueRunningRef.current = true;
+        try {
+            while (analysisQueueRef.current.length > 0) {
+                const fItem = analysisQueueRef.current.shift();
+                try {
+                    await runFullAnalysis(fItem.id, fItem.file, { saveMedia: true, syncCloud: true, awaitStage2: true });
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        // 큐 처리 중 외부(재분석/재전사/취소 등)가 공유 abort ref를 건드려 중단된 경우:
+                        // 무한 스피너로 방치하지 말고, 아직 분석 중이면 재시도 가능한 상태로 전환한다.
+                        setFiles(prev => prev.map(p => (p.id === fItem.id && p.isAnalyzing)
+                            ? { ...p, isAnalyzing: false, error: "분석이 중단됐어요. 다시 시도할 수 있습니다." }
+                            : p));
+                        continue;
+                    }
+                    console.error("Analysis Error", err);
+                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, error: "Analysis failed: " + err.message, isAnalyzing: false } : p));
+                }
+            }
+        } finally {
+            queueRunningRef.current = false;
         }
     };
 
@@ -430,7 +464,9 @@ export const useMediaAnalysis = ({
                     return;
                 }
 
-                await runFullAnalysis(fItem.id, fItem.file, { saveMedia: true, syncCloud: true });
+                // 캐시 없음 → 순차 큐에 넣고 워커 가동 (여러 파일이 서로를 중단시키지 않게 하나씩 완료)
+                analysisQueueRef.current.push(fItem);
+                processAnalysisQueue();
             } catch (err) {
                 if (err.name === 'AbortError') return;
                 console.error("Analysis Error", err);

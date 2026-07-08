@@ -114,7 +114,7 @@ const App = () => {
   const prevLoopRef = useRef(false);                     // 오답 모드 진입 전 반복 상태 (복원용)
 
   const learnFileKey = activeFile?.file ? `${activeFile.file.name}_${activeFile.file.size}` : null;
-  const { mark: markProgress, wrongIndices, isWrong } = useLearningProgress(learnFileKey, transcriptData);
+  const { mark: markProgress, wrongIndices, isWrong, clearFile: clearLearnProgress } = useLearningProgress(learnFileKey, transcriptData);
   const wrongSet = useMemo(() => new Set(wrongIndices), [wrongIndices]);
 
   // [함정 #1] 화면은 걸러진 목록이지만 점프는 '원래 문장 번호'로. wrongIndices(원래 인덱스)를 그대로 사용.
@@ -653,8 +653,8 @@ const App = () => {
                             ))}
                           </div>
                           <button
-                            onClick={() => setDrillRound(r => r + 1)}
-                            title="빈칸을 새로 섞습니다"
+                            onClick={() => { setDrillRound(r => r + 1); clearLearnProgress(); }}
+                            title="빈칸을 새로 섞고 이 영상의 오답 표시를 초기화합니다"
                             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
                           >
                             <Shuffle size={14} /> 새 문제

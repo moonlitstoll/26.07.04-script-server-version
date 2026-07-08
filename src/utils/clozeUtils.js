@@ -37,12 +37,17 @@ export function buildCloze(item, idx, round, difficulty) {
 
     let hidden;
     if (N === 1 || difficulty === 'hard') {
-        hidden = new Set(chunks.map((_, i) => i)); // 통째
-    } else if (difficulty === 'easy') {
-        hidden = new Set([Math.floor(rand() * N)]); // 1개
-    } else { // mid
-        const maxHide = Math.max(1, Math.round(N * 0.6));
-        const k = 1 + Math.floor(rand() * maxHide); // 1 ~ maxHide
+        hidden = new Set(chunks.map((_, i) => i)); // 통째 (고급/1청크)
+    } else {
+        // 초급·중급 모두 최소 1개 청크는 남겨 문맥 유지 (통째 가림은 고급/1청크 전용)
+        const hi = Math.max(1, N - 1);
+        let k;
+        if (difficulty === 'easy') {
+            k = Math.min(1 + Math.floor(rand() * 2), hi); // 1~2개
+        } else { // mid: 절반 이상 ~ (N-1)개 — 비율 상향, 1개만 가려지는 일 없음
+            const lo = Math.min(Math.max(2, Math.ceil(N * 0.5)), hi);
+            k = lo + Math.floor(rand() * (hi - lo + 1));
+        }
         hidden = pickK(N, k, rand);
     }
 

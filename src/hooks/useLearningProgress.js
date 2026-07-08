@@ -42,6 +42,18 @@ export function useLearningProgress(fileKey, items) {
         });
     }, [fileKey]);
 
+    // 현재 파일의 학습 기록 전체 초기화 (❗오답 표시·알았음 모두 제거). '새 문제'에서 호출.
+    const clearFile = useCallback(() => {
+        if (!fileKey) return;
+        setStore(prev => {
+            if (!prev[fileKey]) return prev;
+            const next = { ...prev };
+            delete next[fileKey];
+            saveStore(next);
+            return next;
+        });
+    }, [fileKey]);
+
     const fileProg = useMemo(() => (fileKey ? (store[fileKey] || {}) : {}), [store, fileKey]);
 
     // 현재 대본에서 '몰랐음'인 문장의 (현재) 인덱스 오름차순 — 삭제/재정렬돼도 내용 기반으로 재해석.
@@ -61,5 +73,5 @@ export function useLearningProgress(fileKey, items) {
         return !!(id && fileProg[id]?.status === 'unknown');
     }, [items, fileProg]);
 
-    return { mark, wrongIndices, isWrong };
+    return { mark, wrongIndices, isWrong, clearFile };
 }

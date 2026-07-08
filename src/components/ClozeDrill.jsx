@@ -26,6 +26,11 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
 
     const revealOne = (i) => setRevealed(prev => { const n = new Set(prev); n.add(i); return n; });
     const revealAll = () => setRevealed(new Set(blankPartIdxs));
+    // 다시 가리기(토글): 공개한 청크를 다시 탭하면 빈칸으로 복귀. 통째 가림은 전체 접기.
+    // (전부 공개 상태가 깨지면 아래 알았음/몰랐음 버튼은 allRevealed 조건으로 자동 숨김.
+    //  이미 저장된 ❗오답 기록은 그대로 유지 — 화면만 리셋)
+    const hideOne = (i) => setRevealed(prev => { const n = new Set(prev); n.delete(i); return n; });
+    const clearReveals = () => setRevealed(new Set());
     const mark = (known) => { setMarked(known ? 'known' : 'unknown'); if (onMark) onMark(known); };
 
     return (
@@ -40,7 +45,16 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
                     drill.parts.map((p, i) => {
                         if (p.type === 'text') return <span key={i}>{p.value} </span>;
                         if (revealed.has(i)) {
-                            return <span key={i} className="text-emerald-700 bg-emerald-50 rounded px-1">{p.answer} </span>;
+                            return (
+                                <button
+                                    key={i}
+                                    onClick={(e) => { e.stopPropagation(); if (drill.wholeSentence) clearReveals(); else hideOne(i); }}
+                                    title="다시 가리기"
+                                    className="align-baseline text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded px-1 transition-colors"
+                                >
+                                    {p.answer}{' '}
+                                </button>
+                            );
                         }
                         return (
                             <button
