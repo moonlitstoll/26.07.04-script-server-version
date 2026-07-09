@@ -982,6 +982,38 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
 /**
  * [Stage 2] 여러 문장 일괄 분석 (Batch)
  */
+// ─── Stage 2 요청 신뢰성: 타임아웃 + 재시도(백오프) ───
+const STAGE2_MAX_RETRIES = 2;                 // 총 3회 시도
+const STAGE2_ATTEMPT_TIMEOUT_MS = 90000;      // 요청당 타임아웃(멈춤 방지)
+
+// 두 abort 신호를 하나로 연결(취소/타임아웃 겸용). 정리 함수 반환.
+function linkAbort(target, source) {
+    if (!source) return () => {};
+    if (source.aborted) { target.abort(); return () => {}; }
+    const onAbort = () => target.abort();
+    source.addEventListener('abort', onAbort);
+    return () => source.removeEventListener('abort', onAbort);
+}
+
+// 429/5xx/네트워크·타임아웃만 재시도. 4xx(400 키오류 등)는 재시도 무의미.
+function isRetryableStage2Error(err) {
+    const msg = String(err?.message || err || '');
+    const m = msg.match(/\[(\d{3})/);
+    const status = (typeof err?.status === 'number') ? err.status : (m ? Number(m[1]) : 0);
+    if (status === 429 || (status >= 500 && status <= 599)) return true;
+    if (status >= 400 && status < 500) return false;
+    return true; // 상태코드 없음(네트워크/타임아웃/파싱) → 재시도
+}
+
+// abort 가능한 sleep(백오프용). signal이 끊기면 즉시 reject.
+function abortableSleep(ms, signal) {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+        const t = setTimeout(resolve, ms);
+        signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+    });
+}
+
 export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
@@ -991,6 +1023,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         model: resolvedModel,
         generationConfig: {
             temperature: 0.3,
+            maxOutputTokens: 65536, // 미설정 시 기본 상한에 걸려 25문장 출력이 잘리면 뒤쪽 마커 유실→실패. 상한 최대로.
             // thinking은 모델에 따라 자동: Flash/Lite는 끔(0, 토큰 절약), Pro는 유지(끄면 400).
             ...disableThinkingConfig(resolvedModel)
         },
@@ -1021,15 +1054,8 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         : '';
     const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}${forceSplitRule}\n\n분석할 문장 목록:\n${flow}`;
 
-    try {
-        const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-        }, { signal });
-
-        const response = await result.response;
-        const text = response.text();
-
-        // 인덱스 마커별로 쪼개기
+    // 마커별 파싱 (동작 불변 — 성공 응답 처리 방식 그대로)
+    const parseResponse = (text) => {
         const results = [];
         for (const item of items) {
             const startMarker = `--- [INDEX: ${item.index}] START ---`;
@@ -1055,10 +1081,42 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
             }
         }
         return results;
-    } catch (error) {
-        if (error.name === 'AbortError') throw error;
-        console.error(`[Stage 2] Batch analysis failed: `, error);
-        return items.map(item => ({ index: item.index, failed: true }));
+    };
+
+    // 타임아웃 + 재시도(백오프). 성공 시 파싱 결과 반환, 최종 실패 시 failed 마킹(기존과 동일).
+    let lastError;
+    for (let attempt = 0; attempt <= STAGE2_MAX_RETRIES; attempt++) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const timeoutCtrl = new AbortController();
+        const combo = new AbortController();
+        const unlink1 = linkAbort(combo, signal);
+        const unlink2 = linkAbort(combo, timeoutCtrl.signal);
+        const timer = setTimeout(() => timeoutCtrl.abort(), STAGE2_ATTEMPT_TIMEOUT_MS);
+        try {
+            const result = await model.generateContent({
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+            }, { signal: combo.signal });
+            const response = await result.response;
+            return parseResponse(response.text());
+        } catch (error) {
+            lastError = error;
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError'); // 사용자 취소 → 재시도 없음
+            const timedOut = timeoutCtrl.signal.aborted;
+            if (attempt < STAGE2_MAX_RETRIES && (timedOut || isRetryableStage2Error(error))) {
+                const wait = Math.min(8000, 800 * 2 ** attempt) + Math.floor(Math.random() * 400);
+                console.warn(`[Stage 2] ${timedOut ? '타임아웃' : '오류'} → ${wait}ms 후 재시도 (${attempt + 1}/${STAGE2_MAX_RETRIES})`, error?.message || error);
+                try { await abortableSleep(wait, signal); } catch { throw new DOMException('Aborted', 'AbortError'); }
+                continue;
+            }
+            console.error(`[Stage 2] Batch analysis failed: `, error);
+            return items.map(item => ({ index: item.index, failed: true }));
+        } finally {
+            clearTimeout(timer);
+            unlink1();
+            unlink2();
+        }
     }
+    console.error(`[Stage 2] Batch analysis failed after retries: `, lastError);
+    return items.map(item => ({ index: item.index, failed: true }));
 }
 
