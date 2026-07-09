@@ -27,15 +27,17 @@ const BlankChunk = ({ text, title, label, onReveal }) => (
 // 흐름: 빈칸 탭 → 그 청크 공개(채점 없음) → 전부 공개되면 [알았음/몰랐음] 자가표시.
 // 통째 가림(1청크/고급)이면 문장 전체가 단어 칸으로 나오고, 아무 칸이나 탭하면 전체 공개 → 자가표시.
 // round/difficulty가 바뀌면 부모가 key로 remount시켜 상태(공개/표시)를 초기화한다.
-const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
+// [점프] 청크(빈칸/공개청크)·마크버튼이 아닌 빈 영역을 탭하면 onJump → 그 문장으로 이동
+//   (하이라이트+재생, 일반 모드 문장 클릭과 동일). 청크/버튼은 모두 stopPropagation이라 점프로 안 샌다.
+const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
     const drill = useMemo(() => buildCloze(item, idx, round, difficulty), [item, idx, round, difficulty]);
     const [revealed, setRevealed] = useState(() => new Set()); // 공개된 빈칸의 part 인덱스
     const [marked, setMarked] = useState(null); // 'known' | 'unknown' | null
 
-    // 분석 안 된(청크 0개) 문장 → 드릴 불가, 원문만 표시
+    // 분석 안 된(청크 0개) 문장 → 드릴 불가, 원문만 표시 (탭하면 점프)
     if (!drill.ok) {
         return (
-            <div className="text-lg sm:text-xl leading-snug px-1 font-bold text-slate-400">
+            <div onClick={onJump} className="text-lg sm:text-xl leading-snug px-1 font-bold text-slate-400 cursor-pointer">
                 {item.text}
                 <span className="ml-2 text-[11px] font-medium text-slate-300">(분석 전 — 가리기 불가)</span>
             </div>
@@ -48,14 +50,15 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
     const revealOne = (i) => setRevealed(prev => { const n = new Set(prev); n.add(i); return n; });
     const revealAll = () => setRevealed(new Set(blankPartIdxs));
     // 다시 가리기(토글): 공개한 청크를 다시 탭하면 빈칸으로 복귀. 통째 가림은 전체 접기.
-    // (전부 공개 상태가 깨지면 아래 알았음/몰랐음 버튼은 allRevealed 조건으로 자동 숨김.
-    //  이미 저장된 ❗오답 기록은 그대로 유지 — 화면만 리셋)
-    const hideOne = (i) => setRevealed(prev => { const n = new Set(prev); n.delete(i); return n; });
-    const clearReveals = () => setRevealed(new Set());
+    // 다시 가리면 marked도 초기화 → 나중에 다시 전부 공개하면 [알았음/몰랐음]이 재등장(같은 문장 재연습).
+    // (이미 저장된 ❗오답 기록(localStorage)은 그대로 유지 — 로컬 marked만 리셋)
+    const hideOne = (i) => { setRevealed(prev => { const n = new Set(prev); n.delete(i); return n; }); setMarked(null); };
+    const clearReveals = () => { setRevealed(new Set()); setMarked(null); };
     const mark = (known) => { setMarked(known ? 'known' : 'unknown'); if (onMark) onMark(known); };
 
     return (
-        <div className="px-1">
+        // 빈 영역 탭 → 점프. 내부 청크/버튼은 stopPropagation으로 자기 동작만 한다.
+        <div onClick={onJump} className="px-1 cursor-pointer">
             {/* 클로즈 문장 */}
             <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 mb-2">
                 {drill.parts.map((p, i) => {
@@ -97,25 +100,24 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
                 </div>
             )}
 
-            {/* 컨트롤: 전부 공개되면 '알았음/몰랐음', 아니면 안내 (통째 가림도 빈칸을 직접 탭해 공개) */}
-            {allRevealed ? (
+            {/* 컨트롤: 전부 공개 + 아직 미선택일 때만 '알았음/몰랐음' 표시.
+                선택하면 숨겨 화면 절약(몰랐음은 문장 앞 ❗배지로 남음). 청크 다시 가렸다 열면 marked 리셋돼 재등장. */}
+            {allRevealed && marked === null && (
                 <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold text-slate-400">알았나요?</span>
                     <button
                         onClick={(e) => { e.stopPropagation(); mark(true); }}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${marked === 'known' ? 'bg-emerald-500 text-white border-emerald-500' : 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
                     >
                         <Check size={13} /> 알았음
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); mark(false); }}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${marked === 'unknown' ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
                     >
                         <X size={13} /> 몰랐음
                     </button>
                 </div>
-            ) : (
-                <div className="text-[11px] font-medium text-slate-400">🔊 듣고 떠올린 뒤 빈칸을 탭해 확인하세요</div>
             )}
         </div>
     );

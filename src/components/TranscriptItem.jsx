@@ -143,6 +143,7 @@ const TranscriptItem = memo(({
                         difficulty={difficulty}
                         round={drillRound}
                         onMark={(known) => onMarkAnswer && onMarkAnswer(idx, known)}
+                        onJump={() => jumpToSentence(idx)}
                     />
                 ) : (
                 <>
