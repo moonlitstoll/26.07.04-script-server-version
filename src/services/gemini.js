@@ -1104,6 +1104,10 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
             }, { signal: combo.signal });
             const response = await result.response;
+            // [토큰 회계] 실제 입력/출력/캐시적중/생각 토큰 로깅(읽기 전용, 동작 무영향).
+            //  cached>0 이면 암시적 캐싱(프리픽스 75% 할인) 적중 중, think>0 이면 Pro thinking 청구.
+            const u = response.usageMetadata;
+            if (u) console.log(`[Stage2 tokens] ${resolvedModel} in=${u.promptTokenCount} out=${u.candidatesTokenCount} cached=${u.cachedContentTokenCount ?? 0} think=${u.thoughtsTokenCount ?? 0} (${items.length}문장${forceSplit ? ', 강제분할' : ''})`);
             return parseResponse(response.text());
         } catch (error) {
             lastError = error;

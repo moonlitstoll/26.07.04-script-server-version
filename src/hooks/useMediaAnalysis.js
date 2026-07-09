@@ -213,39 +213,52 @@ export const useMediaAnalysis = ({
             });
             if (lumped.length === 0) break;
             didRetry = true;
-            console.log(`[Stage 2] 뭉침 ${lumped.length}개 (라운드 ${round + 1}/${MAX_SPLIT_RETRIES}) → 강제 분할 재분석`);
-            for (let i = 0; i < lumped.length && !signal.aborted; i += CONCURRENCY) {
-                const group = lumped.slice(i, i + CONCURRENCY);
-                await Promise.all(group.map(async (idx) => {
-                    const batchItems = [{ index: idx, text: workingData[idx].text }];
-                    try {
-                        // 문맥 생략(속도) + forceSplit=true 로 강제 분할 요청
-                        const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, [], true);
-                        if (results && !signal.aborted) {
-                            results.forEach(res => {
-                                if (res && res.translation && !res.failed) {
-                                    const prev = workingData[res.index];
-                                    // 더 잘 쪼개졌을 때만 채택: 더 이상 뭉치지 않거나, 청크 수가 늘었을 때 (퇴행 방지)
-                                    const better = !isLumpedAnalysis(prev.text, res.analysis)
-                                        || chunkCount(res.analysis) > chunkCount(prev.analysis);
-                                    if (better) {
-                                        workingData[res.index] = {
-                                            ...prev,
-                                            translation: res.translation,
-                                            analysis: res.analysis,
-                                            isAnalyzed: true
-                                        };
-                                    }
+            console.log(`[Stage 2] 뭉침 ${lumped.length}개 (라운드 ${round + 1}/${MAX_SPLIT_RETRIES}) → 강제 분할 재분석(배치)`);
+
+            // [비용 절감] 뭉친 문장을 문장당 개별 호출하지 않고 BATCH_SIZE 단위로 묶어 forceSplit 재분석
+            //  → 대형 프롬프트 프리픽스 재전송이 L회 → ⌈L/BATCH_SIZE⌉회로 감소. 파싱은 INDEX별 독립,
+            //    'better' 가드(더 잘 쪼개졌을 때만 채택)는 그대로라 퇴행 없음(품질 동등 이상).
+            const splitBatches = [];
+            for (let i = 0; i < lumped.length; i += BATCH_SIZE) splitBatches.push(lumped.slice(i, i + BATCH_SIZE));
+
+            let splitCursor = 0;
+            const processSplitBatch = async (idxGroup) => {
+                const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
+                try {
+                    // 문맥 생략(속도) + forceSplit=true 로 강제 분할 요청
+                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, [], true);
+                    if (results && !signal.aborted) {
+                        results.forEach(res => {
+                            if (res && res.translation && !res.failed) {
+                                const prev = workingData[res.index];
+                                // 더 잘 쪼개졌을 때만 채택: 더 이상 뭉치지 않거나, 청크 수가 늘었을 때 (퇴행 방지)
+                                const better = !isLumpedAnalysis(prev.text, res.analysis)
+                                    || chunkCount(res.analysis) > chunkCount(prev.analysis);
+                                if (better) {
+                                    workingData[res.index] = {
+                                        ...prev,
+                                        translation: res.translation,
+                                        analysis: res.analysis,
+                                        isAnalyzed: true
+                                    };
                                 }
-                            });
-                            updateGlobalState(workingData);
-                        }
-                    } catch (e) {
-                        if (e.name === 'AbortError') return;
-                        console.warn('[Stage 2] 강제 분할 재분석 실패:', e);
+                            }
+                        });
+                        updateGlobalState(workingData);
                     }
-                }));
-            }
+                } catch (e) {
+                    if (e.name === 'AbortError') return;
+                    console.warn('[Stage 2] 강제 분할 재분석 실패:', e);
+                }
+            };
+            const runSplitWorker = async () => {
+                while (!signal.aborted) {
+                    const si = splitCursor++;
+                    if (si >= splitBatches.length) break;
+                    await processSplitBatch(splitBatches[si]);
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(CONCURRENCY, splitBatches.length) }, () => runSplitWorker()));
         }
         if (didRetry && !signal.aborted) {
             const allDone2 = workingData.every(d => d.isAnalyzed);
