@@ -2,9 +2,30 @@ import { useState, useMemo } from 'react';
 import { Check, X } from 'lucide-react';
 import { buildCloze } from '../utils/clozeUtils';
 
+// 가려진 청크를 '박스 하나 + 단어별 밑줄'로 렌더.
+// 박스(연노랑 배경)는 청크 전체에 하나 — 청크가 한 단위임이 보인다.
+// 내부는 실제 단어를 투명 텍스트로 깔아 너비가 답 길이와 일치하고,
+// 단어마다 밑줄이 끊어져 밑줄 수 = 단어 수. (베트남어는 음절마다 띄어쓰기라 발음 박자와도 맞는다)
+// select-none + aria-label로 드래그/스크린리더로 답이 새지 않게 한다.
+// 박스 아무 데나 탭하면 onReveal — 그 청크(통째 가림이면 문장 전체) 공개.
+const BlankChunk = ({ text, title, label, onReveal }) => (
+    <button
+        onClick={(e) => { e.stopPropagation(); onReveal(); }}
+        title={title}
+        aria-label={label}
+        className="align-baseline mx-0.5 px-1.5 rounded-md bg-amber-50 hover:bg-amber-100 transition-colors inline-flex flex-wrap gap-x-1.5 max-w-full"
+    >
+        {text.split(/\s+/).filter(Boolean).map((w, j) => (
+            <span key={j} className="border-b-2 border-amber-400 text-transparent select-none">
+                {w}
+            </span>
+        ))}
+    </button>
+);
+
 // 한 문장의 빈칸 학습 UI. TranscriptItem 안에서 원문/분석 대신 렌더된다.
 // 흐름: 빈칸 탭 → 그 청크 공개(채점 없음) → 전부 공개되면 [알았음/몰랐음] 자가표시.
-// 통째 가림(1청크/고급)이면 '정답 보기' 한 번으로 전체 공개 → 자가표시.
+// 통째 가림(1청크/고급)이면 문장 전체가 단어 칸으로 나오고, 아무 칸이나 탭하면 전체 공개 → 자가표시.
 // round/difficulty가 바뀌면 부모가 key로 remount시켜 상태(공개/표시)를 초기화한다.
 const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
     const drill = useMemo(() => buildCloze(item, idx, round, difficulty), [item, idx, round, difficulty]);
@@ -37,40 +58,31 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark }) => {
         <div className="px-1">
             {/* 클로즈 문장 */}
             <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 mb-2">
-                {drill.wholeSentence && !allRevealed ? (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); revealAll(); }}
-                        title="탭하면 정답 공개"
-                        className="inline-flex items-center px-3 py-1 rounded-lg bg-amber-50 border-b-2 border-amber-300 text-amber-400 hover:bg-amber-100 tracking-widest transition-colors"
-                    >
-                        _______________
-                    </button>
-                ) : (
-                    drill.parts.map((p, i) => {
-                        if (p.type === 'text') return <span key={i}>{p.value} </span>;
-                        if (revealed.has(i)) {
-                            return (
-                                <button
-                                    key={i}
-                                    onClick={(e) => { e.stopPropagation(); if (drill.wholeSentence) clearReveals(); else hideOne(i); }}
-                                    title="다시 가리기"
-                                    className="align-baseline text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded px-1 transition-colors"
-                                >
-                                    {p.answer}{' '}
-                                </button>
-                            );
-                        }
+                {drill.parts.map((p, i) => {
+                    if (p.type === 'text') return <span key={i}>{p.value} </span>;
+                    if (revealed.has(i)) {
                         return (
                             <button
                                 key={i}
-                                onClick={(e) => { e.stopPropagation(); revealOne(i); }}
-                                className="align-baseline mx-0.5 px-2 rounded-md bg-amber-50 border-b-2 border-amber-300 text-amber-400 hover:bg-amber-100 tracking-widest transition-colors"
+                                onClick={(e) => { e.stopPropagation(); if (drill.wholeSentence) clearReveals(); else hideOne(i); }}
+                                title="다시 가리기"
+                                className="align-baseline text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded px-1 transition-colors"
                             >
-                                ____
+                                {p.answer}{' '}
                             </button>
                         );
-                    })
-                )}
+                    }
+                    // 통째 가림이면 어떤 칸을 탭해도 문장 전체 공개 (부분 공개 없음 → 자가표시 흐름 단일화)
+                    return (
+                        <BlankChunk
+                            key={i}
+                            text={p.answer}
+                            title={drill.wholeSentence ? '탭하면 문장 전체 공개' : '탭하면 공개'}
+                            label={drill.wholeSentence ? '빈칸 — 탭하면 문장 전체 공개' : '빈칸 — 탭하면 공개'}
+                            onReveal={() => (drill.wholeSentence ? revealAll() : revealOne(i))}
+                        />
+                    );
+                })}
             </div>
 
             {/* 공개된 청크의 뜻 */}
