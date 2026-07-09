@@ -139,23 +139,6 @@ class MediaStore {
         });
     }
 
-    // 최근 사용 시각 갱신 (LRU 자동 정리 기준)
-    async touch(name, size) {
-        const db = await this.ensureDb();
-        const id = this.getFileId(name, size);
-        return new Promise((resolve) => {
-            const transaction = db.transaction([STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const getReq = store.get(id);
-            getReq.onsuccess = () => {
-                const rec = getReq.result;
-                if (rec) { rec.timestamp = Date.now(); store.put(rec); }
-                resolve(true);
-            };
-            getReq.onerror = () => resolve(false);
-        });
-    }
-
     async deleteFile(name, size) {
         const db = await this.ensureDb();
         const id = this.getFileId(name, size);

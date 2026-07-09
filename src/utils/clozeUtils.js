@@ -2,7 +2,7 @@ import { parseChunks } from './analysisParser';
 
 // 시드 기반 난수 (재현성): 같은 (문장, 라운드, 난이도)면 항상 같은 문제.
 // → 가리기 학습을 껐다 켜도 같은 빈칸 유지, '새 문제'(round++)나 난이도 변경 때만 새로 섞임.
-export function mulberry32(seed) {
+function mulberry32(seed) {
     let a = seed >>> 0;
     return function () {
         a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -37,7 +37,7 @@ export function buildCloze(item, idx, round, difficulty) {
 
     let hidden;
     if (N === 1 || difficulty === 'hard') {
-        hidden = new Set(chunks.map((_, i) => i)); // 통째 (고급/1청크)
+        hidden = new Set(Array.from({ length: N }, (_, i) => i)); // 통째 (고급/1청크)
     } else {
         // 초급·중급 모두 최소 1개 청크는 남겨 문맥 유지 (통째 가림은 고급/1청크 전용)
         const hi = Math.max(1, N - 1);

@@ -116,8 +116,13 @@ const formatTime = (seconds) => {
 // 낮게 잡아 대부분을 안정적인 File API로 보낸다. (FFmpeg 실패 시 원본 영상도 안전 처리)
 const FILE_API_THRESHOLD_MB = 8;
 
+// 창(블록) 끝을 알 수 없을 때(다음 항목/총길이 없음) 쓰는 기본 지속시간(초): start + 이 값.
+const DEFAULT_BLOCK_END_SEC = 8;
+// 전사 스트림 방어망: 세그먼트 길이·하드리밋을 이 초만큼 초과하면 환각으로 보고 폐기.
+const OVERFLOW_TOLERANCE_SEC = 5.0;
+
 // Blob → Gemini inlineData 파트 (base64) 변환
-function blobToGenerativePart(blob, fallbackMime = 'audio/aac') {
+function blobToInlinePart(blob, fallbackMime = 'audio/aac') {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve({
@@ -230,7 +235,7 @@ async function blobToGeminiPart(blob, apiKey) {
             console.warn('[Stage 1] File API failed, falling back to inline:', err.message);
         }
     }
-    return await blobToGenerativePart(blob, blob.type || 'audio/aac');
+    return await blobToInlinePart(blob);
 }
 
 // 청크 오버랩 경계에서 두 번 잡힌 문장 제거 (강화판).
@@ -424,7 +429,7 @@ async function transcribeStream(model, parts, {
         }
 
         // [방어망 2] 세그먼트 길이 + 5초 초과 시 폐기 (상대 기준)
-        if (segDuration > 0 && relTime > segDuration + 5.0) return null;
+        if (segDuration > 0 && relTime > segDuration + OVERFLOW_TOLERANCE_SEC) return null;
 
         // [C안] 역행 방지: 이전 유효 시간보다 뒤로 가면 최소한(0.1초) 보정 (상대 기준)
         if (lastValidTime >= 0 && relTime < lastValidTime) {
@@ -437,7 +442,7 @@ async function transcribeStream(model, parts, {
         const absTime = relTime + offset;
 
         // 절대 총 길이 하드 리미트
-        if (hardLimit > 0 && absTime > hardLimit + 5.0) return null;
+        if (hardLimit > 0 && absTime > hardLimit + OVERFLOW_TOLERANCE_SEC) return null;
 
         const normalizedContent = content.toLowerCase().trim();
 
@@ -553,7 +558,7 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
 
         const blockStart = sorted[i].seconds;
         // 다음(시각이 더 큰) 항목 시작 = 블록 끝
-        let blockEnd = totalDuration > blockStart ? totalDuration : blockStart + 8;
+        let blockEnd = totalDuration > blockStart ? totalDuration : blockStart + DEFAULT_BLOCK_END_SEC;
         for (let j = i + 1; j < sorted.length; j++) {
             if (sorted[j].seconds > blockStart) { blockEnd = sorted[j].seconds; break; }
         }
@@ -671,7 +676,7 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
     let gapWavStart = 0;
     if (singleExtract && windows.length > 0) {
         const blockEndOf = (w) => (typeof w.end === 'number' && w.end > w.start)
-            ? w.end : (totalDuration > w.start ? totalDuration : w.start + 8);
+            ? w.end : (totalDuration > w.start ? totalDuration : w.start + DEFAULT_BLOCK_END_SEC);
         const us = Math.max(0, Math.min(...windows.map(w => Math.max(0, w.start))) - PAD_START);
         const rawUe = Math.max(...windows.map(blockEndOf)) + PAD_END;
         const ue = totalDuration > 0 ? Math.min(totalDuration, rawUe) : rawUe;
@@ -694,7 +699,7 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
         const blockStart = Math.max(0, w.start);
         const blockEnd = (typeof w.end === 'number' && w.end > blockStart)
             ? w.end
-            : (totalDuration > blockStart ? totalDuration : blockStart + 8);
+            : (totalDuration > blockStart ? totalDuration : blockStart + DEFAULT_BLOCK_END_SEC);
         const winStart = Math.max(0, blockStart - PAD_START);
         const rawEnd = blockEnd + PAD_END; // 끝 단어 누락 방지용 뒤 여유
         const winEnd = totalDuration > 0 ? Math.min(totalDuration, rawEnd) : rawEnd;

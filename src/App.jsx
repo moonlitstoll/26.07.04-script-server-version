@@ -115,7 +115,6 @@ const App = () => {
 
   const learnFileKey = activeFile?.file ? `${activeFile.file.name}_${activeFile.file.size}` : null;
   const { mark: markProgress, wrongIndices, isWrong, clearFile: clearLearnProgress } = useLearningProgress(learnFileKey, transcriptData);
-  const wrongSet = useMemo(() => new Set(wrongIndices), [wrongIndices]);
 
   // [함정 #1] 화면은 걸러진 목록이지만 점프는 '원래 문장 번호'로. wrongIndices(원래 인덱스)를 그대로 사용.
   // [함정 #4] 반복 재조준은 jumpToSentence가 loopTargetIdxRef를 갱신하므로 자동 해결.
@@ -735,8 +734,8 @@ const App = () => {
                     <div className="text-center">
                       <h3 className="text-lg font-bold text-slate-900">Analyzing {activeFile.file.name}...</h3>
                       <p className="text-slate-500">
-                        {activeFile.data && activeFile.data.length > 0
-                          ? `Applying 9 Principles & Deep Scan (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
+                        {transcriptData.length > 0
+                          ? `Applying 9 Principles & Deep Scan (${analyzedCount}/${transcriptData.length})`
                           : "Extracting timeline using Gemini 2.5..."
                         }
                       </p>
@@ -784,7 +783,7 @@ const App = () => {
                       ) : (
                         transcriptData.map((item, idx) => {
                           // [함정 #1] 오답 모드: 원래 idx는 유지한 채 오답 아닌 문장만 렌더에서 제외
-                          if (mistakeOnly && !wrongSet.has(idx)) return null;
+                          if (mistakeOnly && !isWrong(idx)) return null;
                           const isActive = idx === activeSentenceIdx;
                           const compositeKey = `${activeFileId}-${idx}-${item.seconds}`;
                           return (

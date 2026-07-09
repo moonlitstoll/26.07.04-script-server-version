@@ -317,8 +317,8 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         const safeSet = (action, handler) => {
             try { ms.setActionHandler(action, handler); } catch { /* 미지원 액션 무시 */ }
         };
-        safeSet('previoustrack', () => handlePrev(activeIdxRef.current < 0 ? 0 : activeIdxRef.current));
-        safeSet('nexttrack', () => handleNext(activeIdxRef.current < 0 ? 0 : activeIdxRef.current));
+        safeSet('previoustrack', () => handlePrev(Math.max(0, activeIdxRef.current)));
+        safeSet('nexttrack', () => handleNext(Math.max(0, activeIdxRef.current)));
 
         return () => {
             ['previoustrack', 'nexttrack'].forEach(a => {
