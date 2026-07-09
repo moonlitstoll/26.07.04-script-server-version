@@ -983,7 +983,7 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
  * [Stage 2] 여러 문장 일괄 분석 (Batch)
  */
 // ─── Stage 2 요청 신뢰성: 타임아웃 + 재시도(백오프) ───
-const STAGE2_MAX_RETRIES = 2;                 // 총 3회 시도
+const STAGE2_MAX_RETRIES = 4;                 // 총 5회 시도 (503 수요폭주/429는 수초~수십초 지속 → 넉넉히)
 
 // 요청당 타임아웃: '진짜 멈춘' 요청만 끊도록 넉넉하게 — 정상적으로 오래 걸리는 대형/Pro 배치가
 // 잘려서 재시도→전량 실패로 뒤바뀌던 회귀 방지. 배치 문장수·모델(Pro는 thinking으로 더 김)에 비례.
@@ -1114,7 +1114,9 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
             if (signal?.aborted) throw new DOMException('Aborted', 'AbortError'); // 사용자 취소 → 재시도 없음
             const timedOut = timeoutCtrl.signal.aborted;
             if (attempt < STAGE2_MAX_RETRIES && (timedOut || isRetryableStage2Error(error))) {
-                const wait = Math.min(8000, 800 * 2 ** attempt) + Math.floor(Math.random() * 400);
+                // 지수 백오프 + 큰 지터: 503(과부하) 스파이크가 지나갈 시간 확보 + 동시 배치 재시도 분산(thundering herd 방지).
+                //  attempt 0~3: ~1.5s,3s,6s,12s (+최대 2.5s 지터) → 재시도 창 ~22~32s
+                const wait = Math.min(20000, 1500 * 2 ** attempt) + Math.floor(Math.random() * 2500);
                 console.warn(`[Stage 2] ${timedOut ? '타임아웃' : '오류'} → ${wait}ms 후 재시도 (${attempt + 1}/${STAGE2_MAX_RETRIES})`, error?.message || error);
                 try { await abortableSleep(wait, signal); } catch { throw new DOMException('Aborted', 'AbortError'); }
                 continue;
