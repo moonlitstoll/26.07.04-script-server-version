@@ -141,58 +141,65 @@ export const useMediaAnalysis = ({
         let workingData = JSON.parse(JSON.stringify(transcript));
         let totalSuccessCount = 0;
 
-        for (let i = 0; i < batches.length; i += CONCURRENCY) {
-            if (signal.aborted) break;
+        // rolling 워커풀: 그룹 하드 장벽(Promise.all-per-group)을 제거 → 항상 CONCURRENCY개 배치가 in-flight.
+        // 한 배치가 느려도(재시도/타임아웃) 다른 워커는 계속 다음 배치를 당겨 처리 → head-of-line blocking 제거.
+        // 배치 간 의존성 없음(불변 text만 읽고 배타적 index에만 기록) → 완료 순서 무관, 프롬프트·출력 동일.
+        let batchCursor = 0;
+        let succeededBatches = 0;
 
-            const currentBatchGroup = batches.slice(i, i + CONCURRENCY);
-            console.log(`[Stage 2] Running Batch Group ${Math.floor(i / CONCURRENCY) + 1}...`);
-
-            const batchPromises = currentBatchGroup.map(async (batchIndices) => {
-                const batchItems = batchIndices.map(idx => ({ index: idx, text: workingData[idx].text }));
-                // 분석 정확도용 앞뒤 문맥(대상 제외, 최대 CONTEXT_EACH씩). 참고용으로만 전달.
-                const CONTEXT_EACH = 5;
-                const targetSet = new Set(batchIndices);
-                const ctxSet = new Set();
-                for (const idx of batchIndices) {
-                    for (let d = 1; d <= CONTEXT_EACH; d++) {
-                        if (idx - d >= 0) ctxSet.add(idx - d);
-                        if (idx + d < workingData.length) ctxSet.add(idx + d);
-                    }
+        const processBatch = async (batchIndices) => {
+            const batchItems = batchIndices.map(idx => ({ index: idx, text: workingData[idx].text }));
+            // 분석 정확도용 앞뒤 문맥(대상 제외, 최대 CONTEXT_EACH씩). 참고용으로만 전달.
+            const CONTEXT_EACH = 5;
+            const targetSet = new Set(batchIndices);
+            const ctxSet = new Set();
+            for (const idx of batchIndices) {
+                for (let d = 1; d <= CONTEXT_EACH; d++) {
+                    if (idx - d >= 0) ctxSet.add(idx - d);
+                    if (idx + d < workingData.length) ctxSet.add(idx + d);
                 }
-                for (const t of targetSet) ctxSet.delete(t);
-                const contextItems = [...ctxSet].sort((a, b) => a - b)
-                    .slice(0, 40) // 폭주 방지 상한
-                    .map(idx => ({ index: idx, text: workingData[idx].text }));
-                try {
-                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems);
-                    if (results && !signal.aborted) {
-                        let groupSuccess = 0;
-                        results.forEach(res => {
-                            if (res && res.translation && !res.failed) {
-                                workingData[res.index] = {
-                                    ...workingData[res.index],
-                                    translation: res.translation,
-                                    analysis: res.analysis,
-                                    isAnalyzed: true
-                                };
-                                groupSuccess++;
-                            }
-                        });
-                        totalSuccessCount += groupSuccess;
-                        updateGlobalState(workingData);
-                        setStage2Progress({ fileId, done: totalSuccessCount, total: pendingIndices.length });
-                        const isLast = i + (currentBatchGroup.length * BATCH_SIZE) >= pendingIndices.length;
-                        persistCache(fileInfo, workingData, isLast ? 'completed' : 'analyzing');
-                        if (refreshCacheKeys) refreshCacheKeys();
-                    }
-                } catch (e) {
-                    if (e.name === 'AbortError') return;
-                    console.error(`[Stage 2] Batch failed:`, e);
+            }
+            for (const t of targetSet) ctxSet.delete(t);
+            const contextItems = [...ctxSet].sort((a, b) => a - b)
+                .slice(0, 40) // 폭주 방지 상한
+                .map(idx => ({ index: idx, text: workingData[idx].text }));
+            try {
+                const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems);
+                if (results && !signal.aborted) {
+                    let groupSuccess = 0;
+                    results.forEach(res => {
+                        if (res && res.translation && !res.failed) {
+                            workingData[res.index] = {
+                                ...workingData[res.index],
+                                translation: res.translation,
+                                analysis: res.analysis,
+                                isAnalyzed: true
+                            };
+                            groupSuccess++;
+                        }
+                    });
+                    totalSuccessCount += groupSuccess;
+                    updateGlobalState(workingData);
+                    setStage2Progress({ fileId, done: totalSuccessCount, total: pendingIndices.length });
+                    succeededBatches++;
+                    const allDone = succeededBatches >= batches.length; // 전 배치 성공 시에만 'completed'(부분 실패는 하단 마무리에서 처리)
+                    persistCache(fileInfo, workingData, allDone ? 'completed' : 'analyzing');
+                    if (refreshCacheKeys) refreshCacheKeys();
                 }
-            });
+            } catch (e) {
+                if (e.name === 'AbortError') return;
+                console.error(`[Stage 2] Batch failed:`, e);
+            }
+        };
 
-            await Promise.all(batchPromises);
-        }
+        const runBatchWorker = async () => {
+            while (!signal.aborted) {
+                const bi = batchCursor++;
+                if (bi >= batches.length) break;
+                await processBatch(batches[bi]);
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batches.length) }, () => runBatchWorker()));
 
         // [뭉침 자동 교정 — 검증형 재시도] 뭉친 문장을 '강제 분할'로 재분석하되,
         // 결과가 '더 잘 쪼개졌을 때만' 채택하고, 여전히 뭉치면 최대 MAX_SPLIT_RETRIES회까지 재시도(퇴행 방지).
