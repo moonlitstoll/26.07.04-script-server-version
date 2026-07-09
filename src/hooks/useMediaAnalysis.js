@@ -8,6 +8,16 @@ import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 
+// 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
+const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
+    setFiles(prev => prev.map(p => p.id === fileId
+        ? { ...p, data: p.data.map(d => {
+            if (!d.isRetranscribing) return d;
+            const c = { ...d }; delete c.isRetranscribing; return c;
+        }) }
+        : p));
+};
+
 // 분석이 '뭉침/과편중'인지 감지: 모든 볼드 청크 중 '가장 큰 것'이 문장의 60% 이상을 덮으면 뭉침.
 // (문장 전체를 1청크로 낸 경우뿐 아니라, 한 청크가 지나치게 큰 편중 분할도 재교정 대상에 포함)
 // 짧은 문장(6단어 미만)은 1청크가 정상이라 제외. ⚡실제 태그는 원어 볼드가 아니라 영향 미미.
@@ -533,14 +543,7 @@ export const useMediaAnalysis = ({
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
 
         // 선택 문장에 재전사 로딩 표시
-        const clearRetranscribingFlag = () => {
-            setFiles(prev => prev.map(p => p.id === fileId
-                ? { ...p, data: p.data.map(d => {
-                    if (!d.isRetranscribing) return d;
-                    const c = { ...d }; delete c.isRetranscribing; return c;
-                }) }
-                : p));
-        };
+        const clearRetranscribingFlag = makeClearRetranscribingFlag(setFiles, fileId);
         setFiles(prev => prev.map(p => p.id === fileId
             ? { ...p, data: p.data.map((d, i) => sortedIdx.includes(i) ? { ...d, isRetranscribing: true } : d) }
             : p));
@@ -763,14 +766,7 @@ export const useMediaAnalysis = ({
         const anchorSec = currentData[anchorIndex].seconds;
 
         // 로딩 표시: 앵커와 같은 시각(블록) 문장에 스피너
-        const clearRetranscribingFlag = () => {
-            setFiles(prev => prev.map(p => p.id === fileId
-                ? { ...p, data: p.data.map(d => {
-                    if (!d.isRetranscribing) return d;
-                    const c = { ...d }; delete c.isRetranscribing; return c;
-                }) }
-                : p));
-        };
+        const clearRetranscribingFlag = makeClearRetranscribingFlag(setFiles, fileId);
         setFiles(prev => prev.map(p => p.id === fileId
             ? { ...p, data: p.data.map(d => d.seconds === anchorSec ? { ...d, isRetranscribing: true } : d) }
             : p));

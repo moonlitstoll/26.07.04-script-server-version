@@ -83,6 +83,8 @@ const App = () => {
   const transcriptData = useMemo(() => activeFile?.data || [], [activeFile?.data]);
   const mediaUrl = activeFile?.url || null;
   const isAnalyzing = activeFile?.isAnalyzing || false;
+  // 분석/전환 중이 아니라 본문 콘텐츠를 보여줄 준비가 됐는지 (배너·툴바 게이팅 공통 조건)
+  const contentReady = !isAnalyzing && !isSwitchingFile;
 
   // [캐시 버저닝] 활성 파일의 분석이 옛 규칙(낮은 version)으로 만들어졌는지 판정 → 재분석 권장 배너.
   //  분석 진행 정도(analyzedCount)가 바뀔 때만 캐시 메타를 다시 읽어 반응(재분석하면 배너 사라짐).
@@ -584,7 +586,7 @@ const App = () => {
       )}
 
       {/* [캐시 버저닝] 옛 규칙으로 분석된 파일 → 최신 규칙으로 재분석 권장 배너 */}
-      {isStaleAnalysis && !isAnalyzing && !isSwitchingFile && (
+      {isStaleAnalysis && contentReady && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
           <span className="flex-1 min-w-0 truncate font-medium">분석 규칙이 업데이트됐어요. 재분석하면 청크 분할이 개선됩니다.</span>
@@ -598,7 +600,7 @@ const App = () => {
       )}
 
       {/* [재분석 진행] 전체 스피너가 없는 백그라운드 분석(재분석·이어서분석) 중 상단에 진행률 표시 */}
-      {stage2Progress && stage2Progress.fileId === activeFileId && !isAnalyzing && !isSwitchingFile && (
+      {stage2Progress && stage2Progress.fileId === activeFileId && contentReady && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs sm:text-sm">
           <div className="w-3.5 h-3.5 shrink-0 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
           <span className="flex-1 min-w-0 truncate font-medium">
@@ -612,7 +614,7 @@ const App = () => {
         {activeFile ? (
           <div className="flex flex-col h-full">
             {/* 구간 다시 전사 툴바 */}
-            {!isAnalyzing && !isSwitchingFile && !activeFile.error && transcriptData.length > 0 && (
+            {contentReady && !activeFile.error && transcriptData.length > 0 && (
               <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto px-3 md:px-6 py-1 flex items-center justify-between gap-1.5">
                   {!selectMode ? (

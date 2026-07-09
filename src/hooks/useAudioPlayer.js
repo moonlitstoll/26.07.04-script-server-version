@@ -3,6 +3,17 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
 const MAX_SEEK_FALLBACK = 999999; // duration 미확정 시 상한 폴백(초)
+const READY_EVENTS = ['loadedmetadata', 'canplay', 'loadeddata']; // 준비 완료 감지(먼저 오는 것에 반응)
+
+// v.play() 공통 에러 처리: AbortError는 무시, 그 외엔 로그 + 재생상태 해제.
+function safePlay(v, setIsPlaying, label) {
+    v.play().catch((err) => {
+        if (err.name !== 'AbortError') {
+            console.error(`[Player] ${label} play() failed:`, err);
+            setIsPlaying(false);
+        }
+    });
+}
 
 export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
@@ -58,12 +69,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             const targetTime = Math.max(0, Math.min(s, v.duration || MAX_SEEK_FALLBACK));
             v.currentTime = targetTime;
 
-            v.play().catch((err) => {
-                if (err.name !== 'AbortError') {
-                    console.error('[Player] seekTo play() failed:', err);
-                    setIsPlaying(false);
-                }
-            });
+            safePlay(v, setIsPlaying, 'seekTo');
         }
     }, [triggerManualScroll]);
 
@@ -79,12 +85,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
                 pendingSeekRef.current = null;
             }
             setIsPlaying(true);
-            v.play().catch((err) => {
-                if (err.name !== 'AbortError') {
-                    console.error('[Player] togglePlay play() failed:', err);
-                    setIsPlaying(false);
-                }
-            });
+            safePlay(v, setIsPlaying, 'togglePlay');
         } else {
             setIsPlaying(false);
             v.pause();
@@ -229,12 +230,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
                         setIsPlaying(true);
 
                         v.currentTime = start;
-                        v.play().catch((err) => {
-                            if (err.name !== 'AbortError') {
-                                console.error('[Player] loop restart play() failed:', err);
-                                setIsPlaying(false);
-                            }
-                        });
+                        safePlay(v, setIsPlaying, 'loop restart');
                         return;
                     }
 
@@ -337,16 +333,12 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             try { v.currentTime = t; } catch { /* noop */ }
             setCurrentTime(t);
             pendingSeekRef.current = null;
-            v.removeEventListener('loadedmetadata', doSeek);
-            v.removeEventListener('canplay', doSeek);
-            v.removeEventListener('loadeddata', doSeek);
+            READY_EVENTS.forEach(ev => v.removeEventListener(ev, doSeek));
         };
         if (v.readyState >= 1) doSeek();             // 이미 준비됨 → 즉시
         else {
             // 준비되는 즉시 seek (모바일 대응: 여러 이벤트 중 먼저 오는 것에 반응)
-            v.addEventListener('loadedmetadata', doSeek);
-            v.addEventListener('canplay', doSeek);
-            v.addEventListener('loadeddata', doSeek);
+            READY_EVENTS.forEach(ev => v.addEventListener(ev, doSeek));
         }
     }, []);
 

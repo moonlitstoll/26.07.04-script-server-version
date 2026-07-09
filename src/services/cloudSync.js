@@ -30,6 +30,17 @@ async function computeFolder(name, size) {
     return (await sha256hex(`${name}_${size}`)).slice(0, 40);
 }
 
+// POST + JSON 공통 요청: 실패 시 `${label} ${status}` 에러 throw, 성공 시 res.json().
+async function postJson(url, payload, label) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`${label} ${res.status}`);
+    return res.json();
+}
+
 // ─── 영상/오디오 원본 업로드 (브라우저 → Blob 직접) ───
 export async function uploadMedia(file, onProgress) {
     const passphrase = getPassphrase();
@@ -56,25 +67,19 @@ export async function saveMeta(fileInfo, data, status, mediaUrl, duration) {
     if (!passphrase) return null;
 
     const folder = await computeFolder(fileInfo.name, fileInfo.size);
-    const res = await fetch('/api/save-meta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            passphrase,
-            folder,
-            meta: {
-                name: fileInfo.name,
-                size: fileInfo.size,
-                type: fileInfo.type || '',
-                status: status || 'extracted',
-                duration: duration || 0,
-                mediaUrl: mediaUrl || null,
-            },
-            data,
-        }),
-    });
-    if (!res.ok) throw new Error(`save-meta ${res.status}`);
-    return res.json();
+    return postJson('/api/save-meta', {
+        passphrase,
+        folder,
+        meta: {
+            name: fileInfo.name,
+            size: fileInfo.size,
+            type: fileInfo.type || '',
+            status: status || 'extracted',
+            duration: duration || 0,
+            mediaUrl: mediaUrl || null,
+        },
+        data,
+    }, 'save-meta');
 }
 
 // ─── 내 보관함 목록 조회 ───
@@ -109,13 +114,7 @@ export async function getFavorites() {
 export async function saveFavorites(favorites) {
     const passphrase = getPassphrase();
     if (!passphrase) return;
-    const res = await fetch('/api/favorites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passphrase, favorites }),
-    });
-    if (!res.ok) throw new Error(`favorites ${res.status}`);
-    return res.json();
+    return postJson('/api/favorites', { passphrase, favorites }, 'favorites');
 }
 
 // ─── 삭제 ───
@@ -123,11 +122,5 @@ export async function deleteItem(fileInfo) {
     const passphrase = getPassphrase();
     if (!passphrase) return;
     const folder = await computeFolder(fileInfo.name, fileInfo.size);
-    const res = await fetch('/api/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passphrase, folder }),
-    });
-    if (!res.ok) throw new Error(`delete ${res.status}`);
-    return res.json();
+    return postJson('/api/delete', { passphrase, folder }, 'delete');
 }

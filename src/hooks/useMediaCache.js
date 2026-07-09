@@ -4,6 +4,8 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
 import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 
+const CACHE_PREFIX = 'gemini_analysis_'; // localStorage 분석 캐시 키 접두사
+
 // Content-Length 기반으로 진행률을 보고하며 Blob 다운로드.
 // 길이를 모르거나 스트림을 못 읽으면 onProgress(null)로 폴백하고 통째로 받는다.
 async function fetchBlobWithProgress(url, onProgress) {
@@ -57,7 +59,7 @@ export const useMediaCache = ({
     const retryingRef = useRef(false);             // 재업로드 동시 실행 방지
 
     const refreshCacheKeys = useCallback(() => {
-        setCacheKeys(Object.keys(localStorage).filter(k => k.startsWith('gemini_analysis_')));
+        setCacheKeys(Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)));
     }, []);
 
     // 로컬에 저장된 영상 id 집합 갱신 (삭제/다운로드 후 호출)
@@ -74,7 +76,7 @@ export const useMediaCache = ({
         if (retryingRef.current || !navigator.onLine) return;
         const cloudIds = new Set((cloudList || []).map(it => `${it.name}_${it.size}`));
         const pending = cacheKeysRef.current.filter(k => {
-            const id = k.replace('gemini_analysis_', '');
+            const id = k.replace(CACHE_PREFIX, '');
             return !cloudIds.has(id) && !attemptedUploadsRef.current.has(id);
         });
         if (pending.length === 0) return;
@@ -82,7 +84,7 @@ export const useMediaCache = ({
         retryingRef.current = true;
         try {
             for (const key of pending) {
-                const id = key.replace('gemini_analysis_', '');
+                const id = key.replace(CACHE_PREFIX, '');
                 attemptedUploadsRef.current.add(id); // 세션 내 1회만 시도 (성공/실패 무관 표시 후, 실패 시 아래서 해제)
                 const entry = parseCacheEntry(key);
                 const metadata = entry?.metadata;
@@ -259,9 +261,9 @@ export const useMediaCache = ({
                     for (const e of entries) {
                         if (!cloudIds.has(e.id)) continue; // \ubbf8\ub3d9\uae30\ud654(\ub85c\uceec \uc804\uc6a9)\ub294 \ubcf4\uc874
                         try { await mediaStore.deleteFile(e.name, e.size); } catch { /* noop */ }
-                        localStorage.removeItem(`gemini_analysis_${e.id}`);
+                        localStorage.removeItem(`${CACHE_PREFIX}${e.id}`);
                     }
-                    setCacheKeys(prev => prev.filter(k => !cloudIds.has(k.replace('gemini_analysis_', ''))));
+                    setCacheKeys(prev => prev.filter(k => !cloudIds.has(k.replace(CACHE_PREFIX, ''))));
                     await refreshLocalVideos();
                     showToast({ message: "\uc774 \uae30\uae30 \uce90\uc2dc\ub97c \ube44\uc6e0\uc2b5\ub2c8\ub2e4 (\ud074\ub77c\uc6b0\ub4dc \uc720\uc9c0)", type: "success" });
                 } catch (e) {
