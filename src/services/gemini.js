@@ -984,7 +984,13 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
  */
 // ─── Stage 2 요청 신뢰성: 타임아웃 + 재시도(백오프) ───
 const STAGE2_MAX_RETRIES = 2;                 // 총 3회 시도
-const STAGE2_ATTEMPT_TIMEOUT_MS = 90000;      // 요청당 타임아웃(멈춤 방지)
+
+// 요청당 타임아웃: '진짜 멈춘' 요청만 끊도록 넉넉하게 — 정상적으로 오래 걸리는 대형/Pro 배치가
+// 잘려서 재시도→전량 실패로 뒤바뀌던 회귀 방지. 배치 문장수·모델(Pro는 thinking으로 더 김)에 비례.
+function stage2TimeoutMs(itemCount, modelId) {
+    const base = 120000 + itemCount * 8000;                     // 25문장 ≈ 320s
+    return String(modelId).includes('pro') ? base * 2 : base;  // Pro 여유 2배
+}
 
 // 두 abort 신호를 하나로 연결(취소/타임아웃 겸용). 정리 함수 반환.
 function linkAbort(target, source) {
@@ -1084,6 +1090,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
     };
 
     // 타임아웃 + 재시도(백오프). 성공 시 파싱 결과 반환, 최종 실패 시 failed 마킹(기존과 동일).
+    const attemptTimeoutMs = stage2TimeoutMs(items.length, resolvedModel);
     let lastError;
     for (let attempt = 0; attempt <= STAGE2_MAX_RETRIES; attempt++) {
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -1091,7 +1098,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         const combo = new AbortController();
         const unlink1 = linkAbort(combo, signal);
         const unlink2 = linkAbort(combo, timeoutCtrl.signal);
-        const timer = setTimeout(() => timeoutCtrl.abort(), STAGE2_ATTEMPT_TIMEOUT_MS);
+        const timer = setTimeout(() => timeoutCtrl.abort(), attemptTimeoutMs);
         try {
             const result = await model.generateContent({
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
