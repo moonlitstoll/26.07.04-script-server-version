@@ -30,9 +30,20 @@ const TranscriptItem = memo(({
     isLooping, showAnalysis,
     selectMode = false, isSelected = false, onToggleSelect,
     onRetryAnalysis,
-    drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false
+    drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false,
+    inLoopGroup = false, groupLoopOn = false
 }) => {
     const itemRef = useRef(null);
+
+    // 묶음 반복 중에는 하이라이트가 묶음 안에서 문장마다 움직인다.
+    // 그때 block:'start'로 스크롤하면 문장이 넘어갈 때마다 화면이 위로 하드 스크롤되고
+    // 되감길 때 또 크게 튄다. 묶음 안에서는 'nearest'(이미 보이면 안 움직임)로 낮춘다.
+    // deps 오염을 피하려고 ref로 읽는다(값이 바뀌었다고 스크롤이 발동하면 안 됨).
+    // (아래 스크롤 이펙트보다 먼저 선언해야 같은 커밋에서 최신 값이 반영된다 — 이펙트는 선언 순서대로 실행)
+    const scrollBlockRef = useRef('start');
+    useEffect(() => {
+        scrollBlockRef.current = inLoopGroup ? 'nearest' : 'start';
+    }, [inLoopGroup]);
 
     // 1. Focus Lock: Conditional Anchoring
     const prevActiveRef = useRef(isActive);
@@ -52,7 +63,7 @@ const TranscriptItem = memo(({
         if (shouldScroll && itemRef.current) {
             itemRef.current.scrollIntoView({
                 behavior: 'auto',
-                block: 'start'
+                block: scrollBlockRef.current
             });
         }
     }, [isActive, manualScrollNonce, isGlobalLooping]);
@@ -60,7 +71,7 @@ const TranscriptItem = memo(({
     // 2. Resize Stabilization
     useLayoutEffect(() => {
         if (isActive && itemRef.current) {
-            itemRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
+            itemRef.current.scrollIntoView({ behavior: 'auto', block: scrollBlockRef.current });
         }
     }, [showAnalysis, isActive]);
 
@@ -74,7 +85,9 @@ const TranscriptItem = memo(({
                     ? 'bg-indigo-50 border-l-indigo-500 border-t-indigo-200 border-r-indigo-200 border-b-indigo-200 ring-2 ring-indigo-300 shadow-md z-10'
                     : isActive
                         ? 'bg-transparent border-l-purple-700 border-t-slate-100 border-r-slate-100 border-b-slate-100 shadow-md z-10'
-                        : 'bg-white border-slate-100 opacity-90'}
+                        : inLoopGroup
+                            ? 'bg-amber-50/40 border-l-amber-400 border-t-amber-100 border-r-amber-100 border-b-amber-100'
+                            : 'bg-white border-slate-100 opacity-90'}
       `}
         >
             {/* 선택 모드: 카드 전체를 탭하면 선택/해제 (내부 버튼 클릭 차단) */}
@@ -110,7 +123,10 @@ const TranscriptItem = memo(({
                             </span>
                         )}
                         <button
-                            onClick={() => seekTo(item.seconds)}
+                            // 묶음 반복 중엔 seekTo가 아니라 jumpToSentence로 간다.
+                            // seekTo는 반복 기준(앵커)을 안 옮기므로, 다른 묶음의 ▶를 누르면
+                            // 옛 묶음이 계속 반복되거나 누르자마자 묶음 처음으로 되감긴다.
+                            onClick={() => (groupLoopOn ? jumpToSentence(idx) : seekTo(item.seconds))}
                             className={`
                   flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-wide transition-all
                   ${isActive ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat
 } from 'lucide-react';
+import { clampLoopGroupSize, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
@@ -101,22 +102,61 @@ const App = () => {
   // [자동 업데이트] 배포된 새 번들 감지 → 새로고침 안내 배너
   const updateReady = useAppUpdate();
 
-  // Hooks
-  const {
-    videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
-    manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
-    handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo
-  } = useAudioPlayer({ activeFile, bufferTime });
-
   // ─── 가리기 학습(클로즈) + 오답 복습 ───
+  // [주의] mistakeOnly는 useAudioPlayer보다 먼저 선언돼야 한다 — 아래 effLoopN이 이걸 읽는다.
   const [drillMode, setDrillMode] = useState(false);
   const [difficulty, setDifficulty] = useState('easy'); // 'easy' | 'mid' | 'hard'
   const [drillRound, setDrillRound] = useState(0);       // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
   const [mistakeOnly, setMistakeOnly] = useState(false);
   const prevLoopRef = useRef(false);                     // 오답 모드 진입 전 반복 상태 (복원용)
 
+  // 오답 복습 중에는 묶음 반복을 강제로 1문장으로 낮춘다.
+  // 오답 아닌 문장은 화면에서 아예 빠지는데(788행), 묶음 반복은 그 문장의 '소리'를 재생해버린다
+  // → 오답 모드의 존재 이유(숨긴 문장 소리 안 새게)와 정면충돌. 설정값은 보존되고, 모드를 나가면 복구된다.
+  const effLoopN = mistakeOnly ? 1 : clampLoopGroupSize(config.loopGroupSize);
+
+  // Hooks
+  const {
+    videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
+    manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
+    handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo,
+    loopAnchorIdx, loopTargetIdxRef, loopGroups, loopGroupOf
+  } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN });
+
+  // 묶음 크기 변경: 2 이상을 고르면 반복을 자동으로 켠다(안 켜면 "골랐는데 아무 일도 안 남"이 된다).
+  const changeLoopGroupSize = useCallback((n) => {
+    const v = clampLoopGroupSize(n);
+    updateField('loopGroupSize', v);
+    if (v > 1) setLoopActive(true);
+  }, [updateField, setLoopActive]);
+
+  // 지금 반복 중인 묶음의 범위 (카드 띠 표시용). 묶음 반복이 꺼져 있으면 null.
+  const loopGroup = useMemo(() => {
+    if (!isGlobalLoopActive || effLoopN <= 1 || !loopGroupOf || loopAnchorIdx < 0) return null;
+    if (loopAnchorIdx >= loopGroupOf.length) return null;
+    return loopGroups[loopGroupOf[loopAnchorIdx]] || null;
+  }, [isGlobalLoopActive, effLoopN, loopGroupOf, loopGroups, loopAnchorIdx]);
+
   const learnFileKey = activeFile?.file ? `${activeFile.file.name}_${activeFile.file.size}` : null;
   const { mark: markProgress, wrongIndices, isWrong, clearFile: clearLearnProgress } = useLearningProgress(learnFileKey, transcriptData);
+
+  // 묶음 반복 중이면 ←/→는 '묶음 단위'로 움직인다(다음/이전 묶음의 첫 문장으로).
+  // 기준은 반드시 앵커(loopTargetIdxRef, 동기 ref) — 하이라이트(activeSentenceIdx)를 쓰면
+  // 묶음 [10~14]에서 12번을 듣던 중 →를 눌렀을 때 17로 튀어 15·16이 통째로 스킵된다.
+  // 반환값 true = 묶음 이동을 처리했음(문장 단위 이동을 하지 말 것).
+  const stepLoopGroup = useCallback((dir, cur) => {
+    if (!isGlobalLoopActive || effLoopN <= 1 || !loopGroupOf || loopGroups.length === 0) return false;
+    const anchor = loopTargetIdxRef.current;
+    const base = (typeof anchor === 'number' && anchor >= 0 && anchor < loopGroupOf.length)
+      ? anchor
+      : (cur >= 0 && cur < loopGroupOf.length ? cur : 0);
+    const gi = loopGroupOf[base];
+    const len = loopGroups.length;
+    const target = loopGroups[(gi + dir + len) % len];   // 끝에서 순환
+    if (!target) return false;
+    jumpToSentence(target.start);
+    return true;
+  }, [isGlobalLoopActive, effLoopN, loopGroupOf, loopGroups, loopTargetIdxRef, jumpToSentence]);
 
   // [함정 #1] 화면은 걸러진 목록이지만 점프는 '원래 문장 번호'로. wrongIndices(원래 인덱스)를 그대로 사용.
   // [함정 #4] 반복 재조준은 jumpToSentence가 loopTargetIdxRef를 갱신하므로 자동 해결.
@@ -129,10 +169,11 @@ const App = () => {
       jumpToSentence(nx !== undefined ? nx : wrongIndices[0]); // 없으면 순환(첫 오답)
     } else {
       if (transcriptData.length === 0) return;
+      if (stepLoopGroup(1, cur)) return;                        // 묶음 반복 중 → 다음 묶음
       if (cur < 0) { jumpToSentence(0); return; }               // [함정 #6] 미재생 → 첫 문장(건너뜀 방지)
       handleNext(cur);
     }
-  }, [mistakeOnly, wrongIndices, jumpToSentence, handleNext, activeIdxRef, transcriptData.length]);
+  }, [mistakeOnly, wrongIndices, jumpToSentence, handleNext, activeIdxRef, transcriptData.length, stepLoopGroup]);
 
   const goPrev = useCallback((fromArg) => {
     const cur = (typeof fromArg === 'number' && fromArg >= 0) ? fromArg : (activeIdxRef.current ?? -1);
@@ -144,10 +185,11 @@ const App = () => {
       jumpToSentence(prev !== undefined ? prev : wrongIndices[wrongIndices.length - 1]); // 없으면 순환(마지막 오답)
     } else {
       if (transcriptData.length === 0) return;
+      if (stepLoopGroup(-1, cur)) return;                       // 묶음 반복 중 → 이전 묶음
       if (cur < 0) { jumpToSentence(0); return; }               // 미재생 → 첫 문장
       handlePrev(cur);
     }
-  }, [mistakeOnly, wrongIndices, jumpToSentence, handlePrev, activeIdxRef, transcriptData.length]);
+  }, [mistakeOnly, wrongIndices, jumpToSentence, handlePrev, activeIdxRef, transcriptData.length, stepLoopGroup]);
 
   // 정답 후 자가표시 저장. 오답 모드에서 '알았음'이면 목록서 빠지므로 다음 오답으로 이동.
   // [함정 #5/#11] goNext(stale wrongIndices)로 자기 자신에 점프하는 문제 → idx 제외한 remaining으로 직접 계산.
@@ -663,6 +705,40 @@ const App = () => {
                         </>
                       )}
 
+                      {/* 🔁 묶음 반복: 한 번에 몇 문장을 묶어 반복할지 (1 = 기존 한 문장 반복) */}
+                      <div
+                        title={mistakeOnly
+                          ? '오답 복습 중에는 한 문장씩 반복합니다 (숨긴 문장 소리가 새지 않도록)'
+                          : '반복을 켰을 때 한 번에 반복할 문장 수'}
+                        className={`inline-flex items-center gap-0.5 rounded-lg border px-1.5 py-0.5 transition-colors ${mistakeOnly
+                          ? 'bg-slate-50 border-slate-200 opacity-50'
+                          : effLoopN > 1
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-white border-slate-200'}`}
+                      >
+                        <Repeat size={13} className={effLoopN > 1 && !mistakeOnly ? 'text-amber-600' : 'text-slate-400'} />
+                        <span className="text-xs font-bold text-slate-500 mr-0.5">묶음</span>
+                        <button
+                          onClick={() => changeLoopGroupSize(effLoopN - 1)}
+                          disabled={mistakeOnly || effLoopN <= LOOP_GROUP_MIN}
+                          aria-label="묶음 문장 수 줄이기"
+                          className="w-5 h-5 rounded flex items-center justify-center text-sm font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                        >
+                          −
+                        </button>
+                        <span className={`w-4 text-center text-xs font-black tabular-nums ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700' : 'text-slate-600'}`}>
+                          {effLoopN}
+                        </span>
+                        <button
+                          onClick={() => changeLoopGroupSize(effLoopN + 1)}
+                          disabled={mistakeOnly || effLoopN >= LOOP_GROUP_MAX}
+                          aria-label="묶음 문장 수 늘리기"
+                          className="w-5 h-5 rounded flex items-center justify-center text-sm font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                        >
+                          +
+                        </button>
+                      </div>
+
                       {/* ❗ 오답만 보기 (오답 있을 때 표시 — 모드 중엔 0개여도 유지해 빠져나갈 수 있게) */}
                       {(wrongIndices.length > 0 || mistakeOnly) && (
                         <button
@@ -811,6 +887,8 @@ const App = () => {
                               drillRound={drillRound}
                               onMarkAnswer={markAnswer}
                               isWrong={isWrong(idx)}
+                              inLoopGroup={!!loopGroup && idx >= loopGroup.start && idx <= loopGroup.end}
+                              groupLoopOn={!!loopGroup}
                             />
                           );
                         })
@@ -830,6 +908,7 @@ const App = () => {
               duration={duration}
               playbackRate={playbackRate}
               isGlobalLoopActive={isGlobalLoopActive}
+              loopGroupSize={effLoopN}
               currentSentenceIdx={activeSentenceIdx}
               showAnalysis={showAnalysis}
               showSpeedMenu={showSpeedMenu}

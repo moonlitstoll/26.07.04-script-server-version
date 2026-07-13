@@ -35,7 +35,7 @@ const PREVIEW_MAX_W = 'calc(40vw - 24px)';
 
 const PlayerControls = ({
     attachVideo, mediaUrl, isPlaying, currentTime, duration,
-    playbackRate, isGlobalLoopActive, currentSentenceIdx,
+    playbackRate, isGlobalLoopActive, loopGroupSize = 1, currentSentenceIdx,
     showAnalysis, showSpeedMenu,
     togglePlay, seekTo, handlePrev, handleNext,
     handleRateChange, toggleLoop,
@@ -247,12 +247,21 @@ const PlayerControls = ({
                         <div className="flex items-center gap-[min(1vw,4px)]">
                             <button
                                 onClick={toggleLoop}
-                                aria-label={isGlobalLoopActive ? '문장 반복 끄기' : '문장 반복 켜기'}
+                                aria-label={isGlobalLoopActive
+                                    ? `문장 반복 끄기${loopGroupSize > 1 ? ` (${loopGroupSize}문장 묶음)` : ''}`
+                                    : '문장 반복 켜기'}
                                 aria-pressed={isGlobalLoopActive}
-                                className={`flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
-                                title="Toggle Global Sentence Loop"
+                                className={`relative flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
+                                title={loopGroupSize > 1 ? `${loopGroupSize}문장 묶음 반복` : 'Toggle Global Sentence Loop'}
                             >
                                 <Repeat className={`${ICON_SM} ${isGlobalLoopActive ? 'animate-pulse' : ''}`} />
+                                {/* 묶음 수 배지: absolute라 버튼의 min-content 폭에 1px도 기여하지 않는다.
+                                    (하단 바는 폭 여유가 9px뿐이라 인라인으로 넣으면 반복 버튼이 잘린다) */}
+                                {loopGroupSize > 1 && (
+                                    <span className="pointer-events-none absolute -top-1 -right-1 min-w-[13px] h-[13px] px-[2px] rounded-full bg-amber-500 text-white text-[9px] font-black leading-[13px] text-center shadow-sm">
+                                        {loopGroupSize}
+                                    </span>
+                                )}
                             </button>
                         </div>
 

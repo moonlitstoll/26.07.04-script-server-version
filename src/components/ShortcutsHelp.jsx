@@ -2,9 +2,9 @@ import { X, Keyboard } from 'lucide-react';
 
 const SHORTCUTS = [
     { keys: ['Space'], desc: '재생 / 일시정지' },
-    { keys: ['Enter'], desc: '현재 문장 구간 반복' },
+    { keys: ['Enter'], desc: '현재 문장 구간 반복 (묶음 N이면 N문장)' },
     { keys: ['B'], desc: '분석 표시 켜기 / 끄기' },
-    { keys: ['←', '→'], desc: '이전 / 다음 문장으로 이동' },
+    { keys: ['←', '→'], desc: '이전 / 다음 문장 (묶음 반복 중엔 묶음 단위, 오답 모드에선 오답만)' },
     { keys: ['↑', '↓'], desc: '5초 뒤로 / 앞으로 탐색' },
     { keys: ['[', ']'], desc: '재생 속도 느리게 / 빠르게' },
     { keys: ['?'], desc: '이 도움말 열기 / 닫기' },

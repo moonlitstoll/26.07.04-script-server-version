@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { clampLoopGroupSize } from '../utils/loopGroups';
 
 const DEFAULTS = {
     apiKey: '',
@@ -14,6 +15,7 @@ const DEFAULTS = {
     chunkEnabled: false,
     chunkMinutes: 10,
     realignEnabled: true,
+    loopGroupSize: 1,   // 묶음 반복: 한 번에 반복할 문장 수 (1 = 기존 한 문장 반복)
 };
 
 const STORAGE_KEYS = {
@@ -30,6 +32,7 @@ const STORAGE_KEYS = {
     chunkEnabled: 'miniapp_chunk_enabled',
     chunkMinutes: 'miniapp_chunk_minutes',
     realignEnabled: 'miniapp_realign_enabled',
+    loopGroupSize: 'miniapp_loop_group_size',
 };
 
 function loadFromStorage() {
@@ -55,6 +58,10 @@ function loadFromStorage() {
         realignEnabled: localStorage.getItem(STORAGE_KEYS.realignEnabled) !== null
             ? localStorage.getItem(STORAGE_KEYS.realignEnabled) === 'true'
             : DEFAULTS.realignEnabled,
+        // 오염된 값(NaN/범위 밖)이 들어와도 1~10으로 강제 → 묶음 로직이 이상한 N을 보는 일이 없다
+        loopGroupSize: localStorage.getItem(STORAGE_KEYS.loopGroupSize) !== null
+            ? clampLoopGroupSize(localStorage.getItem(STORAGE_KEYS.loopGroupSize))
+            : DEFAULTS.loopGroupSize,
     };
 }
 

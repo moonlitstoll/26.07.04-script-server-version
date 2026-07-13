@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { buildLoopGroups, clampLoopGroupSize } from '../utils/loopGroups';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -15,7 +16,7 @@ function safePlay(v, setIsPlaying, label) {
     });
 }
 
-export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
+export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1 }) => {
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -44,6 +45,39 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     useEffect(() => {
         isGlobalLoopActiveRef.current = isGlobalLoopActive;
     }, [isGlobalLoopActive]);
+
+    // ── 묶음 반복(N문장) ─────────────────────────────────────────────
+    // loopTargetIdxRef는 '반복할 문장'이자 '묶음을 고르는 기준 문장'이다.
+    // 화면(카드 띠)이 반응해야 하므로 상태로도 미러링한다. setAnchor를 유일한 창구로 쓴다.
+    const [loopAnchorIdx, setLoopAnchorIdx] = useState(-1);
+    const setAnchor = useCallback((i) => {
+        const v = (typeof i === 'number' && i >= 0) ? i : -1;
+        loopTargetIdxRef.current = (i === null || i === undefined) ? null : i;
+        setLoopAnchorIdx(prev => (prev === v ? prev : v));   // 10Hz 싱크에서 불필요한 리렌더 방지
+    }, []);
+
+    const loopN = clampLoopGroupSize(loopGroupSize);
+    const transcript = activeFile?.data;
+    // N=1이면 EMPTY를 반환하므로 묶음 경로 자체가 켜지지 않는다(기존 동작 보존).
+    const { groups: loopGroups, groupOf: loopGroupOf } = useMemo(
+        () => buildLoopGroups(transcript, loopN),
+        [transcript, loopN]
+    );
+
+    // 싱크 엔진(100ms)은 ref로만 읽는다 — deps에 넣으면 리스너가 재부착되며 재생이 끊긴다.
+    const loopNRef = useRef(loopN);
+    const loopGroupsRef = useRef(null);
+    useEffect(() => {
+        loopGroupsRef.current = { groups: loopGroups, groupOf: loopGroupOf, len: transcript?.length || 0 };
+    }, [loopGroups, loopGroupOf, transcript]);
+
+    // N이 바뀌면 지금 재생 중인 문장이 속한 묶음으로 다시 잡는다
+    // (안 하면 옛 묶음 기준이 남아 엉뚱한 구간을 반복하거나 이탈 감지에 걸려 한 틱 튄다).
+    useEffect(() => {
+        loopNRef.current = loopN;
+        const cur = activeIdxRef.current;
+        if (cur >= 0) setAnchor(cur);
+    }, [loopN, setAnchor]);
 
     const mediaUrl = activeFile?.url || null;
     const isAnalyzing = activeFile?.isAnalyzing || false;
@@ -99,7 +133,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             localStorage.setItem('miniapp_loop_active', next.toString());
             if (next) {
                 // 루프가 켜질 때 현재 인덱스를 고정
-                loopTargetIdxRef.current = activeIdxRef.current;
+                setAnchor(activeIdxRef.current);
             }
             if (videoRef.current) {
                 // [Phase 4] 한곡 반복 수정: 한문장 반복이 켜지면 네이티브 루프(한곡 반복)는 꺼야 함
@@ -107,7 +141,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             }
             return next;
         });
-    }, [triggerManualScroll]);
+    }, [triggerManualScroll, setAnchor]);
 
     // 문장 반복을 특정 값으로 설정 (toggleLoop의 '값 지정' 버전).
     // 오답 모드 진입 시 반복 강제 ON, 이탈 시 이전 상태 복원에 사용.
@@ -115,20 +149,20 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         setIsGlobalLoopActive(prev => {
             if (prev === val) return prev;
             localStorage.setItem('miniapp_loop_active', val.toString());
-            if (val) loopTargetIdxRef.current = activeIdxRef.current;
+            if (val) setAnchor(activeIdxRef.current);
             if (videoRef.current) videoRef.current.loop = !val;
             return val;
         });
-    }, []);
+    }, [setAnchor]);
 
     const jumpToSentence = useCallback((index) => {
         if (activeFile?.data && index >= 0 && index < activeFile.data.length) {
             triggerManualScroll();
-            // Global Loop 루프 타겟 업데이트
-            loopTargetIdxRef.current = index;
+            // Global Loop 루프 타겟 업데이트 (묶음 반복에선 '어느 묶음을 반복할지'를 정하는 기준)
+            setAnchor(index);
             seekTo(Math.max(0, activeFile.data[index].seconds - bufferTime));
         }
-    }, [seekTo, activeFile, triggerManualScroll, bufferTime]);
+    }, [seekTo, activeFile, triggerManualScroll, bufferTime, setAnchor]);
 
     const handlePrev = useCallback((currentIndex) => {
         if (activeFile?.data?.length) {
@@ -196,9 +230,59 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
                 let loopIdx = loopTargetIdxRef.current;
 
                 // 만약 타겟이 없으면 현재 실시간 인덱스로 초기화
-                if (loopIdx === null) {
+                if (loopIdx === null || !data[loopIdx]) {
                     loopIdx = actualIdx;
-                    loopTargetIdxRef.current = actualIdx;
+                    setAnchor(actualIdx);
+                }
+
+                // ── 묶음 반복(N≥2): 기준 문장이 속한 '고정 묶음' 전체를 반복한다.
+                //    N=1이면 gm이 null(buildLoopGroups가 EMPTY 반환)이라 이 블록을 절대 타지 않는다
+                //    → 아래 기존 한 문장 반복 코드가 그대로 돌아간다(회귀 0).
+                const gm = loopGroupsRef.current;
+                if (loopNRef.current > 1 && gm?.groupOf && gm.len === data.length) {
+                    const g = gm.groups[gm.groupOf[loopIdx]];
+                    const first = g && data[g.start];
+                    const last = g && data[g.end];
+
+                    if (first && last) {
+                        const start = Math.max(0, first.seconds - bufferTime);
+                        // 끝 경계: 묶음 마지막 문장의 '형제'를 모두 건너뛴 진짜 다음 문장 (한 문장 반복과 같은 규칙)
+                        let nb = g.end + 1;
+                        while (nb < data.length && data[nb].seconds <= last.seconds) nb++;
+                        const nextItem = data[nb];
+                        const tailPad = Math.max(bufferTime, 0.35);
+                        const end = nextItem
+                            ? nextItem.seconds + tailPad
+                            : (v.duration ? v.duration + bufferTime : MAX_SEEK_FALLBACK);
+
+                        if (end > start) {
+                            // 수동 시크로 묶음 밖에 나갔으면 지금 위치의 묶음으로 재조준
+                            if (v.currentTime < start - 2.0 || v.currentTime > end + 2.0) {
+                                if (loopTargetIdxRef.current !== actualIdx) setAnchor(actualIdx);
+                                return;
+                            }
+
+                            if (v.currentTime >= end - 0.1 || v.ended) {
+                                lastActionTimeRef.current = Date.now();
+                                setIsPlaying(true);
+                                v.currentTime = start;
+                                safePlay(v, setIsPlaying, 'group loop restart');
+                                return;
+                            }
+
+                            // 하이라이트: 묶음 안에서 '지금 나오는 문장'을 따라가되 묶음 밖으로는 못 나간다.
+                            //   되감기 직후엔 재생 위치가 첫 문장보다 bufferTime만큼 앞이라 actualIdx가
+                            //   이전 문장을 가리키는데, 이 clamp가 그걸 묶음 첫 문장으로 끌어올린다.
+                            //   (한 문장 반복의 '하이라이트 고정'이 하던 일과 같은 역할)
+                            const shown = Math.min(Math.max(finalIdx, g.start), g.end);
+                            if (activeIdxRef.current !== shown) {
+                                activeIdxRef.current = shown;
+                                setActiveSentenceIdx(shown);
+                            }
+                            return;
+                        }
+                    }
+                    // 묶음 계산 실패(데이터 전환 중 등) → 아래 한 문장 반복으로 폴백
                 }
 
                 if (data[loopIdx]) {
@@ -219,7 +303,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
 
                     // [Phase 4] 수동 시크(Seek) 대응: 사용자가 루프 범위 밖으로 강제 이동했다면 루프 타겟 재설정
                     if (v.currentTime < start - 2.0 || v.currentTime > end + 2.0) {
-                        loopTargetIdxRef.current = actualIdx;
+                        if (loopTargetIdxRef.current !== actualIdx) setAnchor(actualIdx);
                         return;
                     }
 
@@ -248,7 +332,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
                     // 루프가 꺼져있을 때도 타겟 인덱스는 현재 위치를 따라가게 함
                     // 단, 가드 중에는 수동 설정된 값을 덮어쓰지 않도록 함
                     if (!isWithinActionGuard) {
-                        loopTargetIdxRef.current = finalIdx;
+                        setAnchor(finalIdx);
                     }
                 }
             }
@@ -289,7 +373,10 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             v.removeEventListener('loadedmetadata', handleLoadedMetadata);
             if (pulseId) clearInterval(pulseId);
         };
-    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode]);
+        // setAnchor는 안정 참조(useCallback []) — deps에 있어도 리스너가 재부착되지 않는다.
+        // loopGroupSize는 절대 deps에 넣지 말 것(ref로 읽는다): 넣으면 N을 바꿀 때마다
+        // 미디어 리스너가 통째로 재부착되고 v.loop이 재설정돼 재생이 끊긴다.
+    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode, setAnchor]);
 
     // ─────────────────────────────────────────────────────────────
     // MediaSession: 알림/잠금화면에 '이전/다음 문장' 버튼만 추가한다.
@@ -348,7 +435,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
     // [위치 복원] 저장된 문장으로 재생 커서·하이라이트를 맞춘다(정지 유지, 자동재생 안 함).
     // 스크롤은 App(대본 컨테이너)에서 담당. 데이터가 마운트된 뒤 호출되어야 함.
     const restoreTo = useCallback((idx, seconds) => {
-        loopTargetIdxRef.current = idx;
+        setAnchor(idx);
         lastActionTimeRef.current = Date.now();
         activeIdxRef.current = idx;
         setActiveSentenceIdx(idx);
@@ -356,11 +443,14 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         // 비디오가 아직 안 붙었어도 seek을 예약 → 마운트되면 자동 적용
         pendingSeekRef.current = Math.max(0, seconds - bufferTime);
         applyPendingSeek();
-    }, [bufferTime, applyPendingSeek]);
+    }, [bufferTime, applyPendingSeek, setAnchor]);
 
     const resetPlayerState = useCallback(() => {
         setActiveSentenceIdx(-1);
         activeIdxRef.current = -1; // CRITICAL: Reset the ref so the engine detects the first update
+        // 파일이 바뀌면 이전 파일의 반복 기준 인덱스를 버린다. 안 지우면 새 파일에서
+        // 엉뚱한 문장이 반복 기준이 되고, 묶음 띠도 엉뚱한 곳에 그려진다.
+        setAnchor(null);
         setCurrentTime(0);
         setIsPlaying(false);
         // isGlobalLoopActive stays as is (Global Setting)
@@ -368,7 +458,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
             videoRef.current.pause();
             videoRef.current.currentTime = 0;
         }
-    }, []);
+    }, [setAnchor]);
 
     return {
         videoRef,
@@ -382,6 +472,12 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3 }) => {
         manualScrollNonce,
         activeIdxRef,
         lastActionTimeRef,
+        // 묶음 반복: 기준 문장(앵커)과 묶음 테이블. ←/→가 묶음 단위로 움직이려면 App이 이걸 봐야 한다.
+        // loopTargetIdxRef는 '동기' 값 — 연타 시 React 상태(loopAnchorIdx)는 커밋이 늦어 같은 자리에 머문다.
+        loopAnchorIdx,
+        loopTargetIdxRef,
+        loopGroups,
+        loopGroupOf,
         triggerManualScroll,
         handleRateChange,
         seekTo,
