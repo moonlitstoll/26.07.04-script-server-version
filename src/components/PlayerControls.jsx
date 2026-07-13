@@ -8,6 +8,15 @@ import { formatClock } from '../utils/timeUtils';
 // 재생 속도 프리셋 (0.5x ~ 2.0x, 0.1 간격)
 const PLAYBACK_RATES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0];
 
+// 컨트롤 바는 모든 크기를 min(Nvw, 최대px)로 잡는다.
+// 브라우저 확대(110% 등)를 하면 CSS 뷰포트 폭이 줄어드는데, px 고정값이면
+// 바 전체 폭이 화면을 넘겨 마지막 버튼(반복)이 잘려 나간다. vw 비례로 두면
+// 확대 시 버튼·썸네일·간격이 함께 축소돼 어떤 배율에서도 한 줄에 다 들어온다.
+// 아이콘도 같이 줄여야 하므로 lucide의 size 대신 클래스로 지정(SVG 속성보다 CSS가 우선).
+const ICON_SM = 'w-[min(4.2vw,16px)] h-[min(4.2vw,16px)]';
+const ICON_MD = 'w-[min(4.8vw,18px)] h-[min(4.8vw,18px)]';
+const ICON_LG = 'w-[min(5.3vw,20px)] h-[min(5.3vw,20px)]';
+
 const PlayerControls = ({
     attachVideo, mediaUrl, isPlaying, currentTime, duration,
     playbackRate, isGlobalLoopActive, currentSentenceIdx,
@@ -60,7 +69,7 @@ const PlayerControls = ({
                 {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="sr-only" />}
 
                 {/* Left: Video Thumbnail or Recovery UI */}
-                <div className="relative bg-black w-[104px] sm:w-[140px] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
+                <div className="relative bg-black w-[min(26vw,140px)] shrink-0 overflow-hidden group border-r border-slate-100 flex items-center justify-center">
                     {mediaUrl ? (
                         <>
                             <video
@@ -95,8 +104,8 @@ const PlayerControls = ({
                 <div className="flex-1 flex flex-col justify-center min-w-0">
 
                     {/* Row 1: Progress Bar */}
-                    <div className="w-full px-3 pt-2 pb-1 flex items-center gap-2 text-[10px] sm:text-xs font-mono font-bold text-slate-500">
-                        <span className="w-9 shrink-0 text-indigo-600 text-right">
+                    <div className="w-full px-2 sm:px-3 pt-2 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500">
+                        <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 text-right">
                             {formatClock(currentTime)}
                         </span>
 
@@ -116,21 +125,22 @@ const PlayerControls = ({
                             />
                         </div>
 
-                        <span className="w-9 shrink-0 text-left">{duration ? formatClock(duration) : "00:00"}</span>
+                        <span className="w-[min(9.5vw,36px)] shrink-0 text-left">{duration ? formatClock(duration) : "00:00"}</span>
                     </div>
 
                     {/* Row 2: Control Buttons */}
-                    <div className="flex items-center justify-between px-2 pl-1 py-1 gap-1">
+                    <div className="flex items-center justify-between px-2 pl-1 py-1 gap-[min(1vw,4px)]">
 
                         {/* Speed & Analysis */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-[min(1vw,4px)]">
                             <div className="relative">
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(!showSpeedMenu); }}
                                     aria-label={`재생 속도 ${playbackRate.toFixed(1)}x`}
                                     aria-expanded={showSpeedMenu}
                                     className={`
-                    flex items-center justify-center gap-0.5 px-1.5 sm:px-2 rounded-lg text-[11px] font-bold transition-all min-w-[38px] sm:min-w-[44px] min-h-[44px] border
+                    flex items-center justify-center gap-0.5 px-[min(1.5vw,6px)] rounded-lg font-bold transition-all border
+                    text-[min(2.9vw,11px)] min-w-[min(10vw,44px)] min-h-[min(11vw,44px)]
                     ${showSpeedMenu ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}
                   `}
                                 >
@@ -156,41 +166,43 @@ const PlayerControls = ({
                             <button
                                 onClick={() => setShowAnalysis(!showAnalysis)}
                                 aria-label={showAnalysis ? '번역/분석 숨기기' : '번역/분석 보기'}
-                                className={`flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] rounded-lg border transition-all ${showAnalysis ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-400 border-slate-200'}`}
+                                className={`flex items-center justify-center shrink-0 min-w-[min(10vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${showAnalysis ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-400 border-slate-200'}`}
                             >
-                                {showAnalysis ? <Eye size={16} /> : <EyeOff size={16} />}
+                                {showAnalysis ? <Eye className={ICON_SM} /> : <EyeOff className={ICON_SM} />}
                             </button>
                         </div>
 
                         {/* Main Controls */}
-                        <div className="flex items-center gap-1.5">
-                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
-                                <SkipBack size={18} className="fill-current" />
+                        <div className="flex items-center gap-[min(1.2vw,6px)]">
+                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center shrink-0 min-w-[min(10vw,44px)] min-h-[min(11vw,44px)] text-slate-400 hover:text-indigo-600 transition-colors">
+                                <SkipBack className={`${ICON_MD} fill-current`} />
                             </button>
 
                             <button
                                 onClick={togglePlay}
                                 aria-label={isPlaying ? '일시정지' : '재생'}
-                                className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform active:scale-95"
+                                className="w-[min(11vw,44px)] h-[min(11vw,44px)] shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform active:scale-95"
                             >
-                                {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+                                {isPlaying
+                                    ? <Pause className={ICON_LG} fill="currentColor" />
+                                    : <Play className={`${ICON_LG} ml-0.5`} fill="currentColor" />}
                             </button>
 
-                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] text-slate-400 hover:text-indigo-600 transition-colors">
-                                <SkipForward size={18} className="fill-current" />
+                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="flex items-center justify-center shrink-0 min-w-[min(10vw,44px)] min-h-[min(11vw,44px)] text-slate-400 hover:text-indigo-600 transition-colors">
+                                <SkipForward className={`${ICON_MD} fill-current`} />
                             </button>
                         </div>
 
                         {/* Right: Loop Only */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-[min(1vw,4px)]">
                             <button
                                 onClick={toggleLoop}
                                 aria-label={isGlobalLoopActive ? '문장 반복 끄기' : '문장 반복 켜기'}
                                 aria-pressed={isGlobalLoopActive}
-                                className={`flex items-center justify-center min-w-[36px] sm:min-w-[44px] min-h-[44px] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
+                                className={`flex items-center justify-center shrink-0 min-w-[min(10vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
                                 title="Toggle Global Sentence Loop"
                             >
-                                <Repeat size={16} className={isGlobalLoopActive ? 'animate-pulse' : ''} />
+                                <Repeat className={`${ICON_SM} ${isGlobalLoopActive ? 'animate-pulse' : ''}`} />
                             </button>
                         </div>
 
