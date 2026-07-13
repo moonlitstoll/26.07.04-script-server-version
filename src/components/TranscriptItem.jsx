@@ -35,16 +35,6 @@ const TranscriptItem = memo(({
 }) => {
     const itemRef = useRef(null);
 
-    // 묶음 반복 중에는 하이라이트가 묶음 안에서 문장마다 움직인다.
-    // 그때 block:'start'로 스크롤하면 문장이 넘어갈 때마다 화면이 위로 하드 스크롤되고
-    // 되감길 때 또 크게 튄다. 묶음 안에서는 'nearest'(이미 보이면 안 움직임)로 낮춘다.
-    // deps 오염을 피하려고 ref로 읽는다(값이 바뀌었다고 스크롤이 발동하면 안 됨).
-    // (아래 스크롤 이펙트보다 먼저 선언해야 같은 커밋에서 최신 값이 반영된다 — 이펙트는 선언 순서대로 실행)
-    const scrollBlockRef = useRef('start');
-    useEffect(() => {
-        scrollBlockRef.current = inLoopGroup ? 'nearest' : 'start';
-    }, [inLoopGroup]);
-
     // 1. Focus Lock: Conditional Anchoring
     const prevActiveRef = useRef(isActive);
     const prevNonceRef = useRef(manualScrollNonce);
@@ -63,7 +53,7 @@ const TranscriptItem = memo(({
         if (shouldScroll && itemRef.current) {
             itemRef.current.scrollIntoView({
                 behavior: 'auto',
-                block: scrollBlockRef.current
+                block: 'start'
             });
         }
     }, [isActive, manualScrollNonce, isGlobalLooping]);
@@ -71,7 +61,7 @@ const TranscriptItem = memo(({
     // 2. Resize Stabilization
     useLayoutEffect(() => {
         if (isActive && itemRef.current) {
-            itemRef.current.scrollIntoView({ behavior: 'auto', block: scrollBlockRef.current });
+            itemRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
         }
     }, [showAnalysis, isActive]);
 
