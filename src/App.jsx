@@ -3,6 +3,14 @@ import {
   AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat
 } from 'lucide-react';
 import { clampLoopGroupSize, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
+
+// 상단 툴바 칩 공통 크기 — 하단 플레이어 바와 같은 min(Nvw, 최대px) 방식.
+// px 고정 크기면 좁은 화면(모바일·확대)에서 칩 합계가 화면 폭을 넘어 두 줄로 접힌다.
+// vw 비례로 두면 칩·아이콘·간격이 화면과 함께 축소돼 기본 칩 4개(재전사/휴지통/가리기/묶음)가
+// 240~430px 전 구간에서 한 줄에 들어온다. 가리기 모드의 추가 칩들은 가로 스와이프로 접근.
+// 아이콘은 lucide size 대신 클래스로 지정(SVG 속성보다 CSS가 우선).
+const CHIP = 'shrink-0 whitespace-nowrap inline-flex items-center gap-[min(0.9vw,4px)] px-[min(1.8vw,8px)] py-0.5 rounded-lg text-[min(2.9vw,12px)] font-bold border transition-colors';
+const CHIP_ICON = 'w-[min(3vw,13px)] h-[min(3vw,13px)] shrink-0';
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
@@ -660,36 +668,38 @@ const App = () => {
               <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto px-3 md:px-6 py-1 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    /* 줄바꿈 금지(한 줄 고정) + 칩은 vw 비례 축소. 기본 칩 4개는 240~430px 전 구간에서
+                       스크롤 없이 들어오고, 가리기 모드의 추가 칩들은 가로 스와이프로 접근한다. */
+                    <div className="flex items-center gap-[min(1.2vw,6px)] overflow-x-auto min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <button
                         onClick={() => setSelectMode(true)}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors"
+                        className={`${CHIP} text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100`}
                       >
-                        <Wand2 size={13} /> 재전사/분석
+                        <Wand2 className={CHIP_ICON} /> 재전사/분석
                       </button>
                       <button
                         onClick={() => setShowTrash(true)}
                         title="삭제한 문장 복구 (휴지통)"
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                        className={`${CHIP} text-slate-500 bg-white hover:bg-slate-50 border-slate-200`}
                       >
-                        <Trash2 size={13} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
+                        <Trash2 className={CHIP_ICON} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
                       </button>
 
                       {/* 🙈 가리기 학습 (클로즈) */}
                       <button
                         onClick={() => setDrillMode(d => !d)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border transition-colors ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'}`}
+                        className={`${CHIP} ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'}`}
                       >
-                        <EyeOff size={13} /> 가리기
+                        <EyeOff className={CHIP_ICON} /> 가리기
                       </button>
                       {drillMode && (
                         <>
-                          <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+                          <div className="shrink-0 inline-flex rounded-lg border border-slate-200 overflow-hidden">
                             {[['easy', '초급'], ['mid', '중급'], ['hard', '고급']].map(([v, label]) => (
                               <button
                                 key={v}
                                 onClick={() => setDifficulty(v)}
-                                className={`px-2 py-0.5 text-xs font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                                className={`whitespace-nowrap px-[min(1.8vw,8px)] py-0.5 text-[min(2.9vw,12px)] font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                               >
                                 {label}
                               </button>
@@ -698,9 +708,9 @@ const App = () => {
                           <button
                             onClick={() => { setDrillRound(r => r + 1); clearLearnProgress(); }}
                             title="빈칸을 새로 섞고 이 영상의 오답 표시를 초기화합니다"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
+                            className={`${CHIP} text-slate-500 bg-white hover:bg-slate-50 border-slate-200`}
                           >
-                            <Shuffle size={13} /> 새 문제
+                            <Shuffle className={CHIP_ICON} /> 새 문제
                           </button>
                         </>
                       )}
@@ -710,30 +720,30 @@ const App = () => {
                         title={mistakeOnly
                           ? '오답 복습 중에는 한 문장씩 반복합니다 (숨긴 문장 소리가 새지 않도록)'
                           : '반복을 켰을 때 한 번에 반복할 문장 수'}
-                        className={`inline-flex items-center gap-0.5 rounded-lg border px-1.5 py-0.5 transition-colors ${mistakeOnly
+                        className={`shrink-0 whitespace-nowrap inline-flex items-center gap-[min(0.5vw,2px)] rounded-lg border px-[min(1.4vw,6px)] py-0.5 transition-colors ${mistakeOnly
                           ? 'bg-slate-50 border-slate-200 opacity-50'
                           : effLoopN > 1
                             ? 'bg-amber-50 border-amber-200'
                             : 'bg-white border-slate-200'}`}
                       >
-                        <Repeat size={13} className={effLoopN > 1 && !mistakeOnly ? 'text-amber-600' : 'text-slate-400'} />
-                        <span className="text-xs font-bold text-slate-500 mr-0.5">묶음</span>
+                        <Repeat className={`${CHIP_ICON} ${effLoopN > 1 && !mistakeOnly ? 'text-amber-600' : 'text-slate-400'}`} />
+                        <span className="text-[min(2.9vw,12px)] font-bold text-slate-500 mr-0.5">묶음</span>
                         <button
                           onClick={() => changeLoopGroupSize(effLoopN - 1)}
                           disabled={mistakeOnly || effLoopN <= LOOP_GROUP_MIN}
                           aria-label="묶음 문장 수 줄이기"
-                          className="w-5 h-5 rounded flex items-center justify-center text-sm font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                          className="w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] rounded flex items-center justify-center text-[min(3.3vw,14px)] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
                         </button>
-                        <span className={`w-4 text-center text-xs font-black tabular-nums ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700' : 'text-slate-600'}`}>
+                        <span className={`w-[min(3.7vw,16px)] text-center text-[min(2.9vw,12px)] font-black tabular-nums ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700' : 'text-slate-600'}`}>
                           {effLoopN}
                         </span>
                         <button
                           onClick={() => changeLoopGroupSize(effLoopN + 1)}
                           disabled={mistakeOnly || effLoopN >= LOOP_GROUP_MAX}
                           aria-label="묶음 문장 수 늘리기"
-                          className="w-5 h-5 rounded flex items-center justify-center text-sm font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                          className="w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] rounded flex items-center justify-center text-[min(3.3vw,14px)] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           +
                         </button>
@@ -743,9 +753,9 @@ const App = () => {
                       {(wrongIndices.length > 0 || mistakeOnly) && (
                         <button
                           onClick={toggleMistakeOnly}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border transition-colors ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'}`}
+                          className={`${CHIP} ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'}`}
                         >
-                          <AlertTriangle size={13} /> 오답 ({wrongIndices.length})
+                          <AlertTriangle className={CHIP_ICON} /> 오답 ({wrongIndices.length})
                         </button>
                       )}
                     </div>
