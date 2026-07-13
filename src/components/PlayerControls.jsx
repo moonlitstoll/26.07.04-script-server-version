@@ -17,13 +17,21 @@ const ICON_SM = 'w-[min(4.2vw,16px)] h-[min(4.2vw,16px)]';
 const ICON_MD = 'w-[min(4.8vw,18px)] h-[min(4.8vw,18px)]';
 const ICON_LG = 'w-[min(5.3vw,20px)] h-[min(5.3vw,20px)]';
 
-// 영상 프리뷰 박스의 가로세로비.
-// 박스를 정사각형으로 두면 가로 영상이 object-contain으로 위아래 검은 띠에 잘려
-// 실제 그림이 박스의 절반밖에 안 됐다. 그래서 박스 자체를 영상 비율에 맞춘다.
-// 가로 영상은 16:9까지 넓히고(띠 제거), 세로 영상은 정사각형까지만 좁힌다
-// (그대로 두면 박스가 극단적으로 홀쭉해져 탭 영역이 사라짐).
-const PREVIEW_ASPECT_MIN = 1;
+// 영상 프리뷰 박스의 가로세로비. 박스를 영상 비율에 맞춰야 object-contain의
+// 검은 띠가 사라지고 남는 자리를 전부 그림에 쓸 수 있다.
+// 하한 0.52: 바 높이 85px에서 박스 폭 44px(최소 터치 폭)을 보장하는 값.
+// 세로 영상(9:16 = 0.5625)은 하한에 걸리지 않으므로 제 비율 그대로 선다.
+const PREVIEW_ASPECT_MIN = 0.52;
 const PREVIEW_ASPECT_MAX = 16 / 9;
+
+// 영상 박스가 가져갈 수 있는 최대 폭.
+// 폭마다 새 창을 띄워 버튼 행의 min-content를 실측한 결과:
+//   버튼 필요 폭 R(W) ≈ 0.6W + 15px   (240/280/327/390/430px에서 158/182/210/248/271px)
+//   → 영상에 남는 폭 = W - R(W) = 0.4W - 15px
+// 여기서 여유 9px을 뺀 값이 상한이다. 박스 폭은 '높이 × 영상비율'로 파생되어
+// 화면이 좁아져도 스스로 줄지 않고, Chrome은 aspect-ratio로 정해진 폭을
+// flex-shrink 대상으로 보지 않으므로 max-width로 직접 막아야 한다.
+const PREVIEW_MAX_W = 'calc(40vw - 24px)';
 
 const PlayerControls = ({
     attachVideo, mediaUrl, isPlaying, currentTime, duration,
@@ -85,86 +93,93 @@ const PlayerControls = ({
 
     return (
         <div className="flex-none bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 shadow-lg pb-safe">
-            <div className="max-w-5xl mx-auto flex flex-col h-[85px] sm:h-[100px]">
+            <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
 
                 {/* 사운드+클럭 드라이버: 오디오 요소(화면 꺼져도 자동정지 안 됨).
                     display:none은 피하고 sr-only로 렌더 트리에 유지. */}
                 {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="sr-only" />}
 
-                {/* Row 1: Progress Bar — 패널 전체 폭(영상 위까지)을 써서 탐색 정확도를 높인다 */}
-                <div className="flex-none w-full px-2 sm:px-3 pt-1.5 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500">
-                    <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 text-right">
-                        {formatClock(currentTime)}
-                    </span>
+                {/* Left: Video Thumbnail or Recovery UI
 
-                    <div
-                        className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden cursor-pointer group relative"
-                        onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            if (duration) {
-                                seekTo(((e.clientX - rect.left) / rect.width) * duration);
-                            }
-                        }}
-                    >
-                        <div className="absolute inset-0 w-full h-full hover:bg-slate-200/40 transition-colors" />
-                        <div
-                            className="h-full bg-indigo-500 rounded-full relative group-hover:bg-indigo-600 transition-all duration-300 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
-                            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                        />
-                    </div>
+                    영상 그림의 크기는 '박스 높이'가 지배한다(특히 세로 영상: 그림 = 비율×높이,
+                    폭을 아무리 줘도 안 커진다). 그래서 박스는 반드시 바 전체 높이를 쓴다.
+                    진행바를 별도 행으로 빼면 그 25px만큼 박스 높이가 깎여 세로 영상이 정확히
+                    절반이 된다 — 그래서 진행바는 오른쪽 컨트롤 열 안에 둔다.
 
-                    <span className="w-[min(9.5vw,36px)] shrink-0 text-left">{duration ? formatClock(duration) : "00:00"}</span>
+                    height = min(바 높이, 폭상한 ÷ 비율)로 잡아 박스가 그림에 딱 붙게 한다.
+                    (h-full로만 두면 가로 영상이 폭상한에 걸려 위아래 검은 띠가 다시 생긴다.)
+                    테두리(border)는 오른쪽 컨트롤 열이 border-l로 그린다 — 여기에 border를 주면
+                    box-sizing:border-box 때문에 aspect-ratio가 테두리 포함 폭에 걸려
+                    안쪽 그림이 1px 깎이고, 그 순간 세로 영상이 폭 지배로 뒤집혀 높이까지 손해다. */}
+                <div
+                    className={`relative bg-black self-center shrink-0 overflow-hidden group flex items-center justify-center ${mediaUrl ? '' : 'w-[min(26vw,120px)] h-full'}`}
+                    style={mediaUrl ? {
+                        aspectRatio: previewAspect,
+                        height: `min(100%, calc(${PREVIEW_MAX_W} / ${previewAspect}))`,
+                        maxWidth: PREVIEW_MAX_W,
+                    } : undefined}
+                >
+                        {mediaUrl ? (
+                        <>
+                            <video
+                                ref={visualVideoRef}
+                                src={mediaUrl}
+                                className="w-full h-full object-contain"
+                                onClick={togglePlay}
+                                onLoadedMetadata={handleLoadedMetadata}
+                                playsInline
+                                muted
+                            />
+                            {!isPlaying && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+                                    <Play className={`${ICON_LG} text-white ml-0.5`} fill="white" />
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center p-1 text-center gap-1">
+                            <AlertCircle className={`${ICON_SM} text-red-400`} />
+                            <div className="text-[9px] font-bold text-slate-300 leading-tight">
+                                원본 파일 없음
+                            </div>
+                            <label className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold rounded cursor-pointer transition-colors">
+                                연결하기
+                                <input type="file" className="hidden" onChange={(e) => processFiles(e.target.files)} accept="audio/*,video/*" />
+                            </label>
+                        </div>
+                    )}
                 </div>
 
-                {/* Row 2: 영상 프리뷰 + 컨트롤 버튼 */}
-                <div className="flex-1 min-h-0 flex flex-row items-stretch">
+                {/* Right: Controls Column (진행바 + 버튼) */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center border-l border-slate-100">
 
-                    {/* Left: Video Thumbnail or Recovery UI
-                        박스 폭 = 높이 × 영상비율(aspectRatio) → 검은 띠 없이 남는 폭을 전부 그림에 쓴다.
+                    {/* Row 1: Progress Bar */}
+                    <div className="w-full px-2 sm:px-3 pt-2 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500">
+                        <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 text-right">
+                            {formatClock(currentTime)}
+                        </span>
 
-                        상한 calc(66vw - 108px)이 반드시 필요하다: 이 폭은 바 높이에서 파생되므로
-                        화면이 좁아져도 줄지 않는데, 버튼 행이 실제로 필요한 폭은 측정 결과
-                        (0.335 × 화면폭 + 101px)이다. 상한이 없으면 크게 확대했을 때(240~280px)
-                        박스가 버튼 자리를 먹어 반복 버튼이 다시 잘린다. 상한 = 남는 폭 - 여유 8px.
-                        (Chrome은 aspect-ratio로 정해진 폭을 flex-shrink 대상으로 보지 않아
-                         shrink에 기댈 수 없다. 그래서 max-width로 직접 막는다.) */}
-                    <div
-                        className={`relative bg-black h-full shrink-0 max-w-[calc(66vw_-_108px)] overflow-hidden group border-r border-slate-100 flex items-center justify-center ${mediaUrl ? '' : 'w-[min(26vw,120px)]'}`}
-                        style={mediaUrl ? { aspectRatio: previewAspect } : undefined}
-                    >
-                        {mediaUrl ? (
-                            <>
-                                <video
-                                    ref={visualVideoRef}
-                                    src={mediaUrl}
-                                    className="w-full h-full object-contain"
-                                    onClick={togglePlay}
-                                    onLoadedMetadata={handleLoadedMetadata}
-                                    playsInline
-                                    muted
-                                />
-                                {!isPlaying && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                                        <Play className={`${ICON_LG} text-white ml-0.5`} fill="white" />
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center p-1 text-center gap-1">
-                                <AlertCircle className={`${ICON_SM} text-red-400`} />
-                                <div className="text-[9px] font-bold text-slate-300 leading-tight">
-                                    원본 파일 없음
-                                </div>
-                                <label className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold rounded cursor-pointer transition-colors">
-                                    연결하기
-                                    <input type="file" className="hidden" onChange={(e) => processFiles(e.target.files)} accept="audio/*,video/*" />
-                                </label>
-                            </div>
-                        )}
+                        <div
+                            className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden cursor-pointer group relative"
+                            onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                if (duration) {
+                                    seekTo(((e.clientX - rect.left) / rect.width) * duration);
+                                }
+                            }}
+                        >
+                            <div className="absolute inset-0 w-full h-full hover:bg-slate-200/40 transition-colors" />
+                            <div
+                                className="h-full bg-indigo-500 rounded-full relative group-hover:bg-indigo-600 transition-all duration-300 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                                style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                            />
+                        </div>
+
+                        <span className="w-[min(9.5vw,36px)] shrink-0 text-left">{duration ? formatClock(duration) : "00:00"}</span>
                     </div>
 
-                    {/* Right: Control Buttons — 필요한 폭은 무조건 확보(shrink 0), 남으면 늘어남 */}
-                    <div className="flex-[1_0_auto] flex items-center justify-between px-2 pl-1 gap-[min(1vw,4px)]">
+                    {/* Row 2: Control Buttons */}
+                    <div className="flex items-center justify-between px-2 pl-1 py-1 gap-[min(1vw,4px)]">
 
                         {/* Speed & Analysis */}
                         <div className="flex items-center gap-[min(1vw,4px)]">
