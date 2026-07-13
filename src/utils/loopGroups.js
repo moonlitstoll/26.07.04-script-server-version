@@ -15,7 +15,7 @@
 // ←/→ 묶음 이동(App)이 모두 이 함수를 쓰므로 세 곳이 어긋날 수 없다.
 
 export const LOOP_GROUP_MIN = 1;
-export const LOOP_GROUP_MAX = 10;
+export const LOOP_GROUP_MAX = 20;
 
 export const clampLoopGroupSize = (n) => {
     const v = typeof n === 'number' ? n : parseInt(n, 10);

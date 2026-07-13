@@ -58,7 +58,7 @@ function loadFromStorage() {
         realignEnabled: localStorage.getItem(STORAGE_KEYS.realignEnabled) !== null
             ? localStorage.getItem(STORAGE_KEYS.realignEnabled) === 'true'
             : DEFAULTS.realignEnabled,
-        // 오염된 값(NaN/범위 밖)이 들어와도 1~10으로 강제 → 묶음 로직이 이상한 N을 보는 일이 없다
+        // 오염된 값(NaN/범위 밖)이 들어와도 허용 범위(LOOP_GROUP_MIN~MAX)로 강제 → 묶음 로직이 이상한 N을 보는 일이 없다
         loopGroupSize: localStorage.getItem(STORAGE_KEYS.loopGroupSize) !== null
             ? clampLoopGroupSize(localStorage.getItem(STORAGE_KEYS.loopGroupSize))
             : DEFAULTS.loopGroupSize,
