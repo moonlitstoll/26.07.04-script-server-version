@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { buildLoopGroups, clampLoopGroupSize } from '../utils/loopGroups';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -57,22 +57,14 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
     }, []);
 
     const loopN = clampLoopGroupSize(loopGroupSize);
-    const transcript = activeFile?.data;
-    // N=1이면 EMPTY를 반환하므로 묶음 경로 자체가 켜지지 않는다(기존 동작 보존).
-    const { groups: loopGroups, groupOf: loopGroupOf } = useMemo(
-        () => buildLoopGroups(transcript, loopN),
-        [transcript, loopN]
-    );
 
-    // 싱크 엔진(100ms)은 ref로만 읽는다 — deps에 넣으면 리스너가 재부착되며 재생이 끊긴다.
+    // 묶음 경계는 slidingGroupBounds(순수 함수)로 엔진이 매 틱 직접 계산한다.
+    // (고정 표 방식과 달리 '표와 대본이 어긋나는' 상태 자체가 없다)
+    // 싱크 엔진(100ms)은 N을 ref로만 읽는다 — deps에 넣으면 리스너가 재부착되며 재생이 끊긴다.
     const loopNRef = useRef(loopN);
-    const loopGroupsRef = useRef(null);
-    useEffect(() => {
-        loopGroupsRef.current = { groups: loopGroups, groupOf: loopGroupOf, len: transcript?.length || 0 };
-    }, [loopGroups, loopGroupOf, transcript]);
 
-    // N이 바뀌면 지금 재생 중인 문장이 속한 묶음으로 다시 잡는다
-    // (안 하면 옛 묶음 기준이 남아 엉뚱한 구간을 반복하거나 이탈 감지에 걸려 한 틱 튄다).
+    // N이 바뀌면 지금 재생 중인 문장부터 묶음을 다시 잡는다
+    // (안 하면 옛 앵커 기준이 남아 엉뚱한 구간을 반복하거나 이탈 감지에 걸려 한 틱 튄다).
     useEffect(() => {
         loopNRef.current = loopN;
         const cur = activeIdxRef.current;
@@ -235,12 +227,11 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                     setAnchor(actualIdx);
                 }
 
-                // ── 묶음 반복(N≥2): 기준 문장이 속한 '고정 묶음' 전체를 반복한다.
-                //    N=1이면 gm이 null(buildLoopGroups가 EMPTY 반환)이라 이 블록을 절대 타지 않는다
+                // ── 묶음 반복(N≥2): 앵커 문장부터 N문장을 반복한다(앵커 슬라이딩).
+                //    N=1이면 이 블록을 절대 타지 않는다(slidingGroupBounds도 null 반환)
                 //    → 아래 기존 한 문장 반복 코드가 그대로 돌아간다(회귀 0).
-                const gm = loopGroupsRef.current;
-                if (loopNRef.current > 1 && gm?.groupOf && gm.len === data.length) {
-                    const g = gm.groups[gm.groupOf[loopIdx]];
+                if (loopNRef.current > 1) {
+                    const g = slidingGroupBounds(data, loopIdx, loopNRef.current);
                     const first = g && data[g.start];
                     const last = g && data[g.end];
 
@@ -472,12 +463,10 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         manualScrollNonce,
         activeIdxRef,
         lastActionTimeRef,
-        // 묶음 반복: 기준 문장(앵커)과 묶음 테이블. ←/→가 묶음 단위로 움직이려면 App이 이걸 봐야 한다.
+        // 묶음 반복: 기준 문장(앵커). 묶음 경계는 App이 slidingGroupBounds로 직접 계산한다.
         // loopTargetIdxRef는 '동기' 값 — 연타 시 React 상태(loopAnchorIdx)는 커밋이 늦어 같은 자리에 머문다.
         loopAnchorIdx,
         loopTargetIdxRef,
-        loopGroups,
-        loopGroupOf,
         triggerManualScroll,
         handleRateChange,
         seekTo,

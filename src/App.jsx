@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import {
   AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat
 } from 'lucide-react';
-import { clampLoopGroupSize, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
+import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 
 // 상단 툴바 칩 공통 크기 — 하단 플레이어 바와 같은 min(Nvw, 최대px) 방식.
 // px 고정 크기면 좁은 화면(모바일·확대)에서 칩 합계가 화면 폭을 넘어 두 줄로 접힌다.
@@ -128,7 +128,7 @@ const App = () => {
     videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
     manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
     handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo,
-    loopAnchorIdx, loopTargetIdxRef, loopGroups, loopGroupOf
+    loopAnchorIdx, loopTargetIdxRef
   } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN });
 
   // 묶음 크기 변경: 2 이상을 고르면 반복을 자동으로 켠다(안 켜면 "골랐는데 아무 일도 안 남"이 된다).
@@ -139,11 +139,11 @@ const App = () => {
   }, [updateField, setLoopActive]);
 
   // 지금 반복 중인 묶음의 범위 (카드 띠 표시용). 묶음 반복이 꺼져 있으면 null.
+  // 엔진·←/→와 같은 slidingGroupBounds를 쓰므로 띠와 실제 반복 구간이 어긋날 수 없다.
   const loopGroup = useMemo(() => {
-    if (!isGlobalLoopActive || effLoopN <= 1 || !loopGroupOf || loopAnchorIdx < 0) return null;
-    if (loopAnchorIdx >= loopGroupOf.length) return null;
-    return loopGroups[loopGroupOf[loopAnchorIdx]] || null;
-  }, [isGlobalLoopActive, effLoopN, loopGroupOf, loopGroups, loopAnchorIdx]);
+    if (!isGlobalLoopActive || effLoopN <= 1 || loopAnchorIdx < 0 || loopAnchorIdx >= transcriptData.length) return null;
+    return slidingGroupBounds(transcriptData, loopAnchorIdx, effLoopN);
+  }, [isGlobalLoopActive, effLoopN, loopAnchorIdx, transcriptData]);
 
   const learnFileKey = activeFile?.file ? `${activeFile.file.name}_${activeFile.file.size}` : null;
   const { mark: markProgress, wrongIndices, isWrong, clearFile: clearLearnProgress } = useLearningProgress(learnFileKey, transcriptData);
@@ -153,18 +153,28 @@ const App = () => {
   // 묶음 [10~14]에서 12번을 듣던 중 →를 눌렀을 때 17로 튀어 15·16이 통째로 스킵된다.
   // 반환값 true = 묶음 이동을 처리했음(문장 단위 이동을 하지 말 것).
   const stepLoopGroup = useCallback((dir, cur) => {
-    if (!isGlobalLoopActive || effLoopN <= 1 || !loopGroupOf || loopGroups.length === 0) return false;
+    if (!isGlobalLoopActive || effLoopN <= 1 || transcriptData.length === 0) return false;
     const anchor = loopTargetIdxRef.current;
-    const base = (typeof anchor === 'number' && anchor >= 0 && anchor < loopGroupOf.length)
+    const base = (typeof anchor === 'number' && anchor >= 0 && anchor < transcriptData.length)
       ? anchor
-      : (cur >= 0 && cur < loopGroupOf.length ? cur : 0);
-    const gi = loopGroupOf[base];
-    const len = loopGroups.length;
-    const target = loopGroups[(gi + dir + len) % len];   // 끝에서 순환
-    if (!target) return false;
-    jumpToSentence(target.start);
+      : (cur >= 0 && cur < transcriptData.length ? cur : 0);
+    const g = slidingGroupBounds(transcriptData, base, effLoopN);
+    if (!g) return false;
+    let target;
+    if (dir > 0) {
+      // 다음 묶음 = 지금 묶음 끝의 다음 문장부터. 대본 끝이면 처음으로 순환.
+      target = g.end + 1 < transcriptData.length ? g.end + 1 : 0;
+    } else if (g.start > 0) {
+      // 이전 묶음 = 지금 묶음 시작에서 N문장 앞. (형제 블록에 걸리면
+      // slidingGroupBounds가 알아서 블록 시작으로 당기므로 그대로 점프해도 안전)
+      target = Math.max(0, g.start - effLoopN);
+    } else {
+      // 첫 묶음에서 ← = 마지막 묶음(대본 끝에서 N문장 앞)으로 순환
+      target = Math.max(0, transcriptData.length - effLoopN);
+    }
+    jumpToSentence(target);
     return true;
-  }, [isGlobalLoopActive, effLoopN, loopGroupOf, loopGroups, loopTargetIdxRef, jumpToSentence]);
+  }, [isGlobalLoopActive, effLoopN, transcriptData, loopTargetIdxRef, jumpToSentence]);
 
   // [함정 #1] 화면은 걸러진 목록이지만 점프는 '원래 문장 번호'로. wrongIndices(원래 인덱스)를 그대로 사용.
   // [함정 #4] 반복 재조준은 jumpToSentence가 loopTargetIdxRef를 갱신하므로 자동 해결.
