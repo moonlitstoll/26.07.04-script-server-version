@@ -26,6 +26,7 @@ export default async function handler(req, res) {
                 contentType: 'application/json',
                 addRandomSuffix: false,
                 allowOverwrite: true,
+                cacheControlMaxAge: 60, // 허용 최소값 — 기본값(1개월)이면 덮어쓴 뒤에도 CDN이 옛 목록을 계속 준다
                 token,
             });
             res.status(200).json({ ok: true });
@@ -37,7 +38,11 @@ export default async function handler(req, res) {
         try {
             const existing = await head(path, { token });
             if (existing?.url) {
-                favorites = await fetch(existing.url, { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
+                // Blob 공개 URL은 CDN에 캐시된다({ cache: 'no-store' }는 함수 자체 캐시만 우회).
+                // 유일한 쿼리를 붙여 CDN 캐시를 뚫고 항상 마지막 저장본을 읽는다 —
+                // 이게 없으면 별을 눌러도 재시작 때 옛 목록이 내려와 즐겨찾기가 풀린다.
+                const bust = `${existing.url}${existing.url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+                favorites = await fetch(bust, { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
             }
         } catch { /* 아직 없음 */ }
         res.status(200).json({ favorites: Array.isArray(favorites) ? favorites : [] });

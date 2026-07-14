@@ -105,7 +105,8 @@ export async function fetchData(dataUrl) {
 export async function getFavorites() {
     const passphrase = getPassphrase();
     if (!passphrase) return [];
-    const res = await fetch(`/api/favorites?passphrase=${encodeURIComponent(passphrase)}`);
+    // 브라우저 캐시까지 확실히 우회 — 항상 서버의 현재 목록을 받는다
+    const res = await fetch(`/api/favorites?passphrase=${encodeURIComponent(passphrase)}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`favorites ${res.status}`);
     const { favorites } = await res.json();
     return favorites || [];
