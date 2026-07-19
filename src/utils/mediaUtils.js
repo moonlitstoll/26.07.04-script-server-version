@@ -93,6 +93,8 @@ export const sanitizeData = (data, duration = 0) => {
                 analysis: item.a || item.analysis || "",
                 // 전사의심(규칙15) 플래그: 여기서 통과시키지 않으면 캐시 재로드 때 배지가 유실된다
                 transcriptSuspect: item.transcriptSuspect || "",
+                // 대사 끝 시각(감지 패스가 채움, 선택 필드) — 숫자일 때만 통과, 아니면 필드 자체를 만들지 않음
+                ...(typeof item.speechEnd === 'number' && Number.isFinite(item.speechEnd) ? { speechEnd: item.speechEnd } : {}),
                 isAnalyzed: item.isAnalyzed || !!(item.a || item.analysis)
             };
         })

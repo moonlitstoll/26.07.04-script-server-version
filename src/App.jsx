@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 import { useEscapeToClose } from './hooks/useEscapeToClose';
@@ -167,7 +167,7 @@ const App = () => {
     manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
     handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo,
     loopAnchorIdx, loopTargetIdxRef
-  } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN });
+  } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN, speechOnly: !!config.speechOnlyEnabled });
 
   // 묶음 크기 변경: 2 이상을 고르면 반복을 자동으로 켠다(안 켜면 "골랐는데 아무 일도 안 남"이 된다).
   const changeLoopGroupSize = useCallback((n) => {
@@ -178,6 +178,13 @@ const App = () => {
 
   // 묶음 프리셋 팝오버: null=닫힘, {x,y}=앵커(숫자 버튼) 좌표. 좌표는 열 때 1회 스냅샷.
   const [loopPresetAnchor, setLoopPresetAnchor] = useState(null);
+
+  // [대사만 재생] 이 파일에 대사 끝 시각(speechEnd) 데이터가 하나라도 있는가
+  // (없으면 칩 탭 = 감지 실행, 있으면 칩 탭 = 켜기/끄기 토글. 엔진은 문장별로 알아서 폴백)
+  const hasSpeechEnds = useMemo(
+    () => transcriptData.some(d => typeof d.speechEnd === 'number'),
+    [transcriptData]
+  );
 
   // 지금 반복 중인 묶음의 범위 (카드 띠 표시용). 묶음 반복이 꺼져 있으면 null.
   // 엔진·←/→와 같은 slidingGroupBounds를 쓰므로 띠와 실제 반복 구간이 어긋날 수 없다.
@@ -322,7 +329,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, stage2AbortRef,
@@ -357,6 +364,25 @@ const App = () => {
       onConfirm: () => retranscribeRef.current(activeFileId, [i]),
     });
   }, [activeFileId, showConfirm]);
+
+  // [대사만 재생] 칩 동작: 감지 데이터 없으면 확인창 → 감지 1회 실행(성공 시 자동 켜기),
+  // 있으면 켜기/끄기 토글만 (감지 결과는 캐시에 저장돼 있어 추가 비용 0).
+  const handleSpeechOnlyChip = () => {
+    if (speechDetectBusy) return;
+    if (!hasSpeechEnds) {
+      showConfirm({
+        message: '대사 구간을 감지할까요? 오디오를 한 번 보내 문장마다 대사가 끝나는 시각을 알아냅니다. (전사 1회와 비슷한 비용 · 결과는 저장되어 계속 재사용)',
+        confirmText: '감지 시작',
+        danger: false,
+        onConfirm: async () => {
+          const ok = await detectSpeechEndsForFile(activeFileId);
+          if (ok) updateField('speechOnlyEnabled', true);
+        },
+      });
+      return;
+    }
+    updateField('speechOnlyEnabled', !config.speechOnlyEnabled);
+  };
 
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
@@ -838,6 +864,29 @@ const App = () => {
                           +
                         </button>
                       </div>
+
+                      {/* 🎧 대사만 재생: 반복 시 대사 끝~다음 대사 사이 긴 배경음악/무음 건너뛰기.
+                          감지 데이터가 없으면 탭 = 감지 실행(확인창), 있으면 탭 = 켜기/끄기 */}
+                      <button
+                        onClick={handleSpeechOnlyChip}
+                        disabled={speechDetectBusy === activeFileId}
+                        title={speechDetectBusy === activeFileId
+                          ? '대사 구간 감지 중...'
+                          : !hasSpeechEnds
+                            ? '대사 구간을 감지하면, 반복할 때 대사 사이 배경음악·무음을 건너뜁니다 (오디오 1회 전송)'
+                            : config.speechOnlyEnabled
+                              ? '대사만 재생 켜짐 — 탭하면 끄기'
+                              : '반복 시 대사 사이 긴 배경음악·무음 건너뛰기 — 탭하면 켜기'}
+                        className={`${CHIP} ${config.speechOnlyEnabled && hasSpeechEnds
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : hasSpeechEnds
+                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                            : 'text-slate-500 bg-white hover:bg-slate-50 border-slate-200'}`}
+                      >
+                        {speechDetectBusy === activeFileId
+                          ? <Loader2 className={`${CHIP_ICON} animate-spin`} />
+                          : <FastForward className={CHIP_ICON} />} 대사만
+                      </button>
 
                       {/* ❗ 오답만 보기 (오답 있을 때 표시 — 모드 중엔 0개여도 유지해 빠져나갈 수 있게) */}
                       {(wrongIndices.length > 0 || mistakeOnly) && (

@@ -1137,3 +1137,103 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
     return items.map(item => ({ index: item.index, failed: true }));
 }
 
+// ─────────────────────────────────────────────────────────────
+// [대사 끝 시각 감지] Speech-End Detection — '대사만 재생' 모드의 데이터 공급 패스.
+// 이미 전사된 문장 목록(시작 시각 포함)을 오디오와 함께 보내, 각 문장의
+// '말소리가 실제로 끝나는 시각'만 받아온다.
+// Stage 1/2 파이프라인·프롬프트·파서·캐시 형식을 일절 건드리지 않는 완전 별도 호출이며,
+// 결과는 문장 필드 speechEnd로만 저장된다(없어도 앱은 기존과 100% 동일 동작).
+// ─────────────────────────────────────────────────────────────
+
+const fmtSec = (s) => {
+    const m = Math.floor(s / 60);
+    const r = (s - m * 60).toFixed(1).padStart(4, '0');
+    return `${String(m).padStart(2, '0')}:${r}`;
+};
+
+// 응답 파싱: "[인덱스] MM:SS.ms" 줄들 → Map<index, seconds>. SKIP/형식 불일치 줄은 무시.
+// (테스트를 위해 export)
+export function parseSpeechEndResponse(text) {
+    const map = new Map();
+    if (!text) return map;
+    for (const m of text.matchAll(/^\s*\[(\d+)\]\s*(?:(\d{1,3}):(\d{2})(?:[.,](\d{1,3}))?|SKIP)\s*$/gm)) {
+        if (m[2] === undefined) continue; // SKIP
+        const idx = parseInt(m[1], 10);
+        const sec = parseInt(m[2], 10) * 60 + parseInt(m[3], 10)
+            + (m[4] ? parseInt(m[4].padEnd(3, '0').slice(0, 3), 10) / 1000 : 0);
+        if (Number.isFinite(sec)) map.set(idx, sec);
+    }
+    return map;
+}
+
+/**
+ * @param {Array<{index:number, seconds:number, text:string}>} sentences
+ * @returns {Promise<Map<number, number>>} index → 대사 끝 시각(초). 판단 불가 문장은 빠짐.
+ */
+export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signal = null } = {}) {
+    if (!apiKey) throw new Error("API Key is required");
+    if (!sentences || sentences.length === 0) return new Map();
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const modelName = resolveModel(modelId);
+    const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { temperature: 0.1, maxOutputTokens: 65536, ...disableThinkingConfig(modelName) },
+        safetySettings
+    }, { apiVersion: "v1beta" });
+
+    console.log(`[SpeechEnd] model: ${modelName}, ${sentences.length}문장 감지 시작`);
+    const audioBlob = await extractAudioBlob(file);
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
+
+    const list = sentences.map(s => `[${s.index}] (시작 ${fmtSec(s.seconds)}) ${s.text}`).join('\n');
+    const prompt = `당신은 오디오 타임라인 분석가입니다. 아래는 이 오디오의 대본 문장 목록이며, 각 문장의 시작 시각이 함께 적혀 있습니다.
+당신의 유일한 임무: 각 문장의 **말소리(사람 음성)가 실제로 끝나는 시각**을 찾아내는 것입니다.
+
+[규칙]
+1. 끝 시각 = 그 문장의 마지막 음절이 끝나는 순간. 뒤에 이어지는 배경음악·무음·효과음·숨소리는 포함하지 마십시오.
+2. 끝 시각은 반드시 그 문장의 시작 시각보다 커야 합니다.
+3. 출력은 문장마다 정확히 한 줄, 아래 형식만 사용하십시오 (설명·주석 금지):
+[인덱스] MM:SS.ms
+4. 그 문장의 끝을 확실히 판단할 수 없으면 지어내지 말고 그 줄에 다음과 같이 출력하십시오:
+[인덱스] SKIP
+5. 모든 문장을 순서대로 출력하고, 마지막 줄에 [DONE] 을 출력한 뒤 종료하십시오.
+
+[대본 문장 목록]
+${list}`;
+
+    // 1회 재시도(과부하 대비) + 타임아웃. 사용자가 수동으로 트리거하는 1회성 패스라 과한 재시도는 두지 않는다.
+    const TIMEOUT_MS = 300000;
+    let lastError;
+    for (let attempt = 0; attempt <= 1; attempt++) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const timeoutCtrl = new AbortController();
+        const combo = new AbortController();
+        const unlink1 = linkAbort(combo, signal);
+        const unlink2 = linkAbort(combo, timeoutCtrl.signal);
+        const timer = setTimeout(() => timeoutCtrl.abort(), TIMEOUT_MS);
+        try {
+            const result = await model.generateContent({
+                contents: [{ role: "user", parts: [mediaPart, { text: prompt }] }],
+            }, { signal: combo.signal });
+            const response = await result.response;
+            const u = response.usageMetadata;
+            if (u) console.log(`[SpeechEnd tokens] in=${u.promptTokenCount} out=${u.candidatesTokenCount}`);
+            return parseSpeechEndResponse(response.text());
+        } catch (error) {
+            lastError = error;
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+            if (attempt < 1) {
+                console.warn('[SpeechEnd] 실패 → 3초 후 1회 재시도:', error?.message || error);
+                try { await abortableSleep(3000, signal); } catch { throw new DOMException('Aborted', 'AbortError'); }
+                continue;
+            }
+        } finally {
+            clearTimeout(timer);
+            unlink1();
+            unlink2();
+        }
+    }
+    throw lastError || new Error('Speech-end detection failed');
+}
+

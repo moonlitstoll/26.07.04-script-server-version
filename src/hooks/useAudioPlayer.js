@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
+import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget } from '../utils/speechSegments';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -16,7 +17,7 @@ function safePlay(v, setIsPlaying, label) {
     });
 }
 
-export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1 }) => {
+export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1, speechOnly = false }) => {
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -70,6 +71,11 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         const cur = activeIdxRef.current;
         if (cur >= 0) setAnchor(cur);
     }, [loopN, setAnchor]);
+
+    // '대사만 재생' — 싱크 엔진은 ref로만 읽는다 (loopN과 같은 이유: deps에 넣으면 토글마다
+    // 미디어 리스너가 재부착되며 재생이 끊긴다). speechEnd가 없는 문장은 엔진이 문장별로 폴백.
+    const speechOnlyRef = useRef(speechOnly);
+    useEffect(() => { speechOnlyRef.current = speechOnly; }, [speechOnly]);
 
     const mediaUrl = activeFile?.url || null;
     const isAnalyzing = activeFile?.isAnalyzing || false;
@@ -242,9 +248,16 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                         while (nb < data.length && data[nb].seconds <= last.seconds) nb++;
                         const nextItem = data[nb];
                         const tailPad = Math.max(bufferTime, 0.35);
-                        const end = nextItem
+                        let end = nextItem
                             ? nextItem.seconds + tailPad
                             : (v.duration ? v.duration + bufferTime : MAX_SEEK_FALLBACK);
+
+                        // [대사만 재생] 묶음 끝: 마지막 문장의 대사 끝이 감지돼 있고 다음 문장까지
+                        // 간격이 길면 그 지점에서 되감는다. 감지값이 없거나 간격이 짧으면 기존 경계 유지.
+                        if (speechOnlyRef.current) {
+                            const t = trimmedLoopEnd(blockSpeechEnd(data, g.end), nextItem ? nextItem.seconds : null);
+                            if (t !== null && t > start + 0.5) end = Math.min(end, t);
+                        }
 
                         if (end > start) {
                             // 수동 시크로 묶음 밖에 나갔으면 지금 위치의 묶음으로 재조준
@@ -259,6 +272,24 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                                 v.currentTime = start;
                                 safePlay(v, setIsPlaying, 'group loop restart');
                                 return;
+                            }
+
+                            // [대사만 재생] 묶음 내부: 지금 문장의 대사가 끝났고 다음 묶음 내
+                            // 문장까지 간격이 길면 그 문장 시작(-버퍼)으로 점프. 조건 판정은
+                            // gapSkipTarget(순수 함수)이 전담 — 겹침/짧은 간격/재귀 점프 방어 포함.
+                            if (speechOnlyRef.current && !v.paused) {
+                                const m = Math.min(Math.max(finalIdx, g.start), g.end);
+                                let nm = m + 1;
+                                while (nm < data.length && data[nm].seconds <= data[m].seconds) nm++;
+                                if (nm <= g.end) {
+                                    const target = gapSkipTarget(data, m, nm, v.currentTime, bufferTime);
+                                    if (target !== null) {
+                                        lastActionTimeRef.current = Date.now();
+                                        v.currentTime = target;
+                                        safePlay(v, setIsPlaying, 'gap skip');
+                                        return;
+                                    }
+                                }
                             }
 
                             // 하이라이트: 묶음 안에서 '지금 나오는 문장'을 따라가되 묶음 밖으로는 못 나간다.
@@ -288,9 +319,16 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                     //   (다음 문장이 끝에 섞이는 걸 줄이려 0.5→0.35로 축소)
                     const tailPad = Math.max(bufferTime, 0.35);
                     // [Phase 4] 조기 종료 버그 수정: 5초 제한을 제거하고 실제 다음 문장 시작 전(+꼬리 여유)까지 재생
-                    const end = nextItem
+                    let end = nextItem
                         ? nextItem.seconds + tailPad
                         : (v.duration ? v.duration + bufferTime : MAX_SEEK_FALLBACK);
+
+                    // [대사만 재생] 대사 끝이 감지돼 있고 다음 문장까지 간격이 길면(배경음악 구간)
+                    // 대사 끝(+여유)에서 바로 되감는다. 감지값 없음/짧은 간격/겹침 → 기존 경계 그대로.
+                    if (speechOnlyRef.current) {
+                        const t = trimmedLoopEnd(blockSpeechEnd(data, loopIdx), nextItem ? nextItem.seconds : null);
+                        if (t !== null && t > start + 0.5) end = Math.min(end, t);
+                    }
 
                     // [Phase 4] 수동 시크(Seek) 대응: 사용자가 루프 범위 밖으로 강제 이동했다면 루프 타겟 재설정
                     if (v.currentTime < start - 2.0 || v.currentTime > end + 2.0) {

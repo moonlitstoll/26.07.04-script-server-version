@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
-import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap } from '../services/gemini';
+import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
@@ -74,6 +74,8 @@ export const useMediaAnalysis = ({
     // 백그라운드 Stage 2(재분석 등) 진행 표시: null 또는 { fileId, done, total }.
     // 최초 전체분석은 isAnalyzing 전체 스피너가 있으므로, 이 배너는 그 외(재분석/이어서 분석)에서 사용.
     const [stage2Progress, setStage2Progress] = useState(null);
+    // [대사 끝 감지] 진행 중인 파일 id (칩 스피너 표시용). null = 유휴.
+    const [speechDetectBusy, setSpeechDetectBusy] = useState(null);
     const stage1AbortRef = useRef(null);
     const analysisQueueRef = useRef([]);   // 순차 분석 대기 파일 목록
     const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
@@ -756,6 +758,87 @@ export const useMediaAnalysis = ({
     };
 
     /**
+     * [대사 끝 시각 감지] '대사만 재생' 모드용 1회성 패스.
+     * 오디오+대본을 보내 문장별 speechEnd(대사가 실제로 끝나는 시각)를 받아 캐시에 저장한다.
+     * Stage 1/2 파이프라인·전역 abort 채널을 일절 건드리지 않는다(큐 간섭 없음).
+     * 병합은 스냅샷이 아니라 '최신 상태' 위에 한다 — 감지가 도는 몇 분 사이 Stage 2가
+     * 분석을 채워 넣어도 덮어쓰지 않고, 문장별 seconds 일치 검사로 인덱스 어긋남도 방어.
+     */
+    const detectSpeechEndsForFile = async (fileId) => {
+        if (!apiKey) {
+            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+            return false;
+        }
+        if (speechDetectBusy) return false; // 중복 실행 방지
+
+        let targetFile = null; let snapshot = null;
+        setFiles(prev => {
+            const f = prev.find(p => p.id === fileId);
+            if (f) { targetFile = f.file; snapshot = f.data; }
+            return prev;
+        });
+        await new Promise(r => setTimeout(r, 0));
+        if (!targetFile || !Array.isArray(snapshot) || snapshot.length === 0) return false;
+
+        setSpeechDetectBusy(fileId);
+        try {
+            let fileForAnalysis = targetFile;
+            try {
+                fileForAnalysis = await materializeFile(targetFile, {
+                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
+                });
+            } catch (e) {
+                console.warn('[SpeechEnd] 메모리 적재 실패 → 원본으로 진행:', e.message);
+            }
+
+            let duration = 0;
+            try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
+
+            const sentences = snapshot.map((d, i) => ({ index: i, seconds: d.seconds, text: d.text }));
+            const ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
+
+            // 최신 상태에 병합. 채택 조건(환각 방어): 시작+0.2초 이후, 지속 60초 이내, 영상 길이 이내.
+            // 스냅샷과 seconds가 다른 문장(감지 중 재전사/삭제됨)은 건너뛴다.
+            let applied = 0; let latestData = null;
+            setFiles(prev => prev.map(p => {
+                if (p.id !== fileId) return p;
+                const merged = p.data.map((d, i) => {
+                    if (!snapshot[i] || snapshot[i].seconds !== d.seconds) return d;
+                    let se = ends.get(i);
+                    if (typeof se !== 'number' || !Number.isFinite(se)) return d;
+                    if (duration > 0) se = Math.min(se, duration);
+                    if (se <= d.seconds + 0.2 || se - d.seconds > 60) return d;
+                    applied++;
+                    return { ...d, speechEnd: se };
+                });
+                latestData = merged;
+                return { ...p, data: merged };
+            }));
+            await new Promise(r => setTimeout(r, 0));
+
+            if (applied === 0 || !latestData) {
+                if (showToast) showToast({ message: '대사 구간을 감지하지 못했어요. 잠시 후 다시 시도해 주세요.', type: 'error' });
+                return false;
+            }
+            const status = latestData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
+            persistCache(targetFile, latestData, status);
+            if (refreshCacheKeys) refreshCacheKeys();
+            cloudSaveMeta(targetFile, latestData, status, null, duration)
+                .catch(e => console.warn('[SpeechEnd] 클라우드 반영 실패:', e));
+            if (showToast) showToast({ message: `대사 구간 감지 완료 (${applied}/${snapshot.length}문장)`, type: 'success' });
+            return true;
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                console.error('[SpeechEnd] 감지 실패:', e);
+                if (showToast) showToast({ message: `대사 구간 감지 실패: ${e.message || e}`, type: 'error' });
+            }
+            return false;
+        } finally {
+            setSpeechDetectBusy(null);
+        }
+    };
+
+    /**
      * [빈칸 구간 복구]
      * 실수로 문장을 지워 빈칸이 생긴 경우, 선택한 '앵커' 문장 1개는 그대로 두고
      * 그 옆 빈칸 구간만 다시 들어(raw 모드) 삭제됐던 문장을 복구한다.
@@ -1048,5 +1131,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
 };
