@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# understand-anything 분석 캐시 (로컬 산출물)
+.ua/
