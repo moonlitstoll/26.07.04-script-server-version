@@ -35,17 +35,20 @@ export function checkAnalysisCoverage(item) {
     const missing = [...new Set(textWords)].filter(w => !chunkWordSet.has(w));
     // 뭉침 판정 — 배지는 '확실한 위반'만 잡아야 신뢰를 유지한다:
     //  ① 문장 전체=1청크 (규칙 13이 명시한 절대 금지, 6단어 이상 문장에서)
-    //  ② 8단어 이상 청크. 규칙 13의 문구는 '5단어 초과 금지'지만 프롬프트의 공식 작성 예시
-    //     자체에 7단어 청크(để mình búng tay nó xuất hiện)가 있어, 그 기준으로 잡으면
-    //     예시를 충실히 따른 정상 출력까지 오탐된다. 예시 최대치(7)+1부터 뭉침으로 본다.
+    //  ② 10단어 이상 청크. 규칙 13의 문구는 '5단어 초과 금지'지만,
+    //     - 프롬프트 공식 작성 예시 자체에 7단어 청크(để mình búng tay nó xuất hiện)가 있고
+    //     - 베트남어는 띄어쓰기가 음절 단위라 겹단어(bứ bừ, chẩm chéo…)가 2칸으로 세어져
+    //       실제 의미 단어 수보다 부풀려진다 (8칸 청크가 실제론 ~6단어인 사례 확인됨)
+    //     → 심한 뭉침은 ①과 분석 시점의 60% 편중 자동재분할이 이미 잡으므로,
+    //       길이 검사는 그 둘이 놓친 극단만 잡는 보조 그물로 10부터 본다.
     //  ③ 예외: 숫자 발음 병기가 든 청크는 길이 검사 제외 — 'sáu trăm chín mươi nghìn(690.000)'처럼
-    //     숫자 하나의 낭독이 단어 5개로 세어져 정상 청크가 8단어를 넘기 일쑤다(규칙 6·12가
+    //     숫자 하나의 낭독이 단어 5개로 세어져 정상 청크가 기준을 넘기 일쑤다(규칙 6·12가
     //     병기 보존을 강제하므로 이 부풀림은 위반이 아니라 규칙 준수의 결과).
     const wholeSentence = chunks.length === 1 && textWords.length >= 6;
     const HAS_NUM_NOTATION = /\([\d.,%/\s]+\)/;
     const overlong = wholeSentence
         ? [chunks[0].chunk]
-        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && normWords(c).length > 7);
+        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && normWords(c).length > 9);
 
     if (missing.length === 0 && overlong.length === 0) return null;
     return { kind: 'coverage', missing, overlong };
