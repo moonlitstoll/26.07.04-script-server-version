@@ -771,10 +771,10 @@ export const useMediaAnalysis = ({
         }
         if (speechDetectBusy) return false; // 중복 실행 방지
 
-        let targetFile = null; let snapshot = null;
+        let targetFile = null; let targetUrl = null; let snapshot = null;
         setFiles(prev => {
             const f = prev.find(p => p.id === fileId);
-            if (f) { targetFile = f.file; snapshot = f.data; }
+            if (f) { targetFile = f.file; targetUrl = f.url; snapshot = f.data; }
             return prev;
         });
         await new Promise(r => setTimeout(r, 0));
@@ -782,13 +782,43 @@ export const useMediaAnalysis = ({
 
         setSpeechDetectBusy(fileId);
         try {
-            let fileForAnalysis = targetFile;
-            try {
-                fileForAnalysis = await materializeFile(targetFile, {
-                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
-                });
-            } catch (e) {
-                console.warn('[SpeechEnd] 메모리 적재 실패 → 원본으로 진행:', e.message);
+            // [실체 확보 3단 폴백] 캐시에서 복원한 파일의 f.file은 실제 파일이 아니라
+            // {name,type,size} 자리표시자일 수 있다(loadCache). 그걸 그대로 오디오 추출에
+            // 넘기면 FileReader가 "not of type 'Blob'"으로 터진다 → Blob 여부를 먼저 검사하고,
+            // 자리표시자면 IndexedDB(원본 저장소) → 재생 URL(fetch) 순으로 진짜 바이트를 확보한다.
+            const isRealBlob = (b) => typeof Blob !== 'undefined' && b instanceof Blob && b.size > 0;
+            let fileForAnalysis = null;
+            if (isRealBlob(targetFile)) {
+                fileForAnalysis = targetFile;
+                try {
+                    fileForAnalysis = await materializeFile(targetFile, {
+                        onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
+                    });
+                } catch (e) {
+                    console.warn('[SpeechEnd] 메모리 적재 실패 → 원본으로 진행:', e.message);
+                }
+            } else {
+                try {
+                    const stored = await mediaStore.getFileFlexible(targetFile.name, targetFile.size);
+                    if (isRealBlob(stored)) {
+                        fileForAnalysis = new File([stored], targetFile.name || 'media', { type: stored.type || targetFile.type || 'application/octet-stream' });
+                        console.log('[SpeechEnd] IndexedDB에서 원본 확보');
+                    }
+                } catch (e) { console.warn('[SpeechEnd] IndexedDB 조회 실패:', e); }
+                if (!fileForAnalysis && targetUrl) {
+                    try {
+                        const res = await fetch(targetUrl);
+                        const blob = await res.blob();
+                        if (isRealBlob(blob)) {
+                            fileForAnalysis = new File([blob], targetFile.name || 'media', { type: blob.type || targetFile.type || 'application/octet-stream' });
+                            console.log('[SpeechEnd] 재생 URL에서 원본 확보');
+                        }
+                    } catch (e) { console.warn('[SpeechEnd] 재생 URL 읽기 실패:', e); }
+                }
+                if (!fileForAnalysis) {
+                    if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                    return false;
+                }
             }
 
             let duration = 0;
