@@ -337,6 +337,27 @@ const App = () => {
   useEffect(() => { reanalyzeRef.current = reanalyzeSentences; });
   const handleRetryOne = useCallback((i) => reanalyzeRef.current(activeFileId, [i]), [activeFileId]);
 
+  // [정확도 배지] 커버리지 위반(A1)·전사의심(B3) 배지 탭 → 확인창 후 그 문장만 재처리.
+  // 확인창을 거치는 이유: 배지는 헤더에 상시 노출이라 오탭 한 번이 곧 API 호출(비용)이기 때문.
+  const retranscribeRef = useRef(retranscribeSentences);
+  useEffect(() => { retranscribeRef.current = retranscribeSentences; });
+  const handleCoverageRetry = useCallback((i) => {
+    showConfirm({
+      message: '이 문장만 다시 분석할까요? (문장 1개 분석 비용이 발생합니다)',
+      confirmText: '재분석',
+      danger: false,
+      onConfirm: () => reanalyzeRef.current(activeFileId, [i]),
+    });
+  }, [activeFileId, showConfirm]);
+  const handleRetranscribeOne = useCallback((i) => {
+    showConfirm({
+      message: '이 문장 구간의 오디오만 다시 전사할까요? (구간 오디오 전송 비용이 발생하고, 해당 구간이 새 전사 결과로 교체된 뒤 자동 재분석됩니다)',
+      confirmText: '다시 전사',
+      danger: false,
+      onConfirm: () => retranscribeRef.current(activeFileId, [i]),
+    });
+  }, [activeFileId, showConfirm]);
+
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
@@ -961,6 +982,8 @@ const App = () => {
                               isSelected={selectedIdxs.has(idx)}
                               onToggleSelect={toggleSelectIdx}
                               onRetryAnalysis={handleRetryOne}
+                              onCoverageRetry={handleCoverageRetry}
+                              onRetranscribe={handleRetranscribeOne}
                               drillMode={drillMode}
                               difficulty={difficulty}
                               drillRound={drillRound}

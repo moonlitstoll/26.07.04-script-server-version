@@ -1075,11 +1075,15 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
                 const translationMatch = subText.match(/\[번역\]\s*(.*)/);
                 const analysisLines = [...subText.matchAll(/\[분석\]\s*(.*)/g)]
                     .map(m => m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim());
+                // [전사의심] (규칙 15, 선택 출력): 문맥상 오전사가 의심될 때만 모델이 남기는 한 줄.
+                // 없으면 빈 문자열 — 이 줄이 없는 응답/옛 캐시와 완전 호환.
+                const suspectMatch = subText.match(/\[전사의심\]\s*(.*)/);
 
                 results.push({
                     index: item.index,
                     translation: translationMatch ? translationMatch[1].trim() : "",
-                    analysis: analysisLines.join("\n").trim()
+                    analysis: analysisLines.join("\n").trim(),
+                    transcriptSuspect: suspectMatch ? suspectMatch[1].trim() : ""
                 });
             } else {
                 console.warn(`[Stage 2] Could not find markers for index ${item.index}`);

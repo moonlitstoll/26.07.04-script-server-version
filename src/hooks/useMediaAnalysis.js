@@ -173,6 +173,7 @@ export const useMediaAnalysis = ({
                                 ...workingData[res.index],
                                 translation: res.translation,
                                 analysis: res.analysis,
+                                transcriptSuspect: res.transcriptSuspect || '', // 규칙15: 없으면 빈 값(배지 없음)
                                 isAnalyzed: true
                             };
                             groupSuccess++;
@@ -239,6 +240,7 @@ export const useMediaAnalysis = ({
                                         ...prev,
                                         translation: res.translation,
                                         analysis: res.analysis,
+                                        transcriptSuspect: res.transcriptSuspect || '',
                                         isAnalyzed: true
                                     };
                                 }
@@ -708,10 +710,10 @@ export const useMediaAnalysis = ({
             // 선택 문장만 미분석 상태로 리셋 (전사 텍스트·타임스탬프는 유지)
             resetData = p.data.map((d, i) => {
                 if (!idxSet.has(i)) return d;
-                // 원본이 분석돼 있었으면 복원용으로 보관
-                if (d.isAnalyzed) snapshot.set(i, { translation: d.translation, analysis: d.analysis, a: d.a, isAnalyzed: true });
+                // 원본이 분석돼 있었으면 복원용으로 보관 (전사의심 플래그도 함께 — 실패 복원 시 배지 유지)
+                if (d.isAnalyzed) snapshot.set(i, { translation: d.translation, analysis: d.analysis, a: d.a, transcriptSuspect: d.transcriptSuspect || '', isAnalyzed: true });
                 // analysisFailed 해제 → 재시도 동안은 실패 UI가 아니라 로딩 스피너로 표시
-                return { ...d, translation: '', analysis: '', a: '', isAnalyzed: false, analysisFailed: false };
+                return { ...d, translation: '', analysis: '', a: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false };
             });
             return { ...p, data: resetData };
         }));

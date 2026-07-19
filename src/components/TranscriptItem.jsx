@@ -1,8 +1,9 @@
-import { useRef, useEffect, useLayoutEffect, memo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useMemo, memo } from 'react';
 import {
-    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check, AlertTriangle, RotateCcw
+    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check, AlertTriangle, RotateCcw, Volume2
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
+import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
 
 // [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
 // 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
@@ -29,11 +30,15 @@ const TranscriptItem = memo(({
     seekTo, jumpToSentence,
     isLooping, showAnalysis,
     selectMode = false, isSelected = false, onToggleSelect,
-    onRetryAnalysis,
+    onRetryAnalysis, onCoverageRetry, onRetranscribe,
     drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false,
     inLoopGroup = false, groupLoopOn = false
 }) => {
     const itemRef = useRef(null);
+
+    // [정확도 검증 배지] 비용 0의 코드 검사 — 분석 커버리지(규칙 9/13 위반) + 전사의심(규칙 15).
+    // item 객체가 바뀔 때만 재계산 (memo 카드라 재생 틱마다 돌지 않음).
+    const coverage = useMemo(() => checkAnalysisCoverage(item), [item]);
 
     // 1. Focus Lock: Conditional Anchoring
     const prevActiveRef = useRef(isActive);
@@ -132,6 +137,28 @@ const TranscriptItem = memo(({
                                 }`}>
                                 {item.speaker}
                             </span>
+                        )}
+
+                        {/* [A1] 분석 커버리지 위반 배지 — 탭하면 이 문장만 재분석 (App이 확인창을 띄움) */}
+                        {!drillMode && coverage && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onCoverageRetry && onCoverageRetry(idx); }}
+                                title={coverageTitle(coverage)}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                                <AlertTriangle size={9} />
+                                {coverage.kind === 'no-chunks' ? '분석 깨짐' : coverage.missing.length > 0 ? `누락 ${coverage.missing.length}` : '뭉침'}
+                            </button>
+                        )}
+                        {/* [B3] 전사의심 배지 — 분석 AI가 문맥상 오전사를 신고한 문장. 탭하면 이 구간만 재전사 */}
+                        {!drillMode && item.transcriptSuspect && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onRetranscribe && onRetranscribe(idx); }}
+                                title={`전사(받아쓰기) 오류 의심: ${item.transcriptSuspect} — 탭하면 이 구간만 다시 전사`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 transition-colors"
+                            >
+                                <Volume2 size={9} /> 전사의심
+                            </button>
                         )}
                     </div>
 

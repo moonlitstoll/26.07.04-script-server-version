@@ -91,6 +91,8 @@ export const sanitizeData = (data, duration = 0) => {
                 text,
                 translation,
                 analysis: item.a || item.analysis || "",
+                // 전사의심(규칙15) 플래그: 여기서 통과시키지 않으면 캐시 재로드 때 배지가 유실된다
+                transcriptSuspect: item.transcriptSuspect || "",
                 isAnalyzed: item.isAnalyzed || !!(item.a || item.analysis)
             };
         })
