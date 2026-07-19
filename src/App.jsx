@@ -4,6 +4,7 @@ import {
   AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
+import { validSpeechEnd } from './utils/speechSegments';
 import { useEscapeToClose } from './hooks/useEscapeToClose';
 
 // 상단 툴바 칩 공통 크기 — 하단 플레이어 바와 같은 min(Nvw, 최대px) 방식.
@@ -184,6 +185,12 @@ const App = () => {
   const hasSpeechEnds = useMemo(
     () => transcriptData.some(d => typeof d.speechEnd === 'number'),
     [transcriptData]
+  );
+  // 유효한 감지값이 없는 문장 수 — 칩 배지(!N)로 표시, 탭하면 그 문장들만 재감지
+  // speechEndSkipped(이미 시도했으나 모델이 판단 못 한 구간)는 제외 — 안 그러면 배지가 영원히 안 사라진다
+  const missingSpeechEnds = useMemo(
+    () => (hasSpeechEnds ? transcriptData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length : 0),
+    [transcriptData, hasSpeechEnds]
   );
 
   // 지금 반복 중인 묶음의 범위 (카드 띠 표시용). 묶음 반복이 꺼져 있으면 null.
@@ -382,6 +389,17 @@ const App = () => {
       return;
     }
     updateField('speechOnlyEnabled', !config.speechOnlyEnabled);
+  };
+
+  // 미감지 문장만 재감지 (이미 감지된 문장은 안 건드림 — 부분 실패의 저비용 복구 경로)
+  const handleDetectMissing = () => {
+    if (speechDetectBusy) return;
+    showConfirm({
+      message: `아직 감지 안 된 ${missingSpeechEnds}개 문장만 다시 감지할까요? (이미 감지된 문장은 그대로 유지되고, 오디오 1회 전송 비용이 듭니다)`,
+      confirmText: '재감지',
+      danger: false,
+      onConfirm: () => detectSpeechEndsForFile(activeFileId, { onlyMissing: true }),
+    });
   };
 
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
@@ -886,6 +904,16 @@ const App = () => {
                         {speechDetectBusy === activeFileId
                           ? <Loader2 className={`${CHIP_ICON} animate-spin`} />
                           : <FastForward className={CHIP_ICON} />} 대사만
+                        {/* 미감지 잔여 배지: 탭하면 빠진 문장만 재감지 (칩 토글과 분리 — stopPropagation) */}
+                        {hasSpeechEnds && missingSpeechEnds > 0 && speechDetectBusy !== activeFileId && (
+                          <span
+                            onClick={(e) => { e.stopPropagation(); handleDetectMissing(); }}
+                            title={`${missingSpeechEnds}개 문장 미감지 — 탭하면 그 문장들만 재감지`}
+                            className="ml-0.5 px-1 rounded bg-amber-100 text-amber-700 text-[9px] font-black"
+                          >
+                            !{missingSpeechEnds}
+                          </span>
+                        )}
                       </button>
 
                       {/* ❗ 오답만 보기 (오답 있을 때 표시 — 모드 중엔 0개여도 유지해 빠져나갈 수 있게) */}

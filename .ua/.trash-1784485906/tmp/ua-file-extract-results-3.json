@@ -1,0 +1,865 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 7,
+  "filesSkipped": [],
+  "analysisOutcomes": {
+    "structure": {
+      "succeeded": 7,
+      "failed": 0
+    },
+    "callGraph": {
+      "succeeded": 7,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "results": [
+    {
+      "path": "api/delete.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 32,
+      "nonEmptyLines": 29,
+      "functions": [
+        {
+          "name": "handler",
+          "startLine": 5,
+          "endLine": 32,
+          "params": [
+            "req",
+            "res"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "handler",
+          "line": 5,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "handler",
+          "callee": "res.status(405).json",
+          "lineNumber": 7
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 7
+        },
+        {
+          "caller": "handler",
+          "callee": "resolveNamespace",
+          "lineNumber": 12
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(401).json",
+          "lineNumber": 14
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 14
+        },
+        {
+          "caller": "handler",
+          "callee": "isSafeFolder",
+          "lineNumber": 17
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(400).json",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "blobToken",
+          "lineNumber": 22
+        },
+        {
+          "caller": "handler",
+          "callee": "list",
+          "lineNumber": 24
+        },
+        {
+          "caller": "handler",
+          "callee": "del",
+          "lineNumber": 26
+        },
+        {
+          "caller": "handler",
+          "callee": "blobs.map",
+          "lineNumber": 26
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 28
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 28
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(500).json",
+          "lineNumber": 30
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 30
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "api/favorites.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 52,
+      "nonEmptyLines": 48,
+      "functions": [
+        {
+          "name": "handler",
+          "startLine": 7,
+          "endLine": 52,
+          "params": [
+            "req",
+            "res"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "handler",
+          "line": 7,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "handler",
+          "callee": "resolveNamespace",
+          "lineNumber": 10
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(401).json",
+          "lineNumber": 12
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 12
+        },
+        {
+          "caller": "handler",
+          "callee": "blobToken",
+          "lineNumber": 16
+        },
+        {
+          "caller": "handler",
+          "callee": "Array.isArray",
+          "lineNumber": 21
+        },
+        {
+          "caller": "handler",
+          "callee": "list.filter((x) => typeof x === 'string').slice",
+          "lineNumber": 23
+        },
+        {
+          "caller": "handler",
+          "callee": "list.filter",
+          "lineNumber": 23
+        },
+        {
+          "caller": "handler",
+          "callee": "put",
+          "lineNumber": 24
+        },
+        {
+          "caller": "handler",
+          "callee": "JSON.stringify",
+          "lineNumber": 24
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 32
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 32
+        },
+        {
+          "caller": "handler",
+          "callee": "head",
+          "lineNumber": 39
+        },
+        {
+          "caller": "handler",
+          "callee": "existing.url.includes",
+          "lineNumber": 44
+        },
+        {
+          "caller": "handler",
+          "callee": "Date.now",
+          "lineNumber": 44
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch(bust, { cache: 'no-store' }).then((r) => r.json()).catch",
+          "lineNumber": 45
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch(bust, { cache: 'no-store' }).then",
+          "lineNumber": 45
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch",
+          "lineNumber": 45
+        },
+        {
+          "caller": "handler",
+          "callee": "r.json",
+          "lineNumber": 45
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 48
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 48
+        },
+        {
+          "caller": "handler",
+          "callee": "Array.isArray",
+          "lineNumber": 48
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(500).json",
+          "lineNumber": 50
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 50
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "api/list.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 34,
+      "nonEmptyLines": 30,
+      "functions": [
+        {
+          "name": "handler",
+          "startLine": 5,
+          "endLine": 34,
+          "params": [
+            "req",
+            "res"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "handler",
+          "line": 5,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "handler",
+          "callee": "resolveNamespace",
+          "lineNumber": 7
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(401).json",
+          "lineNumber": 9
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 9
+        },
+        {
+          "caller": "handler",
+          "callee": "blobToken",
+          "lineNumber": 13
+        },
+        {
+          "caller": "handler",
+          "callee": "list",
+          "lineNumber": 15
+        },
+        {
+          "caller": "handler",
+          "callee": "blobs.filter",
+          "lineNumber": 16
+        },
+        {
+          "caller": "handler",
+          "callee": "b.pathname.endsWith",
+          "lineNumber": 16
+        },
+        {
+          "caller": "handler",
+          "callee": "Promise.all",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "metaBlobs.map",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch(b.url).then",
+          "lineNumber": 20
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch",
+          "lineNumber": 20
+        },
+        {
+          "caller": "handler",
+          "callee": "r.json",
+          "lineNumber": 20
+        },
+        {
+          "caller": "handler",
+          "callee": "b.pathname.split",
+          "lineNumber": 22
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 30
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 30
+        },
+        {
+          "caller": "handler",
+          "callee": "items.filter",
+          "lineNumber": 30
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(500).json",
+          "lineNumber": 32
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 32
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "api/migrate-vault.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 72,
+      "nonEmptyLines": 67,
+      "functions": [
+        {
+          "name": "nsFromPassphrase",
+          "startLine": 17,
+          "endLine": 18,
+          "params": [
+            "p"
+          ]
+        },
+        {
+          "name": "handler",
+          "startLine": 20,
+          "endLine": 72,
+          "params": [
+            "req",
+            "res"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "handler",
+          "line": 20,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "nsFromPassphrase",
+          "callee": "crypto.createHash('sha256').update(p, 'utf8').digest('hex').slice",
+          "lineNumber": 18
+        },
+        {
+          "caller": "nsFromPassphrase",
+          "callee": "crypto.createHash('sha256').update(p, 'utf8').digest",
+          "lineNumber": 18
+        },
+        {
+          "caller": "nsFromPassphrase",
+          "callee": "crypto.createHash('sha256').update",
+          "lineNumber": 18
+        },
+        {
+          "caller": "nsFromPassphrase",
+          "callee": "crypto.createHash",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "resolveNamespace",
+          "lineNumber": 24
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(401).json",
+          "lineNumber": 26
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 26
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(400).json",
+          "lineNumber": 30
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 30
+        },
+        {
+          "caller": "handler",
+          "callee": "nsFromPassphrase",
+          "lineNumber": 33
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(400).json",
+          "lineNumber": 35
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 35
+        },
+        {
+          "caller": "handler",
+          "callee": "blobToken",
+          "lineNumber": 39
+        },
+        {
+          "caller": "handler",
+          "callee": "list",
+          "lineNumber": 45
+        },
+        {
+          "caller": "handler",
+          "callee": "b.pathname.slice",
+          "lineNumber": 49
+        },
+        {
+          "caller": "handler",
+          "callee": "copy",
+          "lineNumber": 53
+        },
+        {
+          "caller": "handler",
+          "callee": "console.warn",
+          "lineNumber": 62
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 68
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 68
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(500).json",
+          "lineNumber": 70
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 70
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "api/save-meta.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 70,
+      "nonEmptyLines": 63,
+      "functions": [
+        {
+          "name": "handler",
+          "startLine": 5,
+          "endLine": 70,
+          "params": [
+            "req",
+            "res"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "handler",
+          "line": 5,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "handler",
+          "callee": "res.status(405).json",
+          "lineNumber": 7
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 7
+        },
+        {
+          "caller": "handler",
+          "callee": "resolveNamespace",
+          "lineNumber": 12
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(401).json",
+          "lineNumber": 14
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 14
+        },
+        {
+          "caller": "handler",
+          "callee": "isSafeFolder",
+          "lineNumber": 17
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(400).json",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 18
+        },
+        {
+          "caller": "handler",
+          "callee": "blobToken",
+          "lineNumber": 22
+        },
+        {
+          "caller": "handler",
+          "callee": "put",
+          "lineNumber": 27
+        },
+        {
+          "caller": "handler",
+          "callee": "JSON.stringify",
+          "lineNumber": 27
+        },
+        {
+          "caller": "handler",
+          "callee": "head",
+          "lineNumber": 39
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch(existing.url).then(r => r.json()).catch",
+          "lineNumber": 41
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch(existing.url).then",
+          "lineNumber": 41
+        },
+        {
+          "caller": "handler",
+          "callee": "fetch",
+          "lineNumber": 41
+        },
+        {
+          "caller": "handler",
+          "callee": "r.json",
+          "lineNumber": 41
+        },
+        {
+          "caller": "handler",
+          "callee": "Date.now",
+          "lineNumber": 54
+        },
+        {
+          "caller": "handler",
+          "callee": "put",
+          "lineNumber": 58
+        },
+        {
+          "caller": "handler",
+          "callee": "JSON.stringify",
+          "lineNumber": 58
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 66
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 66
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(500).json",
+          "lineNumber": 68
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 68
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "api/upload.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 45,
+      "nonEmptyLines": 39,
+      "functions": [
+        {
+          "name": "handler",
+          "startLine": 6,
+          "endLine": 45,
+          "params": [
+            "req",
+            "res"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "handler",
+          "line": 6,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "handler",
+          "callee": "res.status(405).json",
+          "lineNumber": 8
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 8
+        },
+        {
+          "caller": "handler",
+          "callee": "handleUpload",
+          "lineNumber": 13
+        },
+        {
+          "caller": "handler",
+          "callee": "JSON.parse",
+          "lineNumber": 20
+        },
+        {
+          "caller": "handler",
+          "callee": "resolveNamespace",
+          "lineNumber": 23
+        },
+        {
+          "caller": "handler",
+          "callee": "pathname.startsWith",
+          "lineNumber": 27
+        },
+        {
+          "caller": "handler",
+          "callee": "JSON.stringify",
+          "lineNumber": 33
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(200).json",
+          "lineNumber": 41
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 41
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status(400).json",
+          "lineNumber": 43
+        },
+        {
+          "caller": "handler",
+          "callee": "res.status",
+          "lineNumber": 43
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "lib/cloud.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 28,
+      "nonEmptyLines": 23,
+      "functions": [
+        {
+          "name": "resolveNamespace",
+          "startLine": 11,
+          "endLine": 18,
+          "params": [
+            "passphrase"
+          ]
+        },
+        {
+          "name": "isSafeFolder",
+          "startLine": 21,
+          "endLine": 23,
+          "params": [
+            "folder"
+          ]
+        },
+        {
+          "name": "blobToken",
+          "startLine": 26,
+          "endLine": 28,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "resolveNamespace",
+          "line": 11,
+          "isDefault": false
+        },
+        {
+          "name": "isSafeFolder",
+          "line": 21,
+          "isDefault": false
+        },
+        {
+          "name": "blobToken",
+          "line": 26,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "resolveNamespace",
+          "callee": "crypto.createHash('sha256').update(passphrase, 'utf8').digest('hex').slice",
+          "lineNumber": 17
+        },
+        {
+          "caller": "resolveNamespace",
+          "callee": "crypto.createHash('sha256').update(passphrase, 'utf8').digest",
+          "lineNumber": 17
+        },
+        {
+          "caller": "resolveNamespace",
+          "callee": "crypto.createHash('sha256').update",
+          "lineNumber": 17
+        },
+        {
+          "caller": "resolveNamespace",
+          "callee": "crypto.createHash",
+          "lineNumber": 17
+        },
+        {
+          "caller": "isSafeFolder",
+          "callee": "/^[a-f0-9]{1,64}$/.test",
+          "lineNumber": 22
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    }
+  ]
+}

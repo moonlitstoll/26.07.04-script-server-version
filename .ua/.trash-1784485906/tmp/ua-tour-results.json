@@ -1,0 +1,884 @@
+{
+  "scriptCompleted": true,
+  "entryPointCandidates": [
+    {
+      "id": "document:README.md",
+      "score": 5,
+      "name": "README.md",
+      "summary": "Media Analyzer(AI Shadowing Helper) 프로젝트 개요 문서로, Gemini 기반 오디오·비디오 전사·분석 기능, 기술 스택(React/Vite/Tailwind), 로컬 실행 절차, 배포 안내를 5개 섹션으로 정리한다."
+    },
+    {
+      "id": "file:src/main.jsx",
+      "score": 5,
+      "name": "main.jsx",
+      "summary": "React DOM createRoot 진입점으로 App을 ErrorBoundary로 감싸 마운트한다."
+    },
+    {
+      "id": "document:배포_가이드.md",
+      "score": 2,
+      "name": "배포_가이드.md",
+      "summary": "Vercel 배포·Vercel Blob 클라우드 저장소·APP_PASSPHRASE 기반 기기 간 동기화, migrate-vault API를 통한 암호 변경·데이터 이전 절차를 13개 섹션으로 상세히 안내한다."
+    },
+    {
+      "id": "file:.ua/.understandignore",
+      "score": 2,
+      "name": ".understandignore",
+      "summary": "Understand Anything 코드 분석에서 제외할 파일·디렉터리 glob 패턴을 정의하는 ignore 설정 파일. .gitignore 및 테스트 파일 패턴 제안이 주석으로 포함되어 있다."
+    },
+    {
+      "id": "file:api/delete.js",
+      "score": 2,
+      "name": "delete.js",
+      "summary": "Vercel Serverless API로 특정 대본 폴더의 모든 Vercel Blob(영상·데이터·메타)을 일괄 삭제하는 POST 핸들러."
+    }
+  ],
+  "fanInRanking": [
+    {
+      "id": "file:src/main.jsx",
+      "fanIn": 7,
+      "name": "main.jsx"
+    },
+    {
+      "id": "file:lib/cloud.js",
+      "fanIn": 6,
+      "name": "cloud.js"
+    },
+    {
+      "id": "file:src/services/cloudSync.js",
+      "fanIn": 6,
+      "name": "cloudSync.js"
+    },
+    {
+      "id": "file:src/utils/MediaStore.js",
+      "fanIn": 5,
+      "name": "MediaStore.js"
+    },
+    {
+      "id": "file:src/constants/models.js",
+      "fanIn": 4,
+      "name": "models.js"
+    },
+    {
+      "id": "file:src/hooks/useEscapeToClose.js",
+      "fanIn": 4,
+      "name": "useEscapeToClose.js"
+    },
+    {
+      "id": "file:src/index.css",
+      "fanIn": 4,
+      "name": "index.css"
+    },
+    {
+      "id": "file:src/components/SettingsModal.jsx",
+      "fanIn": 3,
+      "name": "SettingsModal.jsx"
+    },
+    {
+      "id": "file:src/services/prompts.js",
+      "fanIn": 3,
+      "name": "prompts.js"
+    },
+    {
+      "id": "file:src/utils/cacheStatus.js",
+      "fanIn": 3,
+      "name": "cacheStatus.js"
+    },
+    {
+      "id": "file:src/utils/cacheUtils.js",
+      "fanIn": 3,
+      "name": "cacheUtils.js"
+    },
+    {
+      "id": "file:src/utils/loopGroups.js",
+      "fanIn": 3,
+      "name": "loopGroups.js"
+    },
+    {
+      "id": "config:package.json",
+      "fanIn": 2,
+      "name": "package.json"
+    },
+    {
+      "id": "file:src/App.jsx",
+      "fanIn": 2,
+      "name": "App.jsx"
+    },
+    {
+      "id": "file:src/buildInfo.js",
+      "fanIn": 2,
+      "name": "buildInfo.js"
+    },
+    {
+      "id": "file:src/components/ErrorBoundary.jsx",
+      "fanIn": 2,
+      "name": "ErrorBoundary.jsx"
+    },
+    {
+      "id": "file:src/utils/mediaUtils.js",
+      "fanIn": 2,
+      "name": "mediaUtils.js"
+    },
+    {
+      "id": "file:src/utils/timeUtils.js",
+      "fanIn": 2,
+      "name": "timeUtils.js"
+    },
+    {
+      "id": "file:src/utils/trashUtils.js",
+      "fanIn": 2,
+      "name": "trashUtils.js"
+    },
+    {
+      "id": "config:vercel.json",
+      "fanIn": 1,
+      "name": "vercel.json"
+    }
+  ],
+  "fanOutRanking": [
+    {
+      "id": "file:src/App.jsx",
+      "fanOut": 26,
+      "name": "App.jsx"
+    },
+    {
+      "id": "file:src/hooks/useMediaAnalysis.js",
+      "fanOut": 8,
+      "name": "useMediaAnalysis.js"
+    },
+    {
+      "id": "file:src/hooks/useMediaCache.js",
+      "fanOut": 6,
+      "name": "useMediaCache.js"
+    },
+    {
+      "id": "file:src/services/gemini.js",
+      "fanOut": 6,
+      "name": "gemini.js"
+    },
+    {
+      "id": "file:src/components/SettingsModal.jsx",
+      "fanOut": 5,
+      "name": "SettingsModal.jsx"
+    },
+    {
+      "id": "document:배포_가이드.md",
+      "fanOut": 4,
+      "name": "배포_가이드.md"
+    },
+    {
+      "id": "file:src/main.jsx",
+      "fanOut": 4,
+      "name": "main.jsx"
+    },
+    {
+      "id": "document:README.md",
+      "fanOut": 3,
+      "name": "README.md"
+    },
+    {
+      "id": "file:src/components/EmptyState.jsx",
+      "fanOut": 3,
+      "name": "EmptyState.jsx"
+    },
+    {
+      "id": "file:vite.config.js",
+      "fanOut": 3,
+      "name": "vite.config.js"
+    },
+    {
+      "id": "config:package.json",
+      "fanOut": 2,
+      "name": "package.json"
+    },
+    {
+      "id": "config:vercel.json",
+      "fanOut": 2,
+      "name": "vercel.json"
+    },
+    {
+      "id": "file:postcss.config.js",
+      "fanOut": 2,
+      "name": "postcss.config.js"
+    },
+    {
+      "id": "file:src/components/CacheHistoryModal.jsx",
+      "fanOut": 2,
+      "name": "CacheHistoryModal.jsx"
+    },
+    {
+      "id": "file:src/hooks/useAppUpdate.js",
+      "fanOut": 2,
+      "name": "useAppUpdate.js"
+    },
+    {
+      "id": "file:src/hooks/useFavorites.js",
+      "fanOut": 2,
+      "name": "useFavorites.js"
+    },
+    {
+      "id": "file:src/utils/cacheUtils.js",
+      "fanOut": 2,
+      "name": "cacheUtils.js"
+    },
+    {
+      "id": "config:.ua/config.json",
+      "fanOut": 1,
+      "name": "config.json"
+    },
+    {
+      "id": "file:api/delete.js",
+      "fanOut": 1,
+      "name": "delete.js"
+    },
+    {
+      "id": "file:api/favorites.js",
+      "fanOut": 1,
+      "name": "favorites.js"
+    }
+  ],
+  "bfsTraversal": {
+    "startNode": "file:src/main.jsx",
+    "order": [
+      "file:src/main.jsx",
+      "file:src/App.jsx",
+      "file:src/index.css",
+      "file:src/components/CacheHistoryModal.jsx",
+      "file:src/components/ConfirmModal.jsx",
+      "file:src/components/EmptyState.jsx",
+      "file:src/components/ErrorBoundary.jsx",
+      "file:src/components/NoActiveFile.jsx",
+      "file:src/components/PassphraseGate.jsx",
+      "file:src/components/PlayerControls.jsx",
+      "file:src/components/SettingsModal.jsx",
+      "file:src/components/ShortcutsHelp.jsx",
+      "file:src/components/Toast.jsx",
+      "file:src/components/TranscriptItem.jsx",
+      "file:src/components/TrashModal.jsx",
+      "file:src/components/WorkspaceHeader.jsx",
+      "file:src/hooks/useAppUpdate.js",
+      "file:src/hooks/useAudioPlayer.js",
+      "file:src/hooks/useFavorites.js",
+      "file:src/hooks/useKeyboardShortcuts.js",
+      "file:src/hooks/useLearningProgress.js",
+      "file:src/hooks/useMediaAnalysis.js",
+      "file:src/hooks/useMediaCache.js",
+      "file:src/hooks/useSettings.js",
+      "file:src/services/cloudSync.js",
+      "file:src/utils/cacheUtils.js",
+      "file:src/utils/loopGroups.js",
+      "file:src/utils/trashUtils.js",
+      "file:src/utils/viewPosition.js",
+      "file:src/hooks/useEscapeToClose.js",
+      "file:src/utils/cacheStatus.js",
+      "file:src/utils/timeUtils.js",
+      "file:src/constants/models.js",
+      "file:src/utils/MediaStore.js",
+      "file:src/components/ClozeDrill.jsx",
+      "file:src/buildInfo.js",
+      "file:src/services/gemini.js",
+      "file:src/utils/materializeFile.js",
+      "file:src/utils/mediaUtils.js",
+      "file:src/services/prompts.js",
+      "file:src/utils/clozeUtils.js",
+      "file:src/utils/audioExtractor.js",
+      "file:src/utils/languageUtils.js",
+      "file:src/utils/sentenceSplitter.js",
+      "file:src/utils/analysisParser.js"
+    ],
+    "depthMap": {
+      "file:src/main.jsx": 0,
+      "file:src/App.jsx": 1,
+      "file:src/index.css": 1,
+      "file:src/components/CacheHistoryModal.jsx": 2,
+      "file:src/components/ConfirmModal.jsx": 2,
+      "file:src/components/EmptyState.jsx": 2,
+      "file:src/components/ErrorBoundary.jsx": 2,
+      "file:src/components/NoActiveFile.jsx": 2,
+      "file:src/components/PassphraseGate.jsx": 2,
+      "file:src/components/PlayerControls.jsx": 2,
+      "file:src/components/SettingsModal.jsx": 2,
+      "file:src/components/ShortcutsHelp.jsx": 2,
+      "file:src/components/Toast.jsx": 2,
+      "file:src/components/TranscriptItem.jsx": 2,
+      "file:src/components/TrashModal.jsx": 2,
+      "file:src/components/WorkspaceHeader.jsx": 2,
+      "file:src/hooks/useAppUpdate.js": 2,
+      "file:src/hooks/useAudioPlayer.js": 2,
+      "file:src/hooks/useFavorites.js": 2,
+      "file:src/hooks/useKeyboardShortcuts.js": 2,
+      "file:src/hooks/useLearningProgress.js": 2,
+      "file:src/hooks/useMediaAnalysis.js": 2,
+      "file:src/hooks/useMediaCache.js": 2,
+      "file:src/hooks/useSettings.js": 2,
+      "file:src/services/cloudSync.js": 2,
+      "file:src/utils/cacheUtils.js": 2,
+      "file:src/utils/loopGroups.js": 2,
+      "file:src/utils/trashUtils.js": 2,
+      "file:src/utils/viewPosition.js": 2,
+      "file:src/hooks/useEscapeToClose.js": 3,
+      "file:src/utils/cacheStatus.js": 3,
+      "file:src/utils/timeUtils.js": 3,
+      "file:src/constants/models.js": 3,
+      "file:src/utils/MediaStore.js": 3,
+      "file:src/components/ClozeDrill.jsx": 3,
+      "file:src/buildInfo.js": 3,
+      "file:src/services/gemini.js": 3,
+      "file:src/utils/materializeFile.js": 3,
+      "file:src/utils/mediaUtils.js": 3,
+      "file:src/services/prompts.js": 3,
+      "file:src/utils/clozeUtils.js": 4,
+      "file:src/utils/audioExtractor.js": 4,
+      "file:src/utils/languageUtils.js": 4,
+      "file:src/utils/sentenceSplitter.js": 4,
+      "file:src/utils/analysisParser.js": 5
+    },
+    "byDepth": {
+      "0": [
+        "file:src/main.jsx"
+      ],
+      "1": [
+        "file:src/App.jsx",
+        "file:src/index.css"
+      ],
+      "2": [
+        "file:src/components/CacheHistoryModal.jsx",
+        "file:src/components/ConfirmModal.jsx",
+        "file:src/components/EmptyState.jsx",
+        "file:src/components/ErrorBoundary.jsx",
+        "file:src/components/NoActiveFile.jsx",
+        "file:src/components/PassphraseGate.jsx",
+        "file:src/components/PlayerControls.jsx",
+        "file:src/components/SettingsModal.jsx",
+        "file:src/components/ShortcutsHelp.jsx",
+        "file:src/components/Toast.jsx",
+        "file:src/components/TranscriptItem.jsx",
+        "file:src/components/TrashModal.jsx",
+        "file:src/components/WorkspaceHeader.jsx",
+        "file:src/hooks/useAppUpdate.js",
+        "file:src/hooks/useAudioPlayer.js",
+        "file:src/hooks/useFavorites.js",
+        "file:src/hooks/useKeyboardShortcuts.js",
+        "file:src/hooks/useLearningProgress.js",
+        "file:src/hooks/useMediaAnalysis.js",
+        "file:src/hooks/useMediaCache.js",
+        "file:src/hooks/useSettings.js",
+        "file:src/services/cloudSync.js",
+        "file:src/utils/cacheUtils.js",
+        "file:src/utils/loopGroups.js",
+        "file:src/utils/trashUtils.js",
+        "file:src/utils/viewPosition.js"
+      ],
+      "3": [
+        "file:src/hooks/useEscapeToClose.js",
+        "file:src/utils/cacheStatus.js",
+        "file:src/utils/timeUtils.js",
+        "file:src/constants/models.js",
+        "file:src/utils/MediaStore.js",
+        "file:src/components/ClozeDrill.jsx",
+        "file:src/buildInfo.js",
+        "file:src/services/gemini.js",
+        "file:src/utils/materializeFile.js",
+        "file:src/utils/mediaUtils.js",
+        "file:src/services/prompts.js"
+      ],
+      "4": [
+        "file:src/utils/clozeUtils.js",
+        "file:src/utils/audioExtractor.js",
+        "file:src/utils/languageUtils.js",
+        "file:src/utils/sentenceSplitter.js"
+      ],
+      "5": [
+        "file:src/utils/analysisParser.js"
+      ]
+    }
+  },
+  "nonCodeFiles": {
+    "documentation": [
+      {
+        "id": "document:README.md",
+        "name": "README.md",
+        "type": "document",
+        "summary": "Media Analyzer(AI Shadowing Helper) 프로젝트 개요 문서로, Gemini 기반 오디오·비디오 전사·분석 기능, 기술 스택(React/Vite/Tailwind), 로컬 실행 절차, 배포 안내를 5개 섹션으로 정리한다."
+      },
+      {
+        "id": "document:배포_가이드.md",
+        "name": "배포_가이드.md",
+        "type": "document",
+        "summary": "Vercel 배포·Vercel Blob 클라우드 저장소·APP_PASSPHRASE 기반 기기 간 동기화, migrate-vault API를 통한 암호 변경·데이터 이전 절차를 13개 섹션으로 상세히 안내한다."
+      }
+    ],
+    "infrastructure": [],
+    "data": [],
+    "config": [
+      {
+        "id": "config:package.json",
+        "name": "package.json",
+        "type": "config",
+        "summary": "npm 패키지 메타데이터와 dev/build/lint/preview/deploy 스크립트, React·Vite·Gemini SDK·FFmpeg·Vercel Blob 등 런타임·빌드 의존성을 정의한다."
+      },
+      {
+        "id": "config:vercel.json",
+        "name": "vercel.json",
+        "type": "config",
+        "summary": "Vercel SPA 라우팅 설정으로, /api/ 경로를 제외한 모든 요청을 index.html로 rewrite하여 클라이언트 라우팅을 지원한다."
+      },
+      {
+        "id": "config:.ua/config.json",
+        "name": "config.json",
+        "type": "config",
+        "summary": "Understand Anything 플러그인 로컬 설정으로, 지식 그래프 등 분석 결과의 출력 언어(outputLanguage)를 한국어(ko)로 지정한다."
+      }
+    ]
+  },
+  "clusters": [
+    {
+      "nodes": [
+        "file:src/main.jsx",
+        "file:src/App.jsx"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/main.jsx",
+        "file:src/index.css"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/hooks/useAppUpdate.js",
+        "file:src/buildInfo.js"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/components/ErrorBoundary.jsx",
+        "class:src/components/ErrorBoundary.jsx:ErrorBoundary"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/components/NoActiveFile.jsx",
+        "function:src/components/NoActiveFile.jsx:NoActiveFile"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/components/PassphraseGate.jsx",
+        "function:src/components/PassphraseGate.jsx:PassphraseGate"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/components/ShortcutsHelp.jsx",
+        "function:src/components/ShortcutsHelp.jsx:ShortcutsHelp"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/components/Toast.jsx",
+        "function:src/components/Toast.jsx:Toast"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/components/WorkspaceHeader.jsx",
+        "function:src/components/WorkspaceHeader.jsx:WorkspaceHeader"
+      ],
+      "edgeCount": 2
+    },
+    {
+      "nodes": [
+        "file:src/hooks/useAppUpdate.js",
+        "function:src/hooks/useAppUpdate.js:useAppUpdate"
+      ],
+      "edgeCount": 2
+    }
+  ],
+  "layers": {
+    "count": 9,
+    "list": [
+      {
+        "id": "layer:application",
+        "name": "애플리케이션 셸",
+        "description": "React SPA 진입점과 App.jsx 최상위 orchestration으로 설정·분석·재생·학습·클라우드 UI를 통합한다."
+      },
+      {
+        "id": "layer:ui",
+        "name": "UI 레이어",
+        "description": "전사 카드·모달·플레이어·클로즈 드릴 등 사용자 인터페이스 컴포넌트와 전역 Tailwind 스타일을 담당한다."
+      },
+      {
+        "id": "layer:state",
+        "name": "상태·훅 레이어",
+        "description": "미디어 분석 큐·오디오 재생·캐시·설정·학습 진행·키보드 단축키 등 React 커스텀 훅으로 앱 상태와 부수효과를 관리한다."
+      },
+      {
+        "id": "layer:service",
+        "name": "서비스 레이어",
+        "description": "Gemini 2단계 전사·분석 파이프라인, 프롬프트 정의, 클라이언트 클라우드 동기화 API 호출 등 핵심 비즈니스 로직을 캡슐화한다."
+      },
+      {
+        "id": "layer:api",
+        "name": "API 레이어",
+        "description": "Vercel Serverless 엔드포인트로 Blob 업로드·메타 저장·목록·즐겨찾기·삭제·vault 마이그레이션과 공용 passphrase 검증을 처리한다."
+      },
+      {
+        "id": "layer:utility",
+        "name": "유틸리티 레이어",
+        "description": "FFmpeg 오디오 처리·캐시·IndexedDB·문장 분할·클로즈 생성·시간 포맷 등 서비스·UI·훅이 공유하는 순수 헬퍼와 Gemini 모델 상수를 제공한다."
+      },
+      {
+        "id": "layer:config",
+        "name": "설정·빌드",
+        "description": "Vite·Tailwind·ESLint·PostCSS 빌드 파이프라인, npm 의존성, Vercel SPA 라우팅, Understand Anything 분석 도구 설정을 정의한다."
+      },
+      {
+        "id": "layer:documentation",
+        "name": "문서",
+        "description": "프로젝트 개요·로컬 실행·Vercel 배포·Blob 클라우드 동기화·passphrase 마이그레이션 절차를 안내하는 마크다운 문서."
+      },
+      {
+        "id": "layer:assets",
+        "name": "정적 자산",
+        "description": "브라우저 FFmpeg.wasm 코어 JS·WASM 바이너리로 오디오 추출·청크 분할 등 클라이언트 미디어 처리에 사용된다."
+      }
+    ]
+  },
+  "nodeSummaryIndex": {
+    "file:src/App.jsx": {
+      "name": "App.jsx",
+      "type": "file",
+      "summary": "애플리케이션 최상위 React 컴포넌트로, 설정·미디어 분석·오디오 재생·학습 드릴·클라우드 동기화·모달 UI를 통합 orchestration한다."
+    },
+    "file:src/buildInfo.js": {
+      "name": "buildInfo.js",
+      "type": "file",
+      "summary": "Vite 빌드 시 주입되는 BUILD_ID 상수를 노출하여 배포 버전 감지에 사용한다."
+    },
+    "file:src/components/ErrorBoundary.jsx": {
+      "name": "ErrorBoundary.jsx",
+      "type": "file",
+      "summary": "React 클래스 기반 error boundary로 렌더링 예외를 포착하고 사용자에게 폴백 UI를 표시한다."
+    },
+    "file:src/components/NoActiveFile.jsx": {
+      "name": "NoActiveFile.jsx",
+      "type": "file",
+      "summary": "활성 미디어 파일이 없을 때 표시하는 빈 워크스페이스 안내 UI 컴포넌트."
+    },
+    "file:src/components/PassphraseGate.jsx": {
+      "name": "PassphraseGate.jsx",
+      "type": "file",
+      "summary": "클라우드 동기화용 passphrase 입력 폼을 제공하는 게이트 컴포넌트."
+    },
+    "file:src/components/ShortcutsHelp.jsx": {
+      "name": "ShortcutsHelp.jsx",
+      "type": "file",
+      "summary": "키보드 단축키 목록을 모달 형태로 표시하는 도움말 컴포넌트."
+    },
+    "file:src/components/Toast.jsx": {
+      "name": "Toast.jsx",
+      "type": "file",
+      "summary": "일시적 알림 메시지와 선택적 액션 버튼을 표시하는 toast UI 컴포넌트."
+    },
+    "file:src/components/WorkspaceHeader.jsx": {
+      "name": "WorkspaceHeader.jsx",
+      "type": "file",
+      "summary": "활성 파일명·분석 진행 상태·미디어 유형 등 워크스페이스 상단 헤더 정보를 렌더링한다."
+    },
+    "file:src/hooks/useAppUpdate.js": {
+      "name": "useAppUpdate.js",
+      "type": "file",
+      "summary": "주기적으로 version.json을 폴링하여 새 배포가 있으면 updateReady 상태를 반환하는 hook."
+    },
+    "file:src/hooks/useAudioPlayer.js": {
+      "name": "useAudioPlayer.js",
+      "type": "file",
+      "summary": "비디오/오디오 재생·구간 반복·문장 싱크·MediaSession·배속 제어를 담당하는 핵심 재생 hook."
+    },
+    "file:src/hooks/useKeyboardShortcuts.js": {
+      "name": "useKeyboardShortcuts.js",
+      "type": "file",
+      "summary": "전역 keydown 이벤트로 재생·탐색·반복·분석 토글 등 키보드 단축키를 처리하는 hook."
+    },
+    "file:src/hooks/useLearningProgress.js": {
+      "name": "useLearningProgress.js",
+      "type": "file",
+      "summary": "문장별 알았음/몰랐음 학습 진행을 stable ID 기반으로 localStorage에 저장·조회하는 hook."
+    },
+    "file:src/hooks/useSettings.js": {
+      "name": "useSettings.js",
+      "type": "file",
+      "summary": "Gemini API·모델·청크·anti-recitation 등 앱 설정을 config 객체로 관리하고 localStorage에 즉시 영속하는 hook."
+    },
+    "file:src/main.jsx": {
+      "name": "main.jsx",
+      "type": "file",
+      "summary": "React DOM createRoot 진입점으로 App을 ErrorBoundary로 감싸 마운트한다."
+    },
+    "file:src/utils/loopGroups.js": {
+      "name": "loopGroups.js",
+      "type": "file",
+      "summary": "문장 구간 반복(loop group) 크기 클램프와 슬라이딩 윈도우 경계 계산 유틸리티."
+    },
+    "file:src/utils/viewPosition.js": {
+      "name": "viewPosition.js",
+      "type": "file",
+      "summary": "파일별 마지막 스크롤·재생 위치를 localStorage에 저장·복원하는 뷰 포지션 유틸리티."
+    },
+    "file:src/constants/models.js": {
+      "name": "models.js",
+      "type": "file",
+      "summary": "Gemini 모델 ID·메타데이터 상수와 Stage 2 배치 동시성을 모델별로 반환하는 헬퍼를 정의한다."
+    },
+    "file:src/hooks/useMediaAnalysis.js": {
+      "name": "useMediaAnalysis.js",
+      "type": "file",
+      "summary": "미디어 업로드·Stage1/2 분석·캐시·클라우드 동기화·재전사·휴지통 연동을 캡슐화하는 핵심 React 훅으로 순차 분석 큐를 관리한다."
+    },
+    "file:src/services/gemini.js": {
+      "name": "gemini.js",
+      "type": "file",
+      "summary": "Gemini API 2단계 파이프라인(전사·배치 분석)의 핵심 서비스로 File API 업로드, 청크 전사, 중복 제거, 재전사, 스트리밍 파싱을 담당한다."
+    },
+    "file:src/services/prompts.js": {
+      "name": "prompts.js",
+      "type": "file",
+      "summary": "Stage1 전사·Stage2 배치 분석용 Gemini 프롬프트 문자열과 분석 버전 상수를 보관한다."
+    },
+    "file:src/utils/audioExtractor.js": {
+      "name": "audioExtractor.js",
+      "type": "file",
+      "summary": "FFmpeg.wasm으로 오디오 추출·WAV 인코딩·청크 분할·구간 캡처·무음 스냅을 수행하는 브라우저 오디오 처리 유틸리티."
+    },
+    "file:src/utils/cacheUtils.js": {
+      "name": "cacheUtils.js",
+      "type": "file",
+      "summary": "localStorage 기반 전사·분석 캐시 엔트리의 파싱·저장·버전 만료 검사를 제공한다."
+    },
+    "file:src/utils/languageUtils.js": {
+      "name": "languageUtils.js",
+      "type": "file",
+      "summary": "전사 텍스트의 행 내 반복(환각) 축약과 한국어·베트남어 등 언어 감지 헬퍼를 제공한다."
+    },
+    "file:src/utils/materializeFile.js": {
+      "name": "materializeFile.js",
+      "type": "file",
+      "summary": "iOS 등 환경에서 File/Blob을 분석 가능한 실제 바이트로 materialize하는 다중 전략 헬퍼."
+    },
+    "file:src/utils/sentenceSplitter.js": {
+      "name": "sentenceSplitter.js",
+      "type": "file",
+      "summary": "전사 블록을 문장 단위로 분할·병합·미세 조각 통합·재분할하는 텍스트 후처리 유틸리티."
+    },
+    "file:src/utils/trashUtils.js": {
+      "name": "trashUtils.js",
+      "type": "file",
+      "summary": "삭제된 문장을 파일별 localStorage 휴지통에 저장·복구·비우는 CRUD 헬퍼."
+    },
+    "file:api/delete.js": {
+      "name": "delete.js",
+      "type": "file",
+      "summary": "Vercel Serverless API로 특정 대본 폴더의 모든 Vercel Blob(영상·데이터·메타)을 일괄 삭제하는 POST 핸들러."
+    },
+    "file:api/favorites.js": {
+      "name": "favorites.js",
+      "type": "file",
+      "summary": "네임스페이스별 즐겨찾기 목록을 Blob 단일 JSON 파일에 저장(GET/POST)하고, CDN 캐시 우회로 최신 목록을 반환하는 API 핸들러."
+    },
+    "file:api/list.js": {
+      "name": "list.js",
+      "type": "file",
+      "summary": "인증된 사용자 네임스페이스 아래 모든 meta.json Blob을 조회해 대본 목록 메타데이터 배열을 반환하는 GET/POST API."
+    },
+    "file:api/migrate-vault.js": {
+      "name": "migrate-vault.js",
+      "type": "file",
+      "summary": "옛 암호 네임스페이스의 Blob 전체를 새 암호 네임스페이스로 서버 내부 copy로 이전하는 일회용 마이그레이션 API. APP_PASSPHRASE 변경 전후 보관함 이전용."
+    },
+    "file:api/save-meta.js": {
+      "name": "save-meta.js",
+      "type": "file",
+      "summary": "대본·분석 본문(data.json)과 목록용 메타(meta.json)를 Vercel Blob에 저장하며, 기존 mediaUrl을 보존하는 POST API."
+    },
+    "file:api/upload.js": {
+      "name": "upload.js",
+      "type": "file",
+      "summary": "클라이언트가 Vercel Blob에 대용량 미디어를 직접 업로드할 수 있도록 handleUpload 토큰을 발급하고 경로·암호를 검증하는 POST API."
+    },
+    "file:lib/cloud.js": {
+      "name": "cloud.js",
+      "type": "file",
+      "summary": "Vercel Serverless API 공용 유틸로, APP_PASSPHRASE 검증·SHA-256 네임스페이스 해싱, 폴더명 안전성 검사, Blob 토큰 접근을 제공."
+    },
+    "file:src/components/CacheHistoryModal.jsx": {
+      "name": "CacheHistoryModal.jsx",
+      "type": "file",
+      "summary": "로컬·클라우드 분석 캐시 기록을 검색·즐겨찾기·삭제할 수 있는 히스토리 모달 UI. 진행 중인 분석 파일 목록과 캐시 상태 배지를 함께 표시한다."
+    },
+    "file:src/components/ConfirmModal.jsx": {
+      "name": "ConfirmModal.jsx",
+      "type": "file",
+      "summary": "제목·메시지·확인/취소 버튼을 받아 위험 작업 등 사용자 확인을 요청하는 범용 확인 모달."
+    },
+    "file:src/components/EmptyState.jsx": {
+      "name": "EmptyState.jsx",
+      "type": "file",
+      "summary": "파일이 없을 때 표시되는 초기 화면. 캐시 히스토리·즐겨찾기·설정 진입·파일 업로드를 제공한다."
+    },
+    "file:src/components/SettingsModal.jsx": {
+      "name": "SettingsModal.jsx",
+      "type": "file",
+      "summary": "Gemini API 키, Stage1/2/3 모델, temperature·청크 분할·Anti-RECITATION 등 분석 파이프라인 설정을 편집하는 설정 모달."
+    },
+    "file:src/components/TrashModal.jsx": {
+      "name": "TrashModal.jsx",
+      "type": "file",
+      "summary": "삭제된 전사 문장 목록을 보여주고 개별 복구를 지원하는 휴지통 모달."
+    },
+    "file:src/hooks/useEscapeToClose.js": {
+      "name": "useEscapeToClose.js",
+      "type": "file",
+      "summary": "모달 ESC 닫기를 LIFO 스택으로 관리하는 React 커스텀 훅. 겹친 모달에서 최상위 하나만 닫히도록 한다."
+    },
+    "file:src/utils/cacheStatus.js": {
+      "name": "cacheStatus.js",
+      "type": "file",
+      "summary": "localStorage 캐시 키에서 분석 진행 상태 배지와 표시용 파일명을 추출하는 유틸리티."
+    },
+    "file:src/components/PlayerControls.jsx": {
+      "name": "PlayerControls.jsx",
+      "type": "file",
+      "summary": "미디어 재생 UI 컴포넌트로, 진행 바·배속·구간 탐색·분석 토글·문장 이동 컨트롤을 제공하며 비디오 aspect ratio와 가시성 변화에 따른 재생 상태를 관리한다."
+    },
+    "file:src/hooks/useFavorites.js": {
+      "name": "useFavorites.js",
+      "type": "file",
+      "summary": "즐겨찾기 문장 목록을 localStorage와 클라우드 간에 동기화하는 React hook. dirty 플래그 기반 충돌 해결과 순차 업로드 큐를 제공한다."
+    },
+    "file:src/hooks/useMediaCache.js": {
+      "name": "useMediaCache.js",
+      "type": "file",
+      "summary": "localStorage 분석 캐시·IndexedDB 미디어·클라우드 저장소를 통합 관리하는 hook. 캐시 로드/삭제, 클라우드 동기화, 미디어 다운로드 및 Stage 2 재분석 트리거를 담당한다."
+    },
+    "file:src/services/cloudSync.js": {
+      "name": "cloudSync.js",
+      "type": "file",
+      "summary": "패스프레이즈 기반 SHA-256 namespace로 사용자 데이터를 격리하는 클라우드 동기화 서비스. 미디어 업로드, 메타 저장, 즐겨찾기, 항목 삭제 API를 제공한다."
+    },
+    "file:src/utils/MediaStore.js": {
+      "name": "MediaStore.js",
+      "type": "file",
+      "summary": "IndexedDB를 사용해 원본 미디어 Blob을 저장·조회·삭제하는 싱글톤 스토어. 파일명+크기 기반 ID와 유연 조회(getFileFlexible)를 지원한다."
+    },
+    "file:src/utils/mediaUtils.js": {
+      "name": "mediaUtils.js",
+      "type": "file",
+      "summary": "미디어 길이 추출과 전사 데이터 정규화(sanitizeData) 유틸리티. 축약 키 복원, 타임스탬프 보정, 빈 문장 필터링을 수행한다."
+    },
+    "file:src/utils/timeUtils.js": {
+      "name": "timeUtils.js",
+      "type": "file",
+      "summary": "타임스탬프 문자열 파싱(parseTime)과 재생 시계 표시(formatClock)를 제공하는 시간 유틸리티."
+    },
+    "file:src/components/ClozeDrill.jsx": {
+      "name": "ClozeDrill.jsx",
+      "type": "file",
+      "summary": "의미 청크 기반 빈칸 학습 UI 컴포넌트. buildCloze로 생성된 문제를 렌더링하고, 탭 공개·전체 공개·알았음/몰랐음 자가표시 흐름을 제공한다."
+    },
+    "file:src/components/TranscriptItem.jsx": {
+      "name": "TranscriptItem.jsx",
+      "type": "file",
+      "summary": "전사 문장 카드 컴포넌트. 재생·반복·분석 표시·선택 모드·가리기 학습(ClozeDrill) 등 문장 단위 상호작용의 핵심 UI를 담당한다."
+    },
+    "file:src/utils/analysisParser.js": {
+      "name": "analysisParser.js",
+      "type": "file",
+      "summary": "Stage 2 분석 문자열에서 **원어 청크**: 뜻 형식의 의미 청크를 파싱하는 유틸리티. 클로즈·향후 어휘 기능의 공용 부품이다."
+    },
+    "file:src/utils/clozeUtils.js": {
+      "name": "clozeUtils.js",
+      "type": "file",
+      "summary": "시드 기반 난수(mulberry32)와 난이도별 청크 선택 로직으로 빈칸 문제를 생성한다. 같은 문장·라운드·난이도면 동일한 문제가 재현된다."
+    },
+    "document:README.md": {
+      "name": "README.md",
+      "type": "document",
+      "summary": "Media Analyzer(AI Shadowing Helper) 프로젝트 개요 문서로, Gemini 기반 오디오·비디오 전사·분석 기능, 기술 스택(React/Vite/Tailwind), 로컬 실행 절차, 배포 안내를 5개 섹션으로 정리한다."
+    },
+    "file:index.html": {
+      "name": "index.html",
+      "type": "file",
+      "summary": "Vite SPA의 HTML 셸로, #root 마운트 포인트와 /src/main.jsx ES 모듈 진입 스크립트를 로드한다."
+    },
+    "config:package.json": {
+      "name": "package.json",
+      "type": "config",
+      "summary": "npm 패키지 메타데이터와 dev/build/lint/preview/deploy 스크립트, React·Vite·Gemini SDK·FFmpeg·Vercel Blob 등 런타임·빌드 의존성을 정의한다."
+    },
+    "config:vercel.json": {
+      "name": "vercel.json",
+      "type": "config",
+      "summary": "Vercel SPA 라우팅 설정으로, /api/ 경로를 제외한 모든 요청을 index.html로 rewrite하여 클라이언트 라우팅을 지원한다."
+    },
+    "document:배포_가이드.md": {
+      "name": "배포_가이드.md",
+      "type": "document",
+      "summary": "Vercel 배포·Vercel Blob 클라우드 저장소·APP_PASSPHRASE 기반 기기 간 동기화, migrate-vault API를 통한 암호 변경·데이터 이전 절차를 13개 섹션으로 상세히 안내한다."
+    },
+    "file:.ua/.understandignore": {
+      "name": ".understandignore",
+      "type": "file",
+      "summary": "Understand Anything 코드 분석에서 제외할 파일·디렉터리 glob 패턴을 정의하는 ignore 설정 파일. .gitignore 및 테스트 파일 패턴 제안이 주석으로 포함되어 있다."
+    },
+    "config:.ua/config.json": {
+      "name": "config.json",
+      "type": "config",
+      "summary": "Understand Anything 플러그인 로컬 설정으로, 지식 그래프 등 분석 결과의 출력 언어(outputLanguage)를 한국어(ko)로 지정한다."
+    },
+    "file:eslint.config.js": {
+      "name": "eslint.config.js",
+      "type": "file",
+      "summary": "ESLint flat config 진입점. React Hooks·Refresh 플러그인과 브라우저/Node 환경 분리 규칙을 적용하며, dist·public 정적 자산(vendored ffmpeg 등)은 린트 대상에서 제외한다."
+    },
+    "file:postcss.config.js": {
+      "name": "postcss.config.js",
+      "type": "file",
+      "summary": "PostCSS 빌드 파이프라인 설정. @tailwindcss/postcss와 autoprefixer 플러그인으로 Tailwind CSS v4 처리 및 벤더 프리픽스를 적용한다."
+    },
+    "file:public/ffmpeg/ffmpeg-core.js": {
+      "name": "ffmpeg-core.js",
+      "type": "file",
+      "summary": "FFmpeg.wasm Emscripten 싱글스레드 코어 JavaScript 로더. createFFmpegCore Module 초기화, 문자열·메모리 헬퍼, WASM 바이너리 로드 및 FFmpeg CLI 실행 래퍼를 제공한다."
+    },
+    "file:public/ffmpeg/ffmpeg-core.wasm": {
+      "name": "ffmpeg-core.wasm",
+      "type": "file",
+      "summary": "FFmpeg 코덱·필터 실행을 위한 WebAssembly 바이너리. ffmpeg-core.js가 same-origin public 경로에서 런타임에 fetch하여 Module에 연결한다."
+    },
+    "file:src/index.css": {
+      "name": "index.css",
+      "type": "file",
+      "summary": "앱 전역 스타일시트. Tailwind v4 @import, Google Outfit 폰트, slate 기본 테마(@layer base) 및 Webkit 커스텀 스크롤바 스타일을 정의한다."
+    },
+    "file:tailwind.config.js": {
+      "name": "tailwind.config.js",
+      "type": "file",
+      "summary": "Tailwind CSS content 스캔 경로(index.html, src/**/*.{js,ts,jsx,tsx})와 theme.extend 설정을 정의하는 구성 파일."
+    },
+    "file:vite.config.js": {
+      "name": "vite.config.js",
+      "type": "file",
+      "summary": "Vite+React 빌드 설정. 타임스탬프 BUILD_ID를 __BUILD_ID__로 주입하고 dist/version.json을 emit하는 커스텀 플러그인, @ffmpeg 패키지 optimizeDeps 제외 등 개발·배포 동작을 제어한다."
+    }
+  },
+  "totalNodes": 65,
+  "totalEdges": 378
+}

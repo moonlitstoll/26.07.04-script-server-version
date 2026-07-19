@@ -74,6 +74,13 @@ export const useMediaCache = ({
     // cloudList: 방금 조회한 클라우드 목록(어떤 게 이미 서버에 있는지 판단).
     const retryPendingUploads = useCallback(async (cloudList) => {
         if (retryingRef.current || !navigator.onLine) return;
+        // [안전장치] 목록을 일부만 받았으면(meta 읽기 실패) 아무것도 올리지 않는다.
+        // 빠진 항목을 '미업로드'로 오판하면 이 기기의 옛 로컬 대본이 다른 기기가 올린
+        // 최신 대본(분석·speechEnd 포함)을 통째로 덮어쓴다.
+        if (cloudList && cloudList.partial) {
+            console.warn('[Sync] 클라우드 목록이 불완전 → 자동 재업로드 보류');
+            return;
+        }
         const cloudIds = new Set((cloudList || []).map(it => `${it.name}_${it.size}`));
         const pending = cacheKeysRef.current.filter(k => {
             const id = k.replace(CACHE_PREFIX, '');
@@ -326,6 +333,17 @@ export const useMediaCache = ({
                 }
             }
 
+            // [원격 폴백] 이 기기에 영상이 없으면 같은 항목의 클라우드 mediaUrl로 스트리밍한다.
+            // 클라우드로 연 대본도 재분석·감지 시 로컬 캐시 행이 생기는데(persistCache),
+            // 그 뒤로는 목록이 로컬 행만 보여주므로 이 폴백이 없으면 '소리 없는 대본'으로 고착된다.
+            if (!mediaUrl) {
+                const cloudItem = (cloudItems || []).find(it => it.name === metadata.name && String(it.size) === String(metadata.size));
+                if (cloudItem?.mediaUrl) {
+                    mediaUrl = cloudItem.mediaUrl;
+                    console.log('[Cache Load] 로컬 영상 없음 → 클라우드 원격 스트리밍 폴백');
+                }
+            }
+
             let cacheDuration = 0;
             if (fileForDuration) {
                 try { cacheDuration = await getMediaDuration(fileForDuration); } catch (e) { console.warn("Failed to get media duration:", e); }
@@ -370,6 +388,16 @@ export const useMediaCache = ({
             if (!rawData || !Array.isArray(rawData)) throw new Error('클라우드 데이터 형식 오류');
 
             const data = sanitizeData(rawData, item.duration || 0);
+
+            // [의도적으로 로컬 캐시에 저장하지 않는다]
+            // 여기서 saveCacheEntry를 호출하면 다음 방문부터 이 항목이 '로컬 행'이 되어
+            // EmptyState/CacheHistoryModal이 무조건 loadCache로 라우팅한다. 그러면
+            //  ① 영상 다운로드가 실패했거나 mediaUrl이 아직 없는 항목은 loadCache에 원격
+            //     스트리밍 폴백이 없어 재생 불가 대본으로 고착되고,
+            //  ② 다른 기기가 올린 갱신(재분석·speechEnd·문장편집)이 영원히 도달하지 못한다
+            //     (savedAt 비교 로직이 없어 신선도 판단 불가).
+            // 대본 신선도는 fetchData의 CDN 캐시버스트가 담당하고, 재생 성능은 아래
+            // 미디어 IndexedDB 저장이 담당한다 — 이 조합이 회귀 없이 두 문제를 모두 푼다.
 
             // 영상: 로컬(IndexedDB) 캐시 우선 → 없으면 서버에서 통째로 받아 로컬 저장.
             // 한 번 받으면 이후엔 재다운로드 없이 로컬 재생 → seek 시 끊김 없음.

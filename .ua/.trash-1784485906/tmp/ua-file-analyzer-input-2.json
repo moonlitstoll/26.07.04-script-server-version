@@ -1,0 +1,45 @@
+{
+  "projectRoot": "D:\\0. 클로드연습용\\0. 개인용\\26.07.08 대본 완성본\\media-analyzer",
+  "batchFiles": [
+    {"path": "src/constants/models.js", "language": "javascript", "sizeLines": 69, "fileCategory": "code"},
+    {"path": "src/hooks/useMediaAnalysis.js", "language": "javascript", "sizeLines": 1050, "fileCategory": "code"},
+    {"path": "src/services/gemini.js", "language": "javascript", "sizeLines": 1135, "fileCategory": "code"},
+    {"path": "src/services/prompts.js", "language": "javascript", "sizeLines": 99, "fileCategory": "code"},
+    {"path": "src/utils/audioExtractor.js", "language": "javascript", "sizeLines": 513, "fileCategory": "code"},
+    {"path": "src/utils/cacheUtils.js", "language": "javascript", "sizeLines": 68, "fileCategory": "code"},
+    {"path": "src/utils/languageUtils.js", "language": "javascript", "sizeLines": 86, "fileCategory": "code"},
+    {"path": "src/utils/materializeFile.js", "language": "javascript", "sizeLines": 84, "fileCategory": "code"},
+    {"path": "src/utils/sentenceSplitter.js", "language": "javascript", "sizeLines": 120, "fileCategory": "code"},
+    {"path": "src/utils/trashUtils.js", "language": "javascript", "sizeLines": 53, "fileCategory": "code"}
+  ],
+  "batchImportData": {
+    "src/constants/models.js": [],
+    "src/hooks/useMediaAnalysis.js": [
+      "src/constants/models.js",
+      "src/services/cloudSync.js",
+      "src/services/gemini.js",
+      "src/utils/MediaStore.js",
+      "src/utils/cacheUtils.js",
+      "src/utils/materializeFile.js",
+      "src/utils/mediaUtils.js",
+      "src/utils/trashUtils.js"
+    ],
+    "src/services/gemini.js": [
+      "src/constants/models.js",
+      "src/services/prompts.js",
+      "src/utils/audioExtractor.js",
+      "src/utils/languageUtils.js",
+      "src/utils/sentenceSplitter.js"
+    ],
+    "src/services/prompts.js": [],
+    "src/utils/audioExtractor.js": [],
+    "src/utils/cacheUtils.js": [
+      "src/services/prompts.js",
+      "src/utils/cacheStatus.js"
+    ],
+    "src/utils/languageUtils.js": [],
+    "src/utils/materializeFile.js": [],
+    "src/utils/sentenceSplitter.js": [],
+    "src/utils/trashUtils.js": []
+  }
+}

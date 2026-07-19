@@ -1,0 +1,666 @@
+{
+  "nodes": [
+    {
+      "id": "file:src/components/PlayerControls.jsx",
+      "type": "file",
+      "name": "PlayerControls.jsx",
+      "filePath": "src/components/PlayerControls.jsx",
+      "summary": "미디어 재생 UI 컴포넌트로, 진행 바·배속·구간 탐색·분석 토글·문장 이동 컨트롤을 제공하며 비디오 aspect ratio와 가시성 변화에 따른 재생 상태를 관리한다.",
+      "tags": ["component", "media-player", "playback-controls", "ui"],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/components/PlayerControls.jsx:PlayerControls",
+      "type": "function",
+      "name": "PlayerControls",
+      "filePath": "src/components/PlayerControls.jsx",
+      "lineRange": [36, 274],
+      "summary": "재생/일시정지, 시크, 배속 메뉴, 이전·다음 문장 이동, 분석 패널 토글을 포함한 하단 플레이어 컨트롤 바를 렌더링하는 React 컴ponent.",
+      "tags": ["component", "react", "playback-controls", "event-handler"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/hooks/useFavorites.js",
+      "type": "file",
+      "name": "useFavorites.js",
+      "filePath": "src/hooks/useFavorites.js",
+      "summary": "즐겨찾기 문장 목록을 localStorage와 클라우드 간에 동기화하는 React hook. dirty 플래그 기반 충돌 해결과 순차 업로드 큐를 제공한다.",
+      "tags": ["hook", "favorites", "cloud-sync", "local-storage"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/hooks/useFavorites.js:useFavorites",
+      "type": "function",
+      "name": "useFavorites",
+      "filePath": "src/hooks/useFavorites.js",
+      "lineRange": [30, 80],
+      "summary": "즐겨찾기 목록 상태를 관리하고, 마운트 시 클라우드와 동기화하며, 토글 시 로컬 저장 후 서버에 순차 push하는 hook.",
+      "tags": ["hook", "favorites", "sync", "state-management"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/hooks/useMediaCache.js",
+      "type": "file",
+      "name": "useMediaCache.js",
+      "filePath": "src/hooks/useMediaCache.js",
+      "summary": "localStorage 분석 캐시·IndexedDB 미디어·클라우드 저장소를 통합 관리하는 hook. 캐시 로드/삭제, 클라우드 동기화, 미디어 다운로드 및 Stage 2 재분석 트리거를 담당한다.",
+      "tags": ["hook", "cache", "cloud-sync", "indexeddb"],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/hooks/useMediaCache.js:fetchBlobWithProgress",
+      "type": "function",
+      "name": "fetchBlobWithProgress",
+      "filePath": "src/hooks/useMediaCache.js",
+      "lineRange": [11, 31],
+      "summary": "ReadableStream을 청크 단위로 읽으며 진행률 콜백을 호출하는 Blob 다운로드 헬퍼.",
+      "tags": ["utility", "download", "progress", "fetch"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "type": "function",
+      "name": "useMediaCache",
+      "filePath": "src/hooks/useMediaCache.js",
+      "lineRange": [33, 445],
+      "summary": "로컬/클라우드 캐시 키 목록, 미디어 업로드 재시도, 캐시 항목 로드·삭제, 클라우드 항목 다운로드 등 캐시 전반 CRUD와 동기화 로직을 노출하는 hook.",
+      "tags": ["hook", "cache-management", "cloud-sync", "crud"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/services/cloudSync.js",
+      "type": "file",
+      "name": "cloudSync.js",
+      "filePath": "src/services/cloudSync.js",
+      "summary": "패스프레이즈 기반 SHA-256 namespace로 사용자 데이터를 격리하는 클라우드 동기화 서비스. 미디어 업로드, 메타 저장, 즐겨찾기, 항목 삭제 API를 제공한다.",
+      "tags": ["service", "cloud-sync", "api-client", "encryption"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:getPassphrase",
+      "type": "function",
+      "name": "getPassphrase",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [9, 11],
+      "summary": "localStorage에서 클라우드 동기화용 패스프레이즈를 읽어온다.",
+      "tags": ["utility", "passphrase", "local-storage"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:setPassphrase",
+      "type": "function",
+      "name": "setPassphrase",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [12, 15],
+      "summary": "패스프레이즈를 localStorage에 저장하거나 제거한다.",
+      "tags": ["utility", "passphrase", "local-storage"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:hasPassphrase",
+      "type": "function",
+      "name": "hasPassphrase",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [16, 18],
+      "summary": "패스프레이즈 설정 여부를 확인한다.",
+      "tags": ["utility", "passphrase", "validation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:uploadMedia",
+      "type": "function",
+      "name": "uploadMedia",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [45, 61],
+      "summary": "미디어 파일을 Vercel Blob에 업로드하고 진행률 콜백을 지원한다.",
+      "tags": ["api-client", "upload", "media", "blob-storage"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:saveMeta",
+      "type": "function",
+      "name": "saveMeta",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [65, 83],
+      "summary": "전사·분석 메타데이터를 클라우드 API에 JSON으로 저장한다.",
+      "tags": ["api-client", "metadata", "persistence"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:listItems",
+      "type": "function",
+      "name": "listItems",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [86, 93],
+      "summary": "클라우드에 저장된 분석 항목 목록을 조회한다.",
+      "tags": ["api-client", "list", "cloud-sync"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:fetchData",
+      "type": "function",
+      "name": "fetchData",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [96, 101],
+      "summary": "클라우드 dataUrl에서 전사·분석 JSON 데이터를 가져온다.",
+      "tags": ["api-client", "fetch", "transcript"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:getFavorites",
+      "type": "function",
+      "name": "getFavorites",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [105, 113],
+      "summary": "클라우드에서 즐겨찾기 문장 ID 배열을 조회한다.",
+      "tags": ["api-client", "favorites", "cloud-sync"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:saveFavorites",
+      "type": "function",
+      "name": "saveFavorites",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [115, 119],
+      "summary": "즐겨찾기 목록을 클라우드 API에 저장한다.",
+      "tags": ["api-client", "favorites", "persistence"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/cloudSync.js:deleteItem",
+      "type": "function",
+      "name": "deleteItem",
+      "filePath": "src/services/cloudSync.js",
+      "lineRange": [122, 127],
+      "summary": "클라우드에서 특정 미디어 항목의 메타·미디어를 삭제한다.",
+      "tags": ["api-client", "delete", "cloud-sync"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/utils/MediaStore.js",
+      "type": "file",
+      "name": "MediaStore.js",
+      "filePath": "src/utils/MediaStore.js",
+      "summary": "IndexedDB를 사용해 원본 미디어 Blob을 저장·조회·삭제하는 싱글톤 스토어. 파일명+크기 기반 ID와 유연 조회(getFileFlexible)를 지원한다.",
+      "tags": ["utility", "indexeddb", "media-storage", "singleton"],
+      "complexity": "moderate",
+      "languageNotes": "Promise 래핑된 IndexedDB 트랜잭션 패턴으로 비동기 CRUD를 제공한다."
+    },
+    {
+      "id": "class:src/utils/MediaStore.js:MediaStore",
+      "type": "class",
+      "name": "MediaStore",
+      "filePath": "src/utils/MediaStore.js",
+      "lineRange": [5, 167],
+      "summary": "IndexedDB 'media_files' 오브젝트 스토어에 미디어 Blob을 CRUD하는 클래스. saveFile, getFileFlexible, listEntries, clearAll 등을 제공한다.",
+      "tags": ["class", "indexeddb", "blob-storage", "crud"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/utils/mediaUtils.js",
+      "type": "file",
+      "name": "mediaUtils.js",
+      "filePath": "src/utils/mediaUtils.js",
+      "summary": "미디어 길이 추출과 전사 데이터 정규화(sanitizeData) 유틸리티. 축약 키 복원, 타임스탬프 보정, 빈 문장 필터링을 수행한다.",
+      "tags": ["utility", "media", "data-normalization", "transcript"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/mediaUtils.js:getMediaDuration",
+      "type": "function",
+      "name": "getMediaDuration",
+      "filePath": "src/utils/mediaUtils.js",
+      "lineRange": [11, 26],
+      "summary": "audio/video 엘리먼트로 미디어 파일의 재생 길이(초)를 비동기 추출한다.",
+      "tags": ["utility", "media", "duration"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/mediaUtils.js:sanitizeData",
+      "type": "function",
+      "name": "sanitizeData",
+      "filePath": "src/utils/mediaUtils.js",
+      "lineRange": [32, 140],
+      "summary": "캐시/클라우드에서 로드한 전사 배열을 앱 내부 형식으로 정규화하고, 잘못된 3-part 타임스탬프(HH:MM:SS)를 자동 보정한다.",
+      "tags": ["utility", "data-normalization", "timestamp", "transcript"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/utils/timeUtils.js",
+      "type": "file",
+      "name": "timeUtils.js",
+      "filePath": "src/utils/timeUtils.js",
+      "summary": "타임스탬프 문자열 파싱(parseTime)과 재생 시계 표시(formatClock)를 제공하는 시간 유틸리티.",
+      "tags": ["utility", "time", "formatting", "parsing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/timeUtils.js:parseTime",
+      "type": "function",
+      "name": "parseTime",
+      "filePath": "src/utils/timeUtils.js",
+      "lineRange": [5, 30],
+      "summary": "MM:SS 또는 HH:MM:SS 형식의 타임스탬프 문자열을 초(float)로 변환한다.",
+      "tags": ["utility", "parsing", "timestamp"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/timeUtils.js:formatClock",
+      "type": "function",
+      "name": "formatClock",
+      "filePath": "src/utils/timeUtils.js",
+      "lineRange": [35, 38],
+      "summary": "초 값을 MM:SS.ss ISO 시계 형식 문자열로 포맷한다.",
+      "tags": ["utility", "formatting", "display"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/components/PlayerControls.jsx",
+      "target": "file:src/utils/timeUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useFavorites.js",
+      "target": "file:src/services/cloudSync.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "file:src/services/cloudSync.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "file:src/utils/MediaStore.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "file:src/utils/cacheUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "file:src/utils/mediaUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/utils/mediaUtils.js",
+      "target": "file:src/utils/timeUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/components/PlayerControls.jsx",
+      "target": "function:src/components/PlayerControls.jsx:PlayerControls",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/hooks/useFavorites.js",
+      "target": "function:src/hooks/useFavorites.js:useFavorites",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "function:src/hooks/useMediaCache.js:fetchBlobWithProgress",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:getPassphrase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:setPassphrase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:hasPassphrase",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:uploadMedia",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:saveMeta",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:listItems",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:fetchData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:getFavorites",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:saveFavorites",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:deleteItem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/MediaStore.js",
+      "target": "class:src/utils/MediaStore.js:MediaStore",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/mediaUtils.js",
+      "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/mediaUtils.js",
+      "target": "function:src/utils/mediaUtils.js:sanitizeData",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/timeUtils.js",
+      "target": "function:src/utils/timeUtils.js:parseTime",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/timeUtils.js",
+      "target": "function:src/utils/timeUtils.js:formatClock",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/hooks/useFavorites.js",
+      "target": "function:src/hooks/useFavorites.js:useFavorites",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:getPassphrase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:setPassphrase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:hasPassphrase",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:uploadMedia",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:saveMeta",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:listItems",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:fetchData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:getFavorites",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:saveFavorites",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/cloudSync.js",
+      "target": "function:src/services/cloudSync.js:deleteItem",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/MediaStore.js",
+      "target": "class:src/utils/MediaStore.js:MediaStore",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/mediaUtils.js",
+      "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/mediaUtils.js",
+      "target": "function:src/utils/mediaUtils.js:sanitizeData",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/timeUtils.js",
+      "target": "function:src/utils/timeUtils.js:parseTime",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/timeUtils.js",
+      "target": "function:src/utils/timeUtils.js:formatClock",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/components/PlayerControls.jsx:PlayerControls",
+      "target": "function:src/utils/timeUtils.js:formatClock",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useFavorites.js:useFavorites",
+      "target": "function:src/services/cloudSync.js:saveFavorites",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useFavorites.js:useFavorites",
+      "target": "function:src/services/cloudSync.js:getFavorites",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/utils/mediaUtils.js:sanitizeData",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/services/cloudSync.js:uploadMedia",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/services/cloudSync.js:saveMeta",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/services/cloudSync.js:listItems",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/services/cloudSync.js:fetchData",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+      "target": "function:src/services/cloudSync.js:deleteItem",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/utils/mediaUtils.js:sanitizeData",
+      "target": "function:src/utils/timeUtils.js:parseTime",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/hooks/useFavorites.js",
+      "target": "file:src/services/cloudSync.js",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "file:src/utils/MediaStore.js",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "file:src/hooks/useMediaCache.js",
+      "target": "file:src/services/cloudSync.js",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    }
+  ]
+}

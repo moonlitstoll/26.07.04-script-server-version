@@ -62,40 +62,51 @@ export async function uploadMedia(file, onProgress) {
 
 // ─── 메타 + 대본/분석 데이터 저장 ───
 // mediaUrl 을 넘기지 않으면 서버가 기존 meta.json 의 mediaUrl 을 보존한다.
+// data 를 넘기지 않으면(undefined) 서버가 data.json 을 건드리지 않는다 —
+// 영상 업로드 완료처럼 'mediaUrl만 갱신'하는 호출이 옛 대본으로 최신본을 덮어쓰는 사고를 막는다.
+// status 도 undefined 면 기존 값을 유지한다(진행 상태를 되돌리지 않기 위함).
 export async function saveMeta(fileInfo, data, status, mediaUrl, duration) {
     const passphrase = getPassphrase();
     if (!passphrase) return null;
 
     const folder = await computeFolder(fileInfo.name, fileInfo.size);
-    return postJson('/api/save-meta', {
-        passphrase,
-        folder,
-        meta: {
-            name: fileInfo.name,
-            size: fileInfo.size,
-            type: fileInfo.type || '',
-            status: status || 'extracted',
-            duration: duration || 0,
-            mediaUrl: mediaUrl || null,
-        },
-        data,
-    }, 'save-meta');
+    const meta = {
+        name: fileInfo.name,
+        size: fileInfo.size,
+        type: fileInfo.type || '',
+        duration: duration || 0,
+        mediaUrl: mediaUrl || null,
+    };
+    if (status !== undefined) meta.status = status;
+    const payload = { passphrase, folder, meta };
+    if (data !== undefined) payload.data = data;
+    return postJson('/api/save-meta', payload, 'save-meta');
 }
 
 // ─── 내 보관함 목록 조회 ───
+// 목록 조회. 일부 메타를 못 읽었으면 items.partial = true 로 표시한다
+// (호출부가 '목록에 없음 = 미업로드'로 오판해 최신 클라우드 대본을 덮어쓰는 것을 막기 위함).
 export async function listItems() {
     const passphrase = getPassphrase();
     if (!passphrase) return [];
-    const res = await fetch(`/api/list?passphrase=${encodeURIComponent(passphrase)}`);
+    const res = await fetch(`/api/list?passphrase=${encodeURIComponent(passphrase)}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`list ${res.status}`);
-    const { items } = await res.json();
-    return items || [];
+    const { items, failed } = await res.json();
+    const arr = items || [];
+    if (failed > 0) {
+        arr.partial = true;
+        console.warn(`[Cloud] 목록 일부 조회 실패 (${failed}건) — 자동 재업로드를 건너뜁니다`);
+    }
+    return arr;
 }
 
 // ─── 대본/분석 본문 로드 (data.json) ───
 export async function fetchData(dataUrl) {
     if (!dataUrl) return null;
-    const res = await fetch(dataUrl);
+    // data.json은 같은 경로에 덮어쓰이는데 Blob 공개 URL은 CDN에 캐시된다 —
+    // 유일 쿼리로 우회해 항상 마지막 저장본을 받는다 (안 하면 재분석/감지 결과가 유실된 옛 대본이 내려옴)
+    const bust = `${dataUrl}${dataUrl.includes('?') ? '&' : '?'}v=${Date.now()}`;
+    const res = await fetch(bust, { cache: 'no-store' });
     if (!res.ok) throw new Error(`data ${res.status}`);
     return res.json();
 }

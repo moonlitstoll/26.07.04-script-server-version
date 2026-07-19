@@ -1,0 +1,75 @@
+{
+  "projectRoot": "D:\\0. 클로드연습용\\0. 개인용\\26.07.08 대본 완성본\\media-analyzer",
+  "batchFiles": [
+    {"path": "src/App.jsx", "language": "javascript", "sizeLines": 996, "fileCategory": "code"},
+    {"path": "src/buildInfo.js", "language": "javascript", "sizeLines": 3, "fileCategory": "code"},
+    {"path": "src/components/ErrorBoundary.jsx", "language": "javascript", "sizeLines": 34, "fileCategory": "code"},
+    {"path": "src/components/NoActiveFile.jsx", "language": "javascript", "sizeLines": 37, "fileCategory": "code"},
+    {"path": "src/components/PassphraseGate.jsx", "language": "javascript", "sizeLines": 61, "fileCategory": "code"},
+    {"path": "src/components/ShortcutsHelp.jsx", "language": "javascript", "sizeLines": 53, "fileCategory": "code"},
+    {"path": "src/components/Toast.jsx", "language": "javascript", "sizeLines": 37, "fileCategory": "code"},
+    {"path": "src/components/WorkspaceHeader.jsx", "language": "javascript", "sizeLines": 75, "fileCategory": "code"},
+    {"path": "src/hooks/useAppUpdate.js", "language": "javascript", "sizeLines": 42, "fileCategory": "code"},
+    {"path": "src/hooks/useAudioPlayer.js", "language": "javascript", "sizeLines": 482, "fileCategory": "code"},
+    {"path": "src/hooks/useKeyboardShortcuts.js", "language": "javascript", "sizeLines": 105, "fileCategory": "code"},
+    {"path": "src/hooks/useLearningProgress.js", "language": "javascript", "sizeLines": 77, "fileCategory": "code"},
+    {"path": "src/hooks/useSettings.js", "language": "javascript", "sizeLines": 82, "fileCategory": "code"},
+    {"path": "src/main.jsx", "language": "javascript", "sizeLines": 10, "fileCategory": "code"},
+    {"path": "src/utils/loopGroups.js", "language": "javascript", "sizeLines": 44, "fileCategory": "code"},
+    {"path": "src/utils/viewPosition.js", "language": "javascript", "sizeLines": 31, "fileCategory": "code"}
+  ],
+  "batchImportData": {
+    "src/App.jsx": [
+      "src/components/CacheHistoryModal.jsx",
+      "src/components/ConfirmModal.jsx",
+      "src/components/EmptyState.jsx",
+      "src/components/ErrorBoundary.jsx",
+      "src/components/NoActiveFile.jsx",
+      "src/components/PassphraseGate.jsx",
+      "src/components/PlayerControls.jsx",
+      "src/components/SettingsModal.jsx",
+      "src/components/ShortcutsHelp.jsx",
+      "src/components/Toast.jsx",
+      "src/components/TranscriptItem.jsx",
+      "src/components/TrashModal.jsx",
+      "src/components/WorkspaceHeader.jsx",
+      "src/hooks/useAppUpdate.js",
+      "src/hooks/useAudioPlayer.js",
+      "src/hooks/useFavorites.js",
+      "src/hooks/useKeyboardShortcuts.js",
+      "src/hooks/useLearningProgress.js",
+      "src/hooks/useMediaAnalysis.js",
+      "src/hooks/useMediaCache.js",
+      "src/hooks/useSettings.js",
+      "src/services/cloudSync.js",
+      "src/utils/cacheUtils.js",
+      "src/utils/loopGroups.js",
+      "src/utils/trashUtils.js",
+      "src/utils/viewPosition.js"
+    ],
+    "src/buildInfo.js": [],
+    "src/components/ErrorBoundary.jsx": [],
+    "src/components/NoActiveFile.jsx": [],
+    "src/components/PassphraseGate.jsx": [],
+    "src/components/ShortcutsHelp.jsx": [],
+    "src/components/Toast.jsx": [],
+    "src/components/WorkspaceHeader.jsx": [],
+    "src/hooks/useAppUpdate.js": [
+      "src/buildInfo.js"
+    ],
+    "src/hooks/useAudioPlayer.js": [
+      "src/utils/loopGroups.js"
+    ],
+    "src/hooks/useKeyboardShortcuts.js": [],
+    "src/hooks/useLearningProgress.js": [],
+    "src/hooks/useSettings.js": [
+      "src/utils/loopGroups.js"
+    ],
+    "src/main.jsx": [
+      "src/App.jsx",
+      "src/index.css"
+    ],
+    "src/utils/loopGroups.js": [],
+    "src/utils/viewPosition.js": []
+  }
+}

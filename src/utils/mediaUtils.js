@@ -95,6 +95,8 @@ export const sanitizeData = (data, duration = 0) => {
                 transcriptSuspect: item.transcriptSuspect || "",
                 // 대사 끝 시각(감지 패스가 채움, 선택 필드) — 숫자일 때만 통과, 아니면 필드 자체를 만들지 않음
                 ...(typeof item.speechEnd === 'number' && Number.isFinite(item.speechEnd) ? { speechEnd: item.speechEnd } : {}),
+                // 감지를 시도했으나 모델이 끝을 판단 못 한 문장 표시 (재요청 반복 방지 — 없으면 필드 생략)
+                ...(item.speechEndSkipped ? { speechEndSkipped: true } : {}),
                 isAnalyzed: item.isAnalyzed || !!(item.a || item.analysis)
             };
         })

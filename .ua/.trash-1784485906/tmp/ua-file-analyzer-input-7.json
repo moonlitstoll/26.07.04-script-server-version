@@ -1,0 +1,42 @@
+{
+  "projectRoot": "D:\\\\0. 클로드연습용\\\\0. 개인용\\\\26.07.08 대본 완성본\\\\media-analyzer",
+  "batchFiles": [
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "sizeLines": 55,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "index.html",
+      "language": "html",
+      "sizeLines": 13,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "package.json",
+      "language": "json",
+      "sizeLines": 40,
+      "fileCategory": "config"
+    },
+    {
+      "path": "vercel.json",
+      "language": "json",
+      "sizeLines": 6,
+      "fileCategory": "config"
+    },
+    {
+      "path": "배포_가이드.md",
+      "language": "markdown",
+      "sizeLines": 114,
+      "fileCategory": "docs"
+    }
+  ],
+  "batchImportData": {
+    "README.md": [],
+    "index.html": [],
+    "package.json": [],
+    "vercel.json": [],
+    "배포_가이드.md": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "fixedSectionOk": true,
+  "nodesRecovered": 0,
+  "edgesRestored": 0,
+  "crossBatchEdgesAdded": 0,
+  "typesRemapped": 0,
+  "complexityRemapped": 0,
+  "notes": [
+    "Merge was lossless: 169 nodes and 378 edges in/out with no Fixed or Could-not-fix sections reported.",
+    "All 169 unique batch node IDs present in assembled graph; zero dangling edges.",
+    "All 71 file-to-file imports edges from import-map verified present (merge script recovered 0 additional).",
+    "Node types limited to class, config, document, file, function; complexity values all valid (simple: 89, moderate: 54, complex: 26).",
+    "Five import-map entries (README.md, package.json, vercel.json, .ua/config.json, 배포_가이드.md) are represented as config/document nodes rather than file nodes — expected, no import edges required between them."
+  ]
+}

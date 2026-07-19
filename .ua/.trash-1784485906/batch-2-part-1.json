@@ -1,0 +1,1128 @@
+{
+  "nodes": [
+    {
+      "id": "file:src/constants/models.js",
+      "type": "file",
+      "name": "models.js",
+      "filePath": "src/constants/models.js",
+      "summary": "Gemini 모델 ID·메타데이터 상수와 Stage 2 배치 동시성을 모델별로 반환하는 헬퍼를 정의한다.",
+      "tags": [
+        "configuration",
+        "constants",
+        "gemini",
+        "model-selection"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/hooks/useMediaAnalysis.js",
+      "type": "file",
+      "name": "useMediaAnalysis.js",
+      "filePath": "src/hooks/useMediaAnalysis.js",
+      "summary": "미디어 업로드·Stage1/2 분석·캐시·클라우드 동기화·재전사·휴지통 연동을 캡슐화하는 핵심 React 훅으로 순차 분석 큐를 관리한다.",
+      "tags": [
+        "hook",
+        "analysis-pipeline",
+        "state-management",
+        "queue"
+      ],
+      "complexity": "complex",
+      "languageNotes": "useRef 기반 AbortController와 analysisQueueRef로 다중 파일 직렬 분석을 구현."
+    },
+    {
+      "id": "file:src/services/gemini.js",
+      "type": "file",
+      "name": "gemini.js",
+      "filePath": "src/services/gemini.js",
+      "summary": "Gemini API 2단계 파이프라인(전사·배치 분석)의 핵심 서비스로 File API 업로드, 청크 전사, 중복 제거, 재전사, 스트리밍 파싱을 담당한다.",
+      "tags": [
+        "service",
+        "gemini-api",
+        "transcription",
+        "analysis"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Stage1 스트리밍 응답 증분 파싱과 anti-recitation 마커 처리, 청크 오버랩 deduplicateOverlap 내장."
+    },
+    {
+      "id": "file:src/services/prompts.js",
+      "type": "file",
+      "name": "prompts.js",
+      "filePath": "src/services/prompts.js",
+      "summary": "Stage1 전사·Stage2 배치 분석용 Gemini 프롬프트 문자열과 분석 버전 상수를 보관한다.",
+      "tags": [
+        "prompts",
+        "gemini",
+        "configuration",
+        "analysis-rules"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/utils/audioExtractor.js",
+      "type": "file",
+      "name": "audioExtractor.js",
+      "filePath": "src/utils/audioExtractor.js",
+      "summary": "FFmpeg.wasm으로 오디오 추출·WAV 인코딩·청크 분할·구간 캡처·무음 스냅을 수행하는 브라우저 오디오 처리 유틸리티.",
+      "tags": [
+        "utility",
+        "ffmpeg",
+        "audio",
+        "wasm"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/constants/models.js:getStage2Concurrency",
+      "type": "function",
+      "name": "getStage2Concurrency",
+      "filePath": "src/constants/models.js",
+      "lineRange": [
+        66,
+        69
+      ],
+      "summary": "모델 ID에 따라 Stage2 동시 요청 수(Pro 2, 기타 3)를 반환한다.",
+      "tags": [
+        "helper",
+        "concurrency",
+        "model-config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/hooks/useMediaAnalysis.js:isLumpedAnalysis",
+      "type": "function",
+      "name": "isLumpedAnalysis",
+      "filePath": "src/hooks/useMediaAnalysis.js",
+      "lineRange": [
+        25,
+        39
+      ],
+      "summary": "분석 문자열이 구버전 lumped 형식인지 판별해 재분할 필요 여부를 결정한다.",
+      "tags": [
+        "validation",
+        "migration"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "type": "function",
+      "name": "useMediaAnalysis",
+      "filePath": "src/hooks/useMediaAnalysis.js",
+      "lineRange": [
+        51,
+        1050
+      ],
+      "summary": "파일 업로드부터 Stage1/2 실행, 캐시·클라우드·재전사·휴지통까지 전체 미디어 분석 워크플로를 노출하는 메인 훅.",
+      "tags": [
+        "hook",
+        "orchestration",
+        "analysis-pipeline"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/gemini.js:sentenceSim",
+      "type": "function",
+      "name": "sentenceSim",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        36,
+        45
+      ],
+      "summary": "두 문장의 단어 겹침 비율로 유사도를 계산해 경계 중복 판별에 사용한다.",
+      "tags": [
+        "similarity",
+        "deduplication"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/gemini.js:trimBoundaryOverlap",
+      "type": "function",
+      "name": "trimBoundaryOverlap",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        55,
+        82
+      ],
+      "summary": "청크 경계에서 이전·다음 블록과 겹치는 문장을 잘라 중복 전사를 제거한다.",
+      "tags": [
+        "deduplication",
+        "chunking"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/gemini.js:isBoundaryLeakFragment",
+      "type": "function",
+      "name": "isBoundaryLeakFragment",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        86,
+        95
+      ],
+      "summary": "짧은 조각이 인접 블록 텍스트에 포함되는 경계 누수(fragment)인지 검사한다.",
+      "tags": [
+        "validation",
+        "chunking"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/gemini.js:blobToInlinePart",
+      "type": "function",
+      "name": "blobToInlinePart",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        125,
+        137
+      ],
+      "summary": "Blob을 base64 inlineData Gemini Part로 변환한다.",
+      "tags": [
+        "gemini-api",
+        "encoding"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/gemini.js:uploadToGemini",
+      "type": "function",
+      "name": "uploadToGemini",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        140,
+        201
+      ],
+      "summary": "15MB 초과 오디오를 Gemini File API multipart 업로드 후 PROCESSING 폴링으로 URI를 확보한다.",
+      "tags": [
+        "gemini-api",
+        "file-upload"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/gemini.js:extractAudioBlob",
+      "type": "function",
+      "name": "extractAudioBlob",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        204,
+        225
+      ],
+      "summary": "미디어 파일에서 FFmpeg로 WAV 오디오 Blob을 추출하거나 실패 시 원본을 반환한다.",
+      "tags": [
+        "audio",
+        "ffmpeg"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/gemini.js:blobToGeminiPart",
+      "type": "function",
+      "name": "blobToGeminiPart",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        228,
+        239
+      ],
+      "summary": "크기에 따라 inlineData 또는 File API 업로드 방식으로 Gemini Part를 생성한다.",
+      "tags": [
+        "gemini-api",
+        "routing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/services/gemini.js:deduplicateOverlap",
+      "type": "function",
+      "name": "deduplicateOverlap",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        247,
+        280
+      ],
+      "summary": "청크 오버랩 구간의 중복 타임스탬프 문장을 유사도 기반으로 병합·제거한다.",
+      "tags": [
+        "deduplication",
+        "chunking"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/gemini.js:buildStage1Prompt",
+      "type": "function",
+      "name": "buildStage1Prompt",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        299,
+        357
+      ],
+      "summary": "전사 옵션(길이, anti-recitation 마커, 받아쓰기 재프레이밍)을 반영한 Stage1 프롬프트를 조립한다.",
+      "tags": [
+        "prompt",
+        "transcription"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/gemini.js:transcribeStream",
+      "type": "function",
+      "name": "transcribeStream",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        379,
+        515
+      ],
+      "summary": "Gemini 스트리밍 전사 응답을 줄 단위 파싱하며 환각·역행·종료 마커 방어 로직을 적용한다.",
+      "tags": [
+        "streaming",
+        "transcription",
+        "parsing"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/gemini.js:realignMergedBlocks",
+      "type": "function",
+      "name": "realignMergedBlocks",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        536,
+        594
+      ],
+      "summary": "병합된 전사 블록의 타임스탬프·텍스트 정렬을 재조정한다.",
+      "tags": [
+        "alignment",
+        "post-processing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/services/gemini.js:retranscribeSegments",
+      "type": "function",
+      "name": "retranscribeSegments",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        609,
+        855
+      ],
+      "summary": "지정 구간 윈도우별로 오디오를 캡처해 부분 재전사하고 결과를 기존 대본에 병합한다.",
+      "tags": [
+        "retranscription",
+        "segment"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/gemini.js:extractTranscript",
+      "type": "function",
+      "name": "extractTranscript",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        857,
+        980
+      ],
+      "summary": "단일/청크 분할 Stage1 전사 파이프라인 진입점으로 스트리밍·dedup·문장 분할까지 orchestrate한다.",
+      "tags": [
+        "transcription",
+        "pipeline",
+        "entry-point"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/services/gemini.js:analyzeBatchSentences",
+      "type": "function",
+      "name": "analyzeBatchSentences",
+      "filePath": "src/services/gemini.js",
+      "lineRange": [
+        1023,
+        1134
+      ],
+      "summary": "최대 25문장 배치로 Stage2 번역·의미 청크 분석을 병렬 요청하고 마커 형식 응답을 파싱한다.",
+      "tags": [
+        "analysis",
+        "batching",
+        "gemini-api"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:getFFmpeg",
+      "type": "function",
+      "name": "getFFmpeg",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        17,
+        41
+      ],
+      "summary": "FFmpeg.wasm 싱글톤 인스턴스를 lazy-load하고 코어·wasm URL을 설정한다.",
+      "tags": [
+        "ffmpeg",
+        "singleton",
+        "wasm"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:encodeWAV",
+      "type": "function",
+      "name": "encodeWAV",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        44,
+        67
+      ],
+      "summary": "Float32 PCM 채널 데이터를 16-bit WAV ArrayBuffer로 인코딩한다.",
+      "tags": [
+        "audio",
+        "encoding",
+        "wav"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:extractAudioWav",
+      "type": "function",
+      "name": "extractAudioWav",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        77,
+        124
+      ],
+      "summary": "미디어 파일을 디코드해 전체 길이 WAV Blob으로 변환한다.",
+      "tags": [
+        "audio",
+        "extraction"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:splitAudio",
+      "type": "function",
+      "name": "splitAudio",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        129,
+        169
+      ],
+      "summary": "WAV Blob을 N분 단위 청크로 무변환(copy) 분할하고 30초 오버랩을 적용한다.",
+      "tags": [
+        "chunking",
+        "audio"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:parseWavHeader",
+      "type": "function",
+      "name": "parseWavHeader",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        174,
+        205
+      ],
+      "summary": "WAV 헤더에서 샘플레이트·채널·비트 깊이 메타데이터를 파싱한다.",
+      "tags": [
+        "wav",
+        "parsing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:sliceWavBlob",
+      "type": "function",
+      "name": "sliceWavBlob",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        211,
+        235
+      ],
+      "summary": "WAV Blob에서 지정 샘플 구간만 잘라 새 WAV Blob을 생성한다.",
+      "tags": [
+        "wav",
+        "slicing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:extractSegmentWav",
+      "type": "function",
+      "name": "extractSegmentWav",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        246,
+        274
+      ],
+      "summary": "시작·종료 초 기준으로 오디오 구간 WAV를 FFmpeg로 추출한다.",
+      "tags": [
+        "segment",
+        "extraction"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+      "type": "function",
+      "name": "snapSegmentToSilence",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        285,
+        352
+      ],
+      "summary": "구간 경계를 주변 무음 지점으로 스냅해 자연스러운 재전사 구간을 만든다.",
+      "tags": [
+        "silence-detection",
+        "segment"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:captureSegmentWav",
+      "type": "function",
+      "name": "captureSegmentWav",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        367,
+        471
+      ],
+      "summary": "재생 중 ScriptProcessor로 실시간 PCM을 캡처해 구간 WAV를 생성한다(autoplay 차단 폴백 포함).",
+      "tags": [
+        "capture",
+        "realtime",
+        "audio"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+      "type": "function",
+      "name": "extractOriginalAudio",
+      "filePath": "src/utils/audioExtractor.js",
+      "lineRange": [
+        480,
+        513
+      ],
+      "summary": "비디오에서 오디오 트랙만 demux하여 원본 코덱 Blob으로 추출한다.",
+      "tags": [
+        "demux",
+        "video",
+        "audio"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/constants/models.js",
+      "target": "function:src/constants/models.js:getStage2Concurrency",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/constants/models.js",
+      "target": "function:src/constants/models.js:getStage2Concurrency",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "function:src/hooks/useMediaAnalysis.js:isLumpedAnalysis",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:sentenceSim",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:trimBoundaryOverlap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:isBoundaryLeakFragment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:blobToInlinePart",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:uploadToGemini",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:extractAudioBlob",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:blobToGeminiPart",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:deduplicateOverlap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:deduplicateOverlap",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:buildStage1Prompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:transcribeStream",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:realignMergedBlocks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:retranscribeSegments",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:retranscribeSegments",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:extractTranscript",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:extractTranscript",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:analyzeBatchSentences",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "function:src/services/gemini.js:analyzeBatchSentences",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:getFFmpeg",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:encodeWAV",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:splitAudio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:splitAudio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:parseWavHeader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:sliceWavBlob",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:extractSegmentWav",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:extractSegmentWav",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:captureSegmentWav",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:captureSegmentWav",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/audioExtractor.js",
+      "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/constants/models.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/services/cloudSync.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/services/gemini.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/utils/MediaStore.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/utils/cacheUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/utils/materializeFile.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/utils/mediaUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/hooks/useMediaAnalysis.js",
+      "target": "file:src/utils/trashUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "file:src/constants/models.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "file:src/services/prompts.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "file:src/utils/audioExtractor.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "file:src/utils/languageUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "file:src/utils/sentenceSplitter.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/constants/models.js:getStage2Concurrency",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/services/gemini.js:extractTranscript",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/services/gemini.js:analyzeBatchSentences",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/services/gemini.js:retranscribeSegments",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/services/gemini.js:deduplicateOverlap",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/cacheUtils.js:saveCacheEntry",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/materializeFile.js:materializeFile",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/trashUtils.js:addToTrash",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/trashUtils.js:removeFromTrash",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/trashUtils.js:sentenceKey",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+      "target": "function:src/utils/mediaUtils.js:sanitizeData",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/utils/audioExtractor.js:splitAudio",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/services/gemini.js:deduplicateOverlap",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/services/gemini.js:transcribeStream",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/utils/sentenceSplitter.js:groupSentences",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractTranscript",
+      "target": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:retranscribeSegments",
+      "target": "function:src/utils/audioExtractor.js:extractSegmentWav",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:retranscribeSegments",
+      "target": "function:src/utils/audioExtractor.js:captureSegmentWav",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:retranscribeSegments",
+      "target": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:retranscribeSegments",
+      "target": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:transcribeStream",
+      "target": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:blobToGeminiPart",
+      "target": "function:src/services/gemini.js:uploadToGemini",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:blobToGeminiPart",
+      "target": "function:src/services/gemini.js:blobToInlinePart",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractAudioBlob",
+      "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:extractAudioBlob",
+      "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:analyzeBatchSentences",
+      "target": "function:src/constants/models.js:getStage2Concurrency",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:buildStage1Prompt",
+      "target": "file:src/services/prompts.js",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/services/gemini.js:analyzeBatchSentences",
+      "target": "file:src/services/prompts.js",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/hooks/useMediaAnalysis.js:isLumpedAnalysis",
+      "target": "file:src/services/prompts.js",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/services/gemini.js",
+      "target": "file:src/services/prompts.js",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "batchIndex": 8,
+  "totalBatches": 8,
+  "files": [
+    {
+      "path": ".ua/.understandignore",
+      "language": "unknown",
+      "sizeLines": 68,
+      "fileCategory": "code"
+    },
+    {
+      "path": ".ua/config.json",
+      "language": "json",
+      "sizeLines": 3,
+      "fileCategory": "config"
+    },
+    {
+      "path": "eslint.config.js",
+      "language": "javascript",
+      "sizeLines": 37,
+      "fileCategory": "code"
+    },
+    {
+      "path": "postcss.config.js",
+      "language": "javascript",
+      "sizeLines": 6,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/ffmpeg/ffmpeg-core.js",
+      "language": "javascript",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
+      "path": "public/ffmpeg/ffmpeg-core.wasm",
+      "language": "wasm",
+      "sizeLines": 277426,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/index.css",
+      "language": "css",
+      "sizeLines": 36,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "tailwind.config.js",
+      "language": "javascript",
+      "sizeLines": 11,
+      "fileCategory": "code"
+    },
+    {
+      "path": "vite.config.js",
+      "language": "javascript",
+      "sizeLines": 39,
+      "fileCategory": "code"
+    }
+  ],
+  "batchImportData": {
+    ".ua/.understandignore": [],
+    ".ua/config.json": [],
+    "eslint.config.js": [],
+    "postcss.config.js": [],
+    "public/ffmpeg/ffmpeg-core.js": [],
+    "public/ffmpeg/ffmpeg-core.wasm": [],
+    "src/index.css": [],
+    "tailwind.config.js": [],
+    "vite.config.js": []
+  },
+  "neighborMap": {
+    "src/index.css": [
+      {
+        "path": "src/main.jsx",
+        "batchIndex": 1,
+        "symbols": []
+      }
+    ]
+  }
+}

@@ -1152,16 +1152,25 @@ const fmtSec = (s) => {
 };
 
 // 응답 파싱: "[인덱스] MM:SS.ms" 줄들 → Map<index, seconds>. SKIP/형식 불일치 줄은 무시.
+// 모델이 형식을 살짝 벗어나는 실전 변형까지 수용한다(모바일 실패 사례에서 파싱 0건 → 강화):
+//   [3] 06:15.20 / [3] [06:15.20] / [3] 1:06:15.2 (H:MM:SS) / [3] 375.2 (초 단위 숫자) / [3] SKIP
 // (테스트를 위해 export)
 export function parseSpeechEndResponse(text) {
     const map = new Map();
     if (!text) return map;
-    for (const m of text.matchAll(/^\s*\[(\d+)\]\s*(?:(\d{1,3}):(\d{2})(?:[.,](\d{1,3}))?|SKIP)\s*$/gm)) {
-        if (m[2] === undefined) continue; // SKIP
+    const LINE = /^\s*\[(\d+)\]\s*\[?\s*(?:SKIP|(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?:[.,](\d{1,3}))?|(\d+(?:[.,]\d+)?))\s*\]?\s*\.?\s*$/gm;
+    for (const m of text.matchAll(LINE)) {
         const idx = parseInt(m[1], 10);
-        const sec = parseInt(m[2], 10) * 60 + parseInt(m[3], 10)
-            + (m[4] ? parseInt(m[4].padEnd(3, '0').slice(0, 3), 10) / 1000 : 0);
-        if (Number.isFinite(sec)) map.set(idx, sec);
+        let sec = null;
+        if (m[3] !== undefined) {
+            // 시각 형식: (H:)MM:SS(.ms)
+            sec = (m[2] ? parseInt(m[2], 10) * 3600 : 0)
+                + parseInt(m[3], 10) * 60 + parseInt(m[4], 10)
+                + (m[5] ? parseInt(m[5].padEnd(3, '0').slice(0, 3), 10) / 1000 : 0);
+        } else if (m[6] !== undefined) {
+            sec = parseFloat(m[6].replace(',', '.')); // 초 단위 숫자
+        } // 둘 다 없으면 SKIP
+        if (sec !== null && Number.isFinite(sec)) map.set(idx, sec);
     }
     return map;
 }
@@ -1187,7 +1196,7 @@ export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signa
     const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
 
     const list = sentences.map(s => `[${s.index}] (시작 ${fmtSec(s.seconds)}) ${s.text}`).join('\n');
-    const prompt = `당신은 오디오 타임라인 분석가입니다. 아래는 이 오디오의 대본 문장 목록이며, 각 문장의 시작 시각이 함께 적혀 있습니다.
+    const basePrompt = `당신은 오디오 타임라인 분석가입니다. 아래는 이 오디오의 대본 문장 목록이며, 각 문장의 시작 시각이 함께 적혀 있습니다.
 당신의 유일한 임무: 각 문장의 **말소리(사람 음성)가 실제로 끝나는 시각**을 찾아내는 것입니다.
 
 [규칙]
@@ -1202,11 +1211,15 @@ export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signa
 [대본 문장 목록]
 ${list}`;
 
-    // 1회 재시도(과부하 대비) + 타임아웃. 사용자가 수동으로 트리거하는 1회성 패스라 과한 재시도는 두지 않는다.
+    // 재시도 최대 2회: API 오류(과부하)뿐 아니라 '응답이 왔는데 파싱 0건'도 재시도 대상 —
+    // 두 번째 시도부터는 형식 위반을 지적하는 리마인더를 덧붙인다.
     const TIMEOUT_MS = 300000;
     let lastError;
-    for (let attempt = 0; attempt <= 1; attempt++) {
+    for (let attempt = 0; attempt <= 2; attempt++) {
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const reminder = attempt > 0
+            ? `\n\n[중요 — 재요청] 직전 응답이 출력 형식을 지키지 않아 시스템이 한 줄도 읽지 못했습니다. 설명·머리말·코드블록 없이, 문장마다 정확히 \`[인덱스] MM:SS.ms\` 형식 한 줄만 출력하십시오.`
+            : '';
         const timeoutCtrl = new AbortController();
         const combo = new AbortController();
         const unlink1 = linkAbort(combo, signal);
@@ -1214,17 +1227,26 @@ ${list}`;
         const timer = setTimeout(() => timeoutCtrl.abort(), TIMEOUT_MS);
         try {
             const result = await model.generateContent({
-                contents: [{ role: "user", parts: [mediaPart, { text: prompt }] }],
+                contents: [{ role: "user", parts: [mediaPart, { text: basePrompt + reminder }] }],
             }, { signal: combo.signal });
             const response = await result.response;
             const u = response.usageMetadata;
             if (u) console.log(`[SpeechEnd tokens] in=${u.promptTokenCount} out=${u.candidatesTokenCount}`);
-            return parseSpeechEndResponse(response.text());
+            const text = response.text();
+            // 진단 로그: 파싱 실패 원인을 현장에서 알 수 있게 응답 앞부분을 남긴다
+            console.log(`[SpeechEnd] 응답 미리보기 (${text.length}자):`, text.slice(0, 300));
+            const map = parseSpeechEndResponse(text);
+            if (map.size > 0) return map;
+            lastError = new Error('응답을 받았지만 시각 형식을 인식하지 못했습니다 (0건)');
+            if (attempt < 2) {
+                console.warn('[SpeechEnd] 파싱 0건 → 형식 리마인더와 함께 재시도');
+                continue;
+            }
         } catch (error) {
             lastError = error;
             if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-            if (attempt < 1) {
-                console.warn('[SpeechEnd] 실패 → 3초 후 1회 재시도:', error?.message || error);
+            if (attempt < 2) {
+                console.warn('[SpeechEnd] 실패 → 3초 후 재시도:', error?.message || error);
                 try { await abortableSleep(3000, signal); } catch { throw new DOMException('Aborted', 'AbortError'); }
                 continue;
             }

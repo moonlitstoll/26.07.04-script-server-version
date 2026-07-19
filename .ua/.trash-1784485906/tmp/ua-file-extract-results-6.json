@@ -1,0 +1,592 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 4,
+  "filesSkipped": [],
+  "analysisOutcomes": {
+    "structure": {
+      "succeeded": 4,
+      "failed": 0
+    },
+    "callGraph": {
+      "succeeded": 4,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "results": [
+    {
+      "path": "src/components/ClozeDrill.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 126,
+      "nonEmptyLines": 117,
+      "functions": [
+        {
+          "name": "BlankChunk",
+          "startLine": 11,
+          "endLine": 24,
+          "params": []
+        },
+        {
+          "name": "ClozeDrill",
+          "startLine": 32,
+          "endLine": 124,
+          "params": []
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "BlankChunk",
+          "callee": "e.stopPropagation",
+          "lineNumber": 13
+        },
+        {
+          "caller": "BlankChunk",
+          "callee": "onReveal",
+          "lineNumber": 13
+        },
+        {
+          "caller": "BlankChunk",
+          "callee": "text.split(/\\s+/).filter(Boolean).map",
+          "lineNumber": 18
+        },
+        {
+          "caller": "BlankChunk",
+          "callee": "text.split(/\\s+/).filter",
+          "lineNumber": 18
+        },
+        {
+          "caller": "BlankChunk",
+          "callee": "text.split",
+          "lineNumber": 18
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "useMemo",
+          "lineNumber": 33
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "buildCloze",
+          "lineNumber": 33
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "useState",
+          "lineNumber": 34
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "useState",
+          "lineNumber": 35
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "drill.parts.map((p, i) => (p.type === 'blank' ? i : -1)).filter",
+          "lineNumber": 47
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "drill.parts.map",
+          "lineNumber": 47
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "blankPartIdxs.every",
+          "lineNumber": 48
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "revealed.has",
+          "lineNumber": 48
+        },
+        {
+          "caller": "revealOne",
+          "callee": "setRevealed",
+          "lineNumber": 50
+        },
+        {
+          "caller": "revealOne",
+          "callee": "n.add",
+          "lineNumber": 50
+        },
+        {
+          "caller": "revealAll",
+          "callee": "setRevealed",
+          "lineNumber": 51
+        },
+        {
+          "caller": "hideOne",
+          "callee": "setRevealed",
+          "lineNumber": 55
+        },
+        {
+          "caller": "hideOne",
+          "callee": "n.delete",
+          "lineNumber": 55
+        },
+        {
+          "caller": "hideOne",
+          "callee": "setMarked",
+          "lineNumber": 55
+        },
+        {
+          "caller": "clearReveals",
+          "callee": "setRevealed",
+          "lineNumber": 56
+        },
+        {
+          "caller": "clearReveals",
+          "callee": "setMarked",
+          "lineNumber": 56
+        },
+        {
+          "caller": "mark",
+          "callee": "setMarked",
+          "lineNumber": 57
+        },
+        {
+          "caller": "mark",
+          "callee": "onMark",
+          "lineNumber": 57
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "drill.parts.map",
+          "lineNumber": 64
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "revealed.has",
+          "lineNumber": 66
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "e.stopPropagation",
+          "lineNumber": 70
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "clearReveals",
+          "lineNumber": 70
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "hideOne",
+          "lineNumber": 70
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "revealAll",
+          "lineNumber": 85
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "revealOne",
+          "lineNumber": 85
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "drill.parts.filter(p => p.type === 'blank').map",
+          "lineNumber": 94
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "drill.parts.filter",
+          "lineNumber": 94
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "e.stopPropagation",
+          "lineNumber": 109
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "mark",
+          "lineNumber": 109
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "e.stopPropagation",
+          "lineNumber": 115
+        },
+        {
+          "caller": "ClozeDrill",
+          "callee": "mark",
+          "lineNumber": 115
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/components/TranscriptItem.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 245,
+      "nonEmptyLines": 224,
+      "functions": [
+        {
+          "name": "stripPatternTags",
+          "startLine": 11,
+          "endLine": 11,
+          "params": [
+            "s"
+          ]
+        },
+        {
+          "name": "_normWords",
+          "startLine": 13,
+          "endLine": 13,
+          "params": [
+            "t"
+          ]
+        },
+        {
+          "name": "dedupeSentenceInAnalysis",
+          "startLine": 14,
+          "endLine": 25,
+          "params": [
+            "analysis",
+            "sentence"
+          ]
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "stripPatternTags",
+          "callee": "(s || '').replace",
+          "lineNumber": 11
+        },
+        {
+          "caller": "_normWords",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split(/\\s+/).filter",
+          "lineNumber": 13
+        },
+        {
+          "caller": "_normWords",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split",
+          "lineNumber": 13
+        },
+        {
+          "caller": "_normWords",
+          "callee": "(t || '').toLowerCase().replace",
+          "lineNumber": 13
+        },
+        {
+          "caller": "_normWords",
+          "callee": "(t || '').toLowerCase",
+          "lineNumber": 13
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "_normWords",
+          "lineNumber": 16
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "analysis.split('\\n').map(line => {\r\n        const m = line.match(/^\\s*\\*\\*(.+?)\\*\\*\\s*:?\\s*/);\r\n        if (!m) return line;\r\n        const cw = new Set(_normWords(m[1]));\r\n        const covered = cw.size ? sw.filter(w => cw.has(w)).length / sw.length : 0;\r\n        return covered >= 0.8 ? line.slice(m[0].length) : line; // 문장 전체 반복 볼드 제거, 뜻/풀이만 남김\r\n    }).join",
+          "lineNumber": 18
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "analysis.split('\\n').map",
+          "lineNumber": 18
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "analysis.split",
+          "lineNumber": 18
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "line.match",
+          "lineNumber": 19
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "_normWords",
+          "lineNumber": 21
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "sw.filter",
+          "lineNumber": 22
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "cw.has",
+          "lineNumber": 22
+        },
+        {
+          "caller": "dedupeSentenceInAnalysis",
+          "callee": "line.slice",
+          "lineNumber": 23
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/analysisParser.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 20,
+      "nonEmptyLines": 20,
+      "functions": [
+        {
+          "name": "parseChunks",
+          "startLine": 6,
+          "endLine": 20,
+          "params": [
+            "item"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "parseChunks",
+          "line": 6,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "parseChunks",
+          "callee": "item.analysis.split('\\n')\n        .map(raw => {\n            // 혹시 남아있을 수 있는 [분석]/분석] 접두 제거\n            const line = raw.replace(/^\\s*\\[?\\s*분석\\s*\\]?\\s*/, '');\n            const m = line.match(/^\\s*\\*\\*(.+?)\\*\\*\\s*:?\\s*(.*)$/);\n            if (!m) return null;\n            const chunk = m[1].trim();\n            if (!chunk) return null;\n            const meaning = (m[2] || '').replace(/\\\\n/g, ' ').replace(/\\s*〔💡[^〕]*〕/g, '').trim();\n            return { chunk, meaning };\n        })\n        .filter",
+          "lineNumber": 8
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "item.analysis.split('\\n')\n        .map",
+          "lineNumber": 8
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "item.analysis.split",
+          "lineNumber": 8
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "raw.replace",
+          "lineNumber": 11
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "line.match",
+          "lineNumber": 12
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "m[1].trim",
+          "lineNumber": 14
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "(m[2] || '').replace(/\\\\n/g, ' ').replace(/\\s*〔💡[^〕]*〕/g, '').trim",
+          "lineNumber": 16
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "(m[2] || '').replace(/\\\\n/g, ' ').replace",
+          "lineNumber": 16
+        },
+        {
+          "caller": "parseChunks",
+          "callee": "(m[2] || '').replace",
+          "lineNumber": 16
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/clozeUtils.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 60,
+      "nonEmptyLines": 53,
+      "functions": [
+        {
+          "name": "mulberry32",
+          "startLine": 5,
+          "endLine": 13,
+          "params": [
+            "seed"
+          ]
+        },
+        {
+          "name": "diffSeed",
+          "startLine": 15,
+          "endLine": 15,
+          "params": [
+            "d"
+          ]
+        },
+        {
+          "name": "pickK",
+          "startLine": 18,
+          "endLine": 25,
+          "params": [
+            "N",
+            "k",
+            "rand"
+          ]
+        },
+        {
+          "name": "buildCloze",
+          "startLine": 30,
+          "endLine": 60,
+          "params": [
+            "item",
+            "idx",
+            "round",
+            "difficulty"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "buildCloze",
+          "line": 30,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "mulberry32",
+          "callee": "Math.imul",
+          "lineNumber": 9
+        },
+        {
+          "caller": "mulberry32",
+          "callee": "Math.imul",
+          "lineNumber": 10
+        },
+        {
+          "caller": "pickK",
+          "callee": "Array.from",
+          "lineNumber": 19
+        },
+        {
+          "caller": "pickK",
+          "callee": "Math.floor",
+          "lineNumber": 21
+        },
+        {
+          "caller": "pickK",
+          "callee": "rand",
+          "lineNumber": 21
+        },
+        {
+          "caller": "pickK",
+          "callee": "idxs.slice",
+          "lineNumber": 24
+        },
+        {
+          "caller": "pickK",
+          "callee": "Math.min",
+          "lineNumber": 24
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "parseChunks",
+          "lineNumber": 31
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "mulberry32",
+          "lineNumber": 36
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "diffSeed",
+          "lineNumber": 36
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Array.from",
+          "lineNumber": 40
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.max",
+          "lineNumber": 43
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.min",
+          "lineNumber": 46
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.floor",
+          "lineNumber": 46
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "rand",
+          "lineNumber": 46
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.min",
+          "lineNumber": 48
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.max",
+          "lineNumber": 48
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.ceil",
+          "lineNumber": 48
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "Math.floor",
+          "lineNumber": 49
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "rand",
+          "lineNumber": 49
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "pickK",
+          "lineNumber": 51
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "chunks.map",
+          "lineNumber": 55
+        },
+        {
+          "caller": "buildCloze",
+          "callee": "hidden.has",
+          "lineNumber": 55
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    }
+  ]
+}

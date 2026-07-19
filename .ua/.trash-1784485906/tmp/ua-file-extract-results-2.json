@@ -1,0 +1,5934 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 10,
+  "filesSkipped": [],
+  "analysisOutcomes": {
+    "structure": {
+      "succeeded": 10,
+      "failed": 0
+    },
+    "callGraph": {
+      "succeeded": 10,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "results": [
+    {
+      "path": "src/constants/models.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 69,
+      "nonEmptyLines": 64,
+      "functions": [
+        {
+          "name": "getStage2Concurrency",
+          "startLine": 66,
+          "endLine": 69,
+          "params": [
+            "modelId"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "MODELS",
+          "line": 13,
+          "isDefault": false
+        },
+        {
+          "name": "MODEL_IDS",
+          "line": 57,
+          "isDefault": false
+        },
+        {
+          "name": "DEFAULT_MODEL_ID",
+          "line": 60,
+          "isDefault": false
+        },
+        {
+          "name": "DEFAULT_STAGE2_CONCURRENCY",
+          "line": 63,
+          "isDefault": false
+        },
+        {
+          "name": "getStage2Concurrency",
+          "line": 66,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "getStage2Concurrency",
+          "callee": "MODELS.find",
+          "lineNumber": 67
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 5,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/hooks/useMediaAnalysis.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 1050,
+      "nonEmptyLines": 942,
+      "functions": [
+        {
+          "name": "makeClearRetranscribingFlag",
+          "startLine": 12,
+          "endLine": 19,
+          "params": [
+            "setFiles",
+            "fileId"
+          ]
+        },
+        {
+          "name": "NORM_WORDS",
+          "startLine": 24,
+          "endLine": 24,
+          "params": [
+            "t"
+          ]
+        },
+        {
+          "name": "isLumpedAnalysis",
+          "startLine": 25,
+          "endLine": 39,
+          "params": [
+            "sentence",
+            "analysis"
+          ]
+        },
+        {
+          "name": "collectTexts",
+          "startLine": 42,
+          "endLine": 49,
+          "params": [
+            "data",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "name": "useMediaAnalysis",
+          "startLine": 51,
+          "endLine": 1050,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "useMediaAnalysis",
+          "line": 51,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "makeClearRetranscribingFlag",
+          "callee": "setFiles",
+          "lineNumber": 13
+        },
+        {
+          "caller": "makeClearRetranscribingFlag",
+          "callee": "prev.map",
+          "lineNumber": 13
+        },
+        {
+          "caller": "makeClearRetranscribingFlag",
+          "callee": "p.data.map",
+          "lineNumber": 14
+        },
+        {
+          "caller": "NORM_WORDS",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split(/\\s+/).filter",
+          "lineNumber": 24
+        },
+        {
+          "caller": "NORM_WORDS",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split",
+          "lineNumber": 24
+        },
+        {
+          "caller": "NORM_WORDS",
+          "callee": "(t || '').toLowerCase().replace",
+          "lineNumber": 24
+        },
+        {
+          "caller": "NORM_WORDS",
+          "callee": "(t || '').toLowerCase",
+          "lineNumber": 24
+        },
+        {
+          "caller": "isLumpedAnalysis",
+          "callee": "NORM_WORDS",
+          "lineNumber": 27
+        },
+        {
+          "caller": "isLumpedAnalysis",
+          "callee": "analysis.match",
+          "lineNumber": 29
+        },
+        {
+          "caller": "isLumpedAnalysis",
+          "callee": "NORM_WORDS",
+          "lineNumber": 33
+        },
+        {
+          "caller": "isLumpedAnalysis",
+          "callee": "sw.filter",
+          "lineNumber": 35
+        },
+        {
+          "caller": "isLumpedAnalysis",
+          "callee": "cw.has",
+          "lineNumber": 35
+        },
+        {
+          "caller": "collectTexts",
+          "callee": "Math.max",
+          "lineNumber": 44
+        },
+        {
+          "caller": "collectTexts",
+          "callee": "Math.min",
+          "lineNumber": 44
+        },
+        {
+          "caller": "collectTexts",
+          "callee": "out.push",
+          "lineNumber": 46
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useState",
+          "lineNumber": 73
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useState",
+          "lineNumber": 76
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useRef",
+          "lineNumber": 77
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useRef",
+          "lineNumber": 78
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useRef",
+          "lineNumber": 79
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useRef",
+          "lineNumber": 80
+        },
+        {
+          "caller": "useMediaAnalysis",
+          "callee": "useRef",
+          "lineNumber": 81
+        },
+        {
+          "caller": "persistCache",
+          "callee": "saveCacheEntry",
+          "lineNumber": 86
+        },
+        {
+          "caller": "persistCache",
+          "callee": "showToast",
+          "lineNumber": 94
+        },
+        {
+          "caller": "persistCache",
+          "callee": "showToast",
+          "lineNumber": 100
+        },
+        {
+          "caller": "runStage2",
+          "callee": "console.log",
+          "lineNumber": 111
+        },
+        {
+          "caller": "runStage2",
+          "callee": "stage2AbortRef.current.abort",
+          "lineNumber": 113
+        },
+        {
+          "caller": "updateGlobalState",
+          "callee": "setFiles",
+          "lineNumber": 118
+        },
+        {
+          "caller": "updateGlobalState",
+          "callee": "prev.map",
+          "lineNumber": 118
+        },
+        {
+          "caller": "runStage2",
+          "callee": "transcript\n            .map((item, idx) => ({ item, idx }))\n            .filter(x => !x.item.isAnalyzed)\n            .map",
+          "lineNumber": 121
+        },
+        {
+          "caller": "runStage2",
+          "callee": "transcript\n            .map((item, idx) => ({ item, idx }))\n            .filter",
+          "lineNumber": 121
+        },
+        {
+          "caller": "runStage2",
+          "callee": "transcript\n            .map",
+          "lineNumber": 121
+        },
+        {
+          "caller": "runStage2",
+          "callee": "setStage2Progress",
+          "lineNumber": 130
+        },
+        {
+          "caller": "runStage2",
+          "callee": "getStage2Concurrency",
+          "lineNumber": 133
+        },
+        {
+          "caller": "runStage2",
+          "callee": "batches.push",
+          "lineNumber": 136
+        },
+        {
+          "caller": "runStage2",
+          "callee": "pendingIndices.slice",
+          "lineNumber": 136
+        },
+        {
+          "caller": "runStage2",
+          "callee": "console.log",
+          "lineNumber": 139
+        },
+        {
+          "caller": "runStage2",
+          "callee": "JSON.parse",
+          "lineNumber": 141
+        },
+        {
+          "caller": "runStage2",
+          "callee": "JSON.stringify",
+          "lineNumber": 141
+        },
+        {
+          "caller": "processBatch",
+          "callee": "batchIndices.map",
+          "lineNumber": 151
+        },
+        {
+          "caller": "processBatch",
+          "callee": "ctxSet.add",
+          "lineNumber": 158
+        },
+        {
+          "caller": "processBatch",
+          "callee": "ctxSet.add",
+          "lineNumber": 159
+        },
+        {
+          "caller": "processBatch",
+          "callee": "ctxSet.delete",
+          "lineNumber": 162
+        },
+        {
+          "caller": "processBatch",
+          "callee": "[...ctxSet].sort((a, b) => a - b)\n                .slice(0, 40) // 폭주 방지 상한\n                .map",
+          "lineNumber": 163
+        },
+        {
+          "caller": "processBatch",
+          "callee": "[...ctxSet].sort((a, b) => a - b)\n                .slice",
+          "lineNumber": 163
+        },
+        {
+          "caller": "processBatch",
+          "callee": "[...ctxSet].sort",
+          "lineNumber": 163
+        },
+        {
+          "caller": "processBatch",
+          "callee": "analyzeBatchSentences",
+          "lineNumber": 167
+        },
+        {
+          "caller": "processBatch",
+          "callee": "results.forEach",
+          "lineNumber": 170
+        },
+        {
+          "caller": "processBatch",
+          "callee": "updateGlobalState",
+          "lineNumber": 182
+        },
+        {
+          "caller": "processBatch",
+          "callee": "setStage2Progress",
+          "lineNumber": 183
+        },
+        {
+          "caller": "processBatch",
+          "callee": "persistCache",
+          "lineNumber": 186
+        },
+        {
+          "caller": "processBatch",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 187
+        },
+        {
+          "caller": "processBatch",
+          "callee": "console.error",
+          "lineNumber": 191
+        },
+        {
+          "caller": "runBatchWorker",
+          "callee": "processBatch",
+          "lineNumber": 199
+        },
+        {
+          "caller": "runStage2",
+          "callee": "Promise.all",
+          "lineNumber": 202
+        },
+        {
+          "caller": "runStage2",
+          "callee": "Array.from",
+          "lineNumber": 202
+        },
+        {
+          "caller": "runStage2",
+          "callee": "Math.min",
+          "lineNumber": 202
+        },
+        {
+          "caller": "runStage2",
+          "callee": "runBatchWorker",
+          "lineNumber": 202
+        },
+        {
+          "caller": "chunkCount",
+          "callee": "a.split('\\n').filter",
+          "lineNumber": 207
+        },
+        {
+          "caller": "chunkCount",
+          "callee": "a.split",
+          "lineNumber": 207
+        },
+        {
+          "caller": "chunkCount",
+          "callee": "l.trim",
+          "lineNumber": 207
+        },
+        {
+          "caller": "runStage2",
+          "callee": "pendingIndices.filter",
+          "lineNumber": 210
+        },
+        {
+          "caller": "runStage2",
+          "callee": "isLumpedAnalysis",
+          "lineNumber": 212
+        },
+        {
+          "caller": "runStage2",
+          "callee": "console.log",
+          "lineNumber": 216
+        },
+        {
+          "caller": "runStage2",
+          "callee": "splitBatches.push",
+          "lineNumber": 222
+        },
+        {
+          "caller": "runStage2",
+          "callee": "lumped.slice",
+          "lineNumber": 222
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "idxGroup.map",
+          "lineNumber": 226
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "analyzeBatchSentences",
+          "lineNumber": 229
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "results.forEach",
+          "lineNumber": 231
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "isLumpedAnalysis",
+          "lineNumber": 235
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "chunkCount",
+          "lineNumber": 236
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "chunkCount",
+          "lineNumber": 236
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "updateGlobalState",
+          "lineNumber": 247
+        },
+        {
+          "caller": "processSplitBatch",
+          "callee": "console.warn",
+          "lineNumber": 251
+        },
+        {
+          "caller": "runSplitWorker",
+          "callee": "processSplitBatch",
+          "lineNumber": 258
+        },
+        {
+          "caller": "runStage2",
+          "callee": "Promise.all",
+          "lineNumber": 261
+        },
+        {
+          "caller": "runStage2",
+          "callee": "Array.from",
+          "lineNumber": 261
+        },
+        {
+          "caller": "runStage2",
+          "callee": "Math.min",
+          "lineNumber": 261
+        },
+        {
+          "caller": "runStage2",
+          "callee": "runSplitWorker",
+          "lineNumber": 261
+        },
+        {
+          "caller": "runStage2",
+          "callee": "workingData.every",
+          "lineNumber": 264
+        },
+        {
+          "caller": "runStage2",
+          "callee": "persistCache",
+          "lineNumber": 265
+        },
+        {
+          "caller": "runStage2",
+          "callee": "setStage2Progress",
+          "lineNumber": 269
+        },
+        {
+          "caller": "runStage2",
+          "callee": "pendingIndices.filter",
+          "lineNumber": 272
+        },
+        {
+          "caller": "runStage2",
+          "callee": "failedIndices.forEach",
+          "lineNumber": 278
+        },
+        {
+          "caller": "runStage2",
+          "callee": "updateGlobalState",
+          "lineNumber": 279
+        },
+        {
+          "caller": "runStage2",
+          "callee": "persistCache",
+          "lineNumber": 280
+        },
+        {
+          "caller": "runStage2",
+          "callee": "workingData.every",
+          "lineNumber": 280
+        },
+        {
+          "caller": "runStage2",
+          "callee": "console.error",
+          "lineNumber": 284
+        },
+        {
+          "caller": "runStage2",
+          "callee": "showToast",
+          "lineNumber": 285
+        },
+        {
+          "caller": "runStage2",
+          "callee": "showToast",
+          "lineNumber": 288
+        },
+        {
+          "caller": "runStage2",
+          "callee": "reanalyzeSentences",
+          "lineNumber": 291
+        },
+        {
+          "caller": "runStage2",
+          "callee": "workingData.every",
+          "lineNumber": 298
+        },
+        {
+          "caller": "runStage2",
+          "callee": "cloudSaveMeta(fileInfo, workingData, allDone ? 'completed' : 'analyzing', null, 0)\n                .catch",
+          "lineNumber": 299
+        },
+        {
+          "caller": "runStage2",
+          "callee": "cloudSaveMeta",
+          "lineNumber": 299
+        },
+        {
+          "caller": "runStage2",
+          "callee": "console.warn",
+          "lineNumber": 300
+        },
+        {
+          "caller": "runStage2",
+          "callee": "console.log",
+          "lineNumber": 303
+        },
+        {
+          "caller": "runStage1",
+          "callee": "stage1AbortRef.current.abort",
+          "lineNumber": 312
+        },
+        {
+          "caller": "runStage1",
+          "callee": "getMediaDuration",
+          "lineNumber": 320
+        },
+        {
+          "caller": "runStage1",
+          "callee": "console.warn",
+          "lineNumber": 320
+        },
+        {
+          "caller": "runStage1",
+          "callee": "console.log",
+          "lineNumber": 322
+        },
+        {
+          "caller": "runStage1",
+          "callee": "extractTranscript",
+          "lineNumber": 324
+        },
+        {
+          "caller": "runStage1",
+          "callee": "setFiles",
+          "lineNumber": 327
+        },
+        {
+          "caller": "runStage1",
+          "callee": "prev.map",
+          "lineNumber": 327
+        },
+        {
+          "caller": "runStage1",
+          "callee": "sanitizeData",
+          "lineNumber": 342
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "materializeFile",
+          "lineNumber": 359
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "showToast",
+          "lineNumber": 360
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "console.warn",
+          "lineNumber": 363
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "getMediaDuration",
+          "lineNumber": 369
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "console.warn",
+          "lineNumber": 369
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "runStage1",
+          "lineNumber": 371
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "setFiles",
+          "lineNumber": 373
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "prev.map",
+          "lineNumber": 373
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "persistCache",
+          "lineNumber": 375
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 376
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "runStage2",
+          "lineNumber": 378
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "mediaStore.saveFile",
+          "lineNumber": 384
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "console.warn",
+          "lineNumber": 386
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "(async () => {\n                try {\n                    let mediaUrl = null;\n                    try {\n                        mediaUrl = await cloudUploadMedia(fileForAnalysis);\n                    } catch (e) {\n                        console.warn('[Cloud] 영상 업로드 실패:', e);\n                    }\n                    await cloudSaveMeta(sourceFile, data, 'extracted', mediaUrl, duration);\n                } catch (e) {\n                    console.warn('[Cloud] 대본 저장 실패:', e);\n                }\n            })",
+          "lineNumber": 392
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "cloudUploadMedia",
+          "lineNumber": 396
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "console.warn",
+          "lineNumber": 398
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "cloudSaveMeta",
+          "lineNumber": 400
+        },
+        {
+          "caller": "runFullAnalysis",
+          "callee": "console.warn",
+          "lineNumber": 402
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "analysisQueueRef.current.shift",
+          "lineNumber": 419
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "runFullAnalysis",
+          "lineNumber": 421
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "setFiles",
+          "lineNumber": 426
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "prev.map",
+          "lineNumber": 426
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "console.error",
+          "lineNumber": 431
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "setFiles",
+          "lineNumber": 432
+        },
+        {
+          "caller": "processAnalysisQueue",
+          "callee": "prev.map",
+          "lineNumber": 432
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setIsDragging",
+          "lineNumber": 441
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setIsSwitchingFile",
+          "lineNumber": 444
+        },
+        {
+          "caller": "processFiles",
+          "callee": "resetPlayerState",
+          "lineNumber": 445
+        },
+        {
+          "caller": "processFiles",
+          "callee": "console.log",
+          "lineNumber": 447
+        },
+        {
+          "caller": "processFiles",
+          "callee": "Array.from(fileList).map",
+          "lineNumber": 449
+        },
+        {
+          "caller": "processFiles",
+          "callee": "Array.from",
+          "lineNumber": 449
+        },
+        {
+          "caller": "processFiles",
+          "callee": "crypto.randomUUID",
+          "lineNumber": 450
+        },
+        {
+          "caller": "processFiles",
+          "callee": "URL.createObjectURL",
+          "lineNumber": 452
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setFiles",
+          "lineNumber": 458
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setActiveFileId",
+          "lineNumber": 461
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setIsSwitchingFile",
+          "lineNumber": 463
+        },
+        {
+          "caller": "processFiles",
+          "callee": "newFiles.forEach",
+          "lineNumber": 466
+        },
+        {
+          "caller": "processFiles",
+          "callee": "parseCacheEntry",
+          "lineNumber": 470
+        },
+        {
+          "caller": "processFiles",
+          "callee": "console.log",
+          "lineNumber": 472
+        },
+        {
+          "caller": "processFiles",
+          "callee": "getMediaDuration",
+          "lineNumber": 474
+        },
+        {
+          "caller": "processFiles",
+          "callee": "console.warn",
+          "lineNumber": 474
+        },
+        {
+          "caller": "processFiles",
+          "callee": "sanitizeData",
+          "lineNumber": 475
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setFiles",
+          "lineNumber": 476
+        },
+        {
+          "caller": "processFiles",
+          "callee": "prev.map",
+          "lineNumber": 476
+        },
+        {
+          "caller": "processFiles",
+          "callee": "mediaStore.getFileFlexible",
+          "lineNumber": 481
+        },
+        {
+          "caller": "processFiles",
+          "callee": "showToast",
+          "lineNumber": 483
+        },
+        {
+          "caller": "processFiles",
+          "callee": "(fItem.file.size / 1048576).toFixed",
+          "lineNumber": 483
+        },
+        {
+          "caller": "processFiles",
+          "callee": "showToast",
+          "lineNumber": 485
+        },
+        {
+          "caller": "processFiles",
+          "callee": "mediaStore.saveFile",
+          "lineNumber": 487
+        },
+        {
+          "caller": "processFiles",
+          "callee": "showToast",
+          "lineNumber": 488
+        },
+        {
+          "caller": "processFiles",
+          "callee": "(fItem.file.size / 1048576).toFixed",
+          "lineNumber": 488
+        },
+        {
+          "caller": "processFiles",
+          "callee": "console.warn",
+          "lineNumber": 491
+        },
+        {
+          "caller": "processFiles",
+          "callee": "showToast",
+          "lineNumber": 492
+        },
+        {
+          "caller": "processFiles",
+          "callee": "analysisQueueRef.current.push",
+          "lineNumber": 498
+        },
+        {
+          "caller": "processFiles",
+          "callee": "processAnalysisQueue",
+          "lineNumber": 499
+        },
+        {
+          "caller": "processFiles",
+          "callee": "console.error",
+          "lineNumber": 502
+        },
+        {
+          "caller": "processFiles",
+          "callee": "setFiles",
+          "lineNumber": 503
+        },
+        {
+          "caller": "processFiles",
+          "callee": "prev.map",
+          "lineNumber": 503
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "stage2AbortRef.current.abort",
+          "lineNumber": 510
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "setFiles",
+          "lineNumber": 513
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "prev.find",
+          "lineNumber": 514
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "prev.map",
+          "lineNumber": 516
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "setTimeout",
+          "lineNumber": 519
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "runFullAnalysis",
+          "lineNumber": 524
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "console.error",
+          "lineNumber": 527
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "setFiles",
+          "lineNumber": 528
+        },
+        {
+          "caller": "retryAnalysis",
+          "callee": "prev.map",
+          "lineNumber": 528
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "showToast",
+          "lineNumber": 540
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "setFiles",
+          "lineNumber": 549
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "prev.find",
+          "lineNumber": 550
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "setTimeout",
+          "lineNumber": 554
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "Array.isArray",
+          "lineNumber": 555
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "[...new Set(indices)]\n            .filter(i => i >= 0 && i < currentData.length)\n            .sort",
+          "lineNumber": 557
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "[...new Set(indices)]\n            .filter",
+          "lineNumber": 557
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "stage2AbortRef.current.abort",
+          "lineNumber": 563
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "makeClearRetranscribingFlag",
+          "lineNumber": 566
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "setFiles",
+          "lineNumber": 567
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "prev.map",
+          "lineNumber": 567
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "p.data.map",
+          "lineNumber": 568
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "sortedIdx.includes",
+          "lineNumber": 568
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "stage1AbortRef.current.abort",
+          "lineNumber": 572
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "materializeFile",
+          "lineNumber": 580
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "showToast",
+          "lineNumber": 581
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "console.warn",
+          "lineNumber": 584
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "getMediaDuration",
+          "lineNumber": 589
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "console.warn",
+          "lineNumber": 589
+        },
+        {
+          "caller": "grabTexts",
+          "callee": "collectTexts",
+          "lineNumber": 594
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "blockMap.has",
+          "lineNumber": 600
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "currentData.slice(lo, hi + 1).map(d => d.text || '').join",
+          "lineNumber": 611
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "currentData.slice(lo, hi + 1).map",
+          "lineNumber": 611
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "currentData.slice",
+          "lineNumber": 611
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "grabTexts",
+          "lineNumber": 613
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "grabTexts",
+          "lineNumber": 614
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "blockMap.set",
+          "lineNumber": 615
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "[...blockMap.values()].sort",
+          "lineNumber": 617
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "blockMap.values",
+          "lineNumber": 617
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "blocks.map",
+          "lineNumber": 618
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "Math.max",
+          "lineNumber": 623
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "windows.map",
+          "lineNumber": 623
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "Math.min",
+          "lineNumber": 623
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "windows.map",
+          "lineNumber": 623
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "retranscribeSegments",
+          "lineNumber": 627
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "currentData.slice",
+          "lineNumber": 641
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "newData.splice",
+          "lineNumber": 649
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "sanitizeData",
+          "lineNumber": 657
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "setFiles",
+          "lineNumber": 658
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "prev.map",
+          "lineNumber": 658
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "cleanData.every",
+          "lineNumber": 660
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "persistCache",
+          "lineNumber": 661
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 662
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "showToast",
+          "lineNumber": 665
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "runStage2",
+          "lineNumber": 670
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "clearRetranscribingFlag",
+          "lineNumber": 672
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "showToast",
+          "lineNumber": 673
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "clearRetranscribingFlag",
+          "lineNumber": 679
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "console.error",
+          "lineNumber": 681
+        },
+        {
+          "caller": "retranscribeSentences",
+          "callee": "showToast",
+          "lineNumber": 682
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "showToast",
+          "lineNumber": 693
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "stage2AbortRef.current.abort",
+          "lineNumber": 699
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "setFiles",
+          "lineNumber": 705
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "prev.map",
+          "lineNumber": 705
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "p.data.map",
+          "lineNumber": 709
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "idxSet.has",
+          "lineNumber": 710
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "snapshot.set",
+          "lineNumber": 712
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "setTimeout",
+          "lineNumber": 718
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 723
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "showToast",
+          "lineNumber": 725
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "runStage2",
+          "lineNumber": 728
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "(result && !result.aborted ? (result.failedIndices || []) : []).filter",
+          "lineNumber": 731
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "snapshot.has",
+          "lineNumber": 731
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "setFiles",
+          "lineNumber": 734
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "prev.map",
+          "lineNumber": 734
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "p.data.map",
+          "lineNumber": 736
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "snapshot.has",
+          "lineNumber": 737
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "snapshot.get",
+          "lineNumber": 738
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "restoredData.every",
+          "lineNumber": 743
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "persistCache",
+          "lineNumber": 744
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 745
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "showToast",
+          "lineNumber": 747
+        },
+        {
+          "caller": "reanalyzeSentences",
+          "callee": "reanalyzeSentences",
+          "lineNumber": 750
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "showToast",
+          "lineNumber": 767
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "setFiles",
+          "lineNumber": 775
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "prev.find",
+          "lineNumber": 776
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "setTimeout",
+          "lineNumber": 780
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "Array.isArray",
+          "lineNumber": 781
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "stage2AbortRef.current.abort",
+          "lineNumber": 784
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "makeClearRetranscribingFlag",
+          "lineNumber": 789
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "setFiles",
+          "lineNumber": 790
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "prev.map",
+          "lineNumber": 790
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "p.data.map",
+          "lineNumber": 791
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "stage1AbortRef.current.abort",
+          "lineNumber": 794
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "materializeFile",
+          "lineNumber": 801
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "showToast",
+          "lineNumber": 802
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "console.warn",
+          "lineNumber": 805
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "getMediaDuration",
+          "lineNumber": 810
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "console.warn",
+          "lineNumber": 810
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "currentData.slice(lo, hi + 1).map(d => d.text || '').join",
+          "lineNumber": 815
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "currentData.slice(lo, hi + 1).map",
+          "lineNumber": 815
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "currentData.slice",
+          "lineNumber": 815
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "clearRetranscribingFlag",
+          "lineNumber": 847
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "showToast",
+          "lineNumber": 848
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "dropList.filter",
+          "lineNumber": 855
+        },
+        {
+          "caller": "grabTexts",
+          "callee": "collectTexts",
+          "lineNumber": 858
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "grabTexts",
+          "lineNumber": 859
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "grabTexts",
+          "lineNumber": 862
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "grabTexts",
+          "lineNumber": 866
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "grabTexts",
+          "lineNumber": 868
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "grabTexts",
+          "lineNumber": 869
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "[\n                prevIdx >= 0 ? pSec : null,\n                nextIdx >= 0 ? nSec : null,\n            ].filter",
+          "lineNumber": 872
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "Math.min",
+          "lineNumber": 884
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "windows.push",
+          "lineNumber": 885
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "windows.push",
+          "lineNumber": 889
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "retranscribeSegments",
+          "lineNumber": 892
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "perWindow.flatMap",
+          "lineNumber": 906
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "deduplicateOverlap",
+          "lineNumber": 907
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "clearRetranscribingFlag",
+          "lineNumber": 909
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "perWindow.find",
+          "lineNumber": 910
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "showToast",
+          "lineNumber": 911
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "sanitizeData",
+          "lineNumber": 919
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "setFiles",
+          "lineNumber": 920
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "prev.map",
+          "lineNumber": 920
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "cleanData.every",
+          "lineNumber": 922
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "persistCache",
+          "lineNumber": 923
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 924
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "showToast",
+          "lineNumber": 926
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "runStage2",
+          "lineNumber": 928
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "clearRetranscribingFlag",
+          "lineNumber": 930
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "console.error",
+          "lineNumber": 932
+        },
+        {
+          "caller": "recoverGap",
+          "callee": "showToast",
+          "lineNumber": 933
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "setFiles",
+          "lineNumber": 949
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "prev.map",
+          "lineNumber": 949
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "p.data.filter",
+          "lineNumber": 953
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "idxSet.has",
+          "lineNumber": 953
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "p.data.filter",
+          "lineNumber": 954
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "idxSet.has",
+          "lineNumber": 954
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "setTimeout",
+          "lineNumber": 957
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "addToTrash",
+          "lineNumber": 962
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "onTrashChange",
+          "lineNumber": 963
+        },
+        {
+          "caller": "persist",
+          "callee": "data.every",
+          "lineNumber": 968
+        },
+        {
+          "caller": "persist",
+          "callee": "persistCache",
+          "lineNumber": 969
+        },
+        {
+          "caller": "persist",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 970
+        },
+        {
+          "caller": "persist",
+          "callee": "cloudSaveMeta(targetFile, data, status, null, 0).catch",
+          "lineNumber": 971
+        },
+        {
+          "caller": "persist",
+          "callee": "cloudSaveMeta",
+          "lineNumber": 971
+        },
+        {
+          "caller": "persist",
+          "callee": "console.warn",
+          "lineNumber": 971
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "persist",
+          "lineNumber": 973
+        },
+        {
+          "caller": "undo",
+          "callee": "setFiles",
+          "lineNumber": 977
+        },
+        {
+          "caller": "undo",
+          "callee": "prev.map",
+          "lineNumber": 977
+        },
+        {
+          "caller": "undo",
+          "callee": "persist",
+          "lineNumber": 978
+        },
+        {
+          "caller": "undo",
+          "callee": "removeFromTrash",
+          "lineNumber": 980
+        },
+        {
+          "caller": "undo",
+          "callee": "onTrashChange",
+          "lineNumber": 981
+        },
+        {
+          "caller": "undo",
+          "callee": "showToast",
+          "lineNumber": 983
+        },
+        {
+          "caller": "deleteSentences",
+          "callee": "showToast",
+          "lineNumber": 986
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "setFiles",
+          "lineNumber": 1002
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "prev.find",
+          "lineNumber": 1003
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "setTimeout",
+          "lineNumber": 1007
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "Array.isArray",
+          "lineNumber": 1008
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "curData.map",
+          "lineNumber": 1010
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "items.filter",
+          "lineNumber": 1011
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "existing.has",
+          "lineNumber": 1011
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "sentenceKey",
+          "lineNumber": 1011
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "sanitizeData",
+          "lineNumber": 1013
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "setFiles",
+          "lineNumber": 1014
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "prev.map",
+          "lineNumber": 1014
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "clean.every",
+          "lineNumber": 1016
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "persistCache",
+          "lineNumber": 1017
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "refreshCacheKeys",
+          "lineNumber": 1018
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "cloudSaveMeta(targetFile, clean, status, null, 0).catch",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "cloudSaveMeta",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "console.warn",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "removeFromTrash",
+          "lineNumber": 1022
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "onTrashChange",
+          "lineNumber": 1023
+        },
+        {
+          "caller": "restoreSentences",
+          "callee": "showToast",
+          "lineNumber": 1025
+        },
+        {
+          "caller": "cancelStage1",
+          "callee": "stage1AbortRef.current.abort",
+          "lineNumber": 1031
+        },
+        {
+          "caller": "cancelStage1",
+          "callee": "setFiles",
+          "lineNumber": 1032
+        },
+        {
+          "caller": "cancelStage1",
+          "callee": "prev.map",
+          "lineNumber": 1032
+        },
+        {
+          "caller": "onDragOver",
+          "callee": "e.preventDefault",
+          "lineNumber": 1038
+        },
+        {
+          "caller": "onDragOver",
+          "callee": "setIsDragging",
+          "lineNumber": 1038
+        },
+        {
+          "caller": "onDragLeave",
+          "callee": "setIsDragging",
+          "lineNumber": 1041
+        },
+        {
+          "caller": "onDrop",
+          "callee": "e.preventDefault",
+          "lineNumber": 1045
+        },
+        {
+          "caller": "onDrop",
+          "callee": "processFiles",
+          "lineNumber": 1046
+        }
+      ],
+      "metrics": {
+        "importCount": 8,
+        "exportCount": 1,
+        "functionCount": 5,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/services/gemini.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 1135,
+      "nonEmptyLines": 1008,
+      "functions": [
+        {
+          "name": "resolveModel",
+          "startLine": 8,
+          "endLine": 9,
+          "params": [
+            "modelId"
+          ]
+        },
+        {
+          "name": "disableThinkingConfig",
+          "startLine": 13,
+          "endLine": 16,
+          "params": [
+            "modelName"
+          ]
+        },
+        {
+          "name": "escapeRegExp",
+          "startLine": 33,
+          "endLine": 33,
+          "params": [
+            "s"
+          ]
+        },
+        {
+          "name": "sentenceSim",
+          "startLine": 36,
+          "endLine": 45,
+          "params": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "name": "textOf",
+          "startLine": 48,
+          "endLine": 48,
+          "params": [
+            "s"
+          ]
+        },
+        {
+          "name": "normWordForTrim",
+          "startLine": 50,
+          "endLine": 50,
+          "params": [
+            "w"
+          ]
+        },
+        {
+          "name": "trimBoundaryOverlap",
+          "startLine": 55,
+          "endLine": 82,
+          "params": [
+            "text",
+            "neighbor",
+            "mode"
+          ]
+        },
+        {
+          "name": "isBoundaryLeakFragment",
+          "startLine": 86,
+          "endLine": 95,
+          "params": [
+            "text",
+            "neighbor"
+          ]
+        },
+        {
+          "name": "makeMarkerStripper",
+          "startLine": 99,
+          "endLine": 104,
+          "params": [
+            "markerChar"
+          ]
+        },
+        {
+          "name": "formatTime",
+          "startLine": 106,
+          "endLine": 112,
+          "params": [
+            "seconds"
+          ]
+        },
+        {
+          "name": "blobToInlinePart",
+          "startLine": 125,
+          "endLine": 137,
+          "params": [
+            "blob"
+          ]
+        },
+        {
+          "name": "uploadToGemini",
+          "startLine": 140,
+          "endLine": 201,
+          "params": [
+            "blob",
+            "apiKey"
+          ]
+        },
+        {
+          "name": "extractAudioBlob",
+          "startLine": 204,
+          "endLine": 225,
+          "params": [
+            "file"
+          ]
+        },
+        {
+          "name": "blobToGeminiPart",
+          "startLine": 228,
+          "endLine": 239,
+          "params": [
+            "blob",
+            "apiKey"
+          ]
+        },
+        {
+          "name": "deduplicateOverlap",
+          "startLine": 247,
+          "endLine": 280,
+          "params": [
+            "matches"
+          ]
+        },
+        {
+          "name": "buildStage1Prompt",
+          "startLine": 299,
+          "endLine": 357,
+          "params": [
+            "durationSec",
+            "antiRecitation"
+          ]
+        },
+        {
+          "name": "buildMarkerExample",
+          "startLine": 360,
+          "endLine": 368,
+          "params": [
+            "mk",
+            "n"
+          ]
+        },
+        {
+          "name": "transcribeStream",
+          "startLine": 379,
+          "endLine": 515,
+          "params": [
+            "model",
+            "parts"
+          ]
+        },
+        {
+          "name": "rebuildWithReplacements",
+          "startLine": 518,
+          "endLine": 526,
+          "params": [
+            "sorted",
+            "replacements"
+          ]
+        },
+        {
+          "name": "realignMergedBlocks",
+          "startLine": 536,
+          "endLine": 594,
+          "params": [
+            "sorted",
+            "audioBlob",
+            "model",
+            "totalDuration"
+          ]
+        },
+        {
+          "name": "retranscribeSegments",
+          "startLine": 609,
+          "endLine": 855,
+          "params": [
+            "file",
+            "apiKey"
+          ]
+        },
+        {
+          "name": "extractTranscript",
+          "startLine": 857,
+          "endLine": 980,
+          "params": [
+            "file",
+            "apiKey"
+          ]
+        },
+        {
+          "name": "stage2TimeoutMs",
+          "startLine": 990,
+          "endLine": 993,
+          "params": [
+            "itemCount",
+            "modelId"
+          ]
+        },
+        {
+          "name": "linkAbort",
+          "startLine": 996,
+          "endLine": 1002,
+          "params": [
+            "target",
+            "source"
+          ]
+        },
+        {
+          "name": "isRetryableStage2Error",
+          "startLine": 1005,
+          "endLine": 1012,
+          "params": [
+            "err"
+          ]
+        },
+        {
+          "name": "abortableSleep",
+          "startLine": 1015,
+          "endLine": 1021,
+          "params": [
+            "ms",
+            "signal"
+          ]
+        },
+        {
+          "name": "analyzeBatchSentences",
+          "startLine": 1023,
+          "endLine": 1134,
+          "params": [
+            "items",
+            "apiKey",
+            "modelId",
+            "signal"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "deduplicateOverlap",
+          "line": 247,
+          "isDefault": false
+        },
+        {
+          "name": "retranscribeSegments",
+          "line": 609,
+          "isDefault": false
+        },
+        {
+          "name": "extractTranscript",
+          "line": 857,
+          "isDefault": false
+        },
+        {
+          "name": "analyzeBatchSentences",
+          "line": 1023,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "resolveModel",
+          "callee": "VALID_MODELS.find",
+          "lineNumber": 9
+        },
+        {
+          "caller": "disableThinkingConfig",
+          "callee": "modelName.includes",
+          "lineNumber": 14
+        },
+        {
+          "caller": "disableThinkingConfig",
+          "callee": "modelName.includes",
+          "lineNumber": 14
+        },
+        {
+          "caller": "escapeRegExp",
+          "callee": "s.replace",
+          "lineNumber": 33
+        },
+        {
+          "caller": "norm",
+          "callee": "s.toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split(/\\s+/).filter",
+          "lineNumber": 38
+        },
+        {
+          "caller": "norm",
+          "callee": "s.toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split",
+          "lineNumber": 38
+        },
+        {
+          "caller": "norm",
+          "callee": "s.toLowerCase().replace",
+          "lineNumber": 38
+        },
+        {
+          "caller": "norm",
+          "callee": "s.toLowerCase",
+          "lineNumber": 38
+        },
+        {
+          "caller": "sentenceSim",
+          "callee": "norm",
+          "lineNumber": 39
+        },
+        {
+          "caller": "sentenceSim",
+          "callee": "norm",
+          "lineNumber": 40
+        },
+        {
+          "caller": "sentenceSim",
+          "callee": "wb.has",
+          "lineNumber": 43
+        },
+        {
+          "caller": "normWordForTrim",
+          "callee": "(w || '').toLowerCase().replace",
+          "lineNumber": 50
+        },
+        {
+          "caller": "normWordForTrim",
+          "callee": "(w || '').toLowerCase",
+          "lineNumber": 50
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "text.split(/\\s+/).filter",
+          "lineNumber": 57
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "text.split",
+          "lineNumber": 57
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "neighbor.split(/\\s+/).filter",
+          "lineNumber": 58
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "neighbor.split",
+          "lineNumber": 58
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "words.map",
+          "lineNumber": 60
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "nWords.map",
+          "lineNumber": 61
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "Math.min",
+          "lineNumber": 62
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "words.slice(best).join",
+          "lineNumber": 78
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "words.slice",
+          "lineNumber": 78
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "words.slice(0, words.length - best).join",
+          "lineNumber": 79
+        },
+        {
+          "caller": "trimBoundaryOverlap",
+          "callee": "words.slice",
+          "lineNumber": 79
+        },
+        {
+          "caller": "norm",
+          "callee": "(s || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split(/\\s+/).filter",
+          "lineNumber": 87
+        },
+        {
+          "caller": "norm",
+          "callee": "(s || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split",
+          "lineNumber": 87
+        },
+        {
+          "caller": "norm",
+          "callee": "(s || '').toLowerCase().replace",
+          "lineNumber": 87
+        },
+        {
+          "caller": "norm",
+          "callee": "(s || '').toLowerCase",
+          "lineNumber": 87
+        },
+        {
+          "caller": "isBoundaryLeakFragment",
+          "callee": "norm",
+          "lineNumber": 88
+        },
+        {
+          "caller": "isBoundaryLeakFragment",
+          "callee": "norm",
+          "lineNumber": 89
+        },
+        {
+          "caller": "isBoundaryLeakFragment",
+          "callee": "w.filter",
+          "lineNumber": 93
+        },
+        {
+          "caller": "isBoundaryLeakFragment",
+          "callee": "nbSet.has",
+          "lineNumber": 93
+        },
+        {
+          "caller": "makeMarkerStripper",
+          "callee": "(markerChar || DEFAULT_RECITATION_MARKER).trim",
+          "lineNumber": 100
+        },
+        {
+          "caller": "makeMarkerStripper",
+          "callee": "escapeRegExp",
+          "lineNumber": 102
+        },
+        {
+          "caller": "makeMarkerStripper",
+          "callee": "text.replace(re, ' ').replace(/\\s{2,}/g, ' ').trim",
+          "lineNumber": 103
+        },
+        {
+          "caller": "makeMarkerStripper",
+          "callee": "text.replace(re, ' ').replace",
+          "lineNumber": 103
+        },
+        {
+          "caller": "makeMarkerStripper",
+          "callee": "text.replace",
+          "lineNumber": 103
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor((seconds % 1) * 1000).toString().padStart",
+          "lineNumber": 107
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor((seconds % 1) * 1000).toString",
+          "lineNumber": 107
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor",
+          "lineNumber": 107
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor(seconds % 60).toString().padStart",
+          "lineNumber": 108
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor(seconds % 60).toString",
+          "lineNumber": 108
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor",
+          "lineNumber": 108
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor((seconds / 60) % 60).toString().padStart",
+          "lineNumber": 109
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor((seconds / 60) % 60).toString",
+          "lineNumber": 109
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor",
+          "lineNumber": 109
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor(seconds / 3600).toString().padStart",
+          "lineNumber": 110
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor(seconds / 3600).toString",
+          "lineNumber": 110
+        },
+        {
+          "caller": "formatTime",
+          "callee": "Math.floor",
+          "lineNumber": 110
+        },
+        {
+          "caller": "blobToInlinePart",
+          "callee": "resolve",
+          "lineNumber": 128
+        },
+        {
+          "caller": "blobToInlinePart",
+          "callee": "reader.result.split",
+          "lineNumber": 130
+        },
+        {
+          "caller": "blobToInlinePart",
+          "callee": "reader.readAsDataURL",
+          "lineNumber": 135
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "console.log",
+          "lineNumber": 144
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "(numBytes / 1024 / 1024).toFixed",
+          "lineNumber": 144
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "fetch",
+          "lineNumber": 147
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "String",
+          "lineNumber": 154
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "JSON.stringify",
+          "lineNumber": 158
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "startRes.text",
+          "lineNumber": 162
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "startRes.headers.get",
+          "lineNumber": 165
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "startRes.headers.get",
+          "lineNumber": 165
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "fetch",
+          "lineNumber": 169
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "uploadRes.text",
+          "lineNumber": 178
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "uploadRes.json",
+          "lineNumber": 182
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "console.log",
+          "lineNumber": 186
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "setTimeout",
+          "lineNumber": 187
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "fetch",
+          "lineNumber": 188
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "statusRes.json",
+          "lineNumber": 192
+        },
+        {
+          "caller": "uploadToGemini",
+          "callee": "console.log",
+          "lineNumber": 199
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "console.log",
+          "lineNumber": 205
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "(file.size / 1024 / 1024).toFixed",
+          "lineNumber": 205
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "extractAudioWav",
+          "lineNumber": 209
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "console.log",
+          "lineNumber": 210
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "(wav.size / 1024 / 1024).toFixed",
+          "lineNumber": 210
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "console.warn",
+          "lineNumber": 213
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "extractOriginalAudio",
+          "lineNumber": 218
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "console.log",
+          "lineNumber": 219
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "(audioBlob.size / 1024 / 1024).toFixed",
+          "lineNumber": 219
+        },
+        {
+          "caller": "extractAudioBlob",
+          "callee": "console.warn",
+          "lineNumber": 222
+        },
+        {
+          "caller": "blobToGeminiPart",
+          "callee": "uploadToGemini",
+          "lineNumber": 232
+        },
+        {
+          "caller": "blobToGeminiPart",
+          "callee": "console.warn",
+          "lineNumber": 235
+        },
+        {
+          "caller": "blobToGeminiPart",
+          "callee": "blobToInlinePart",
+          "lineNumber": 238
+        },
+        {
+          "caller": "deduplicateOverlap",
+          "callee": "matches.sort",
+          "lineNumber": 249
+        },
+        {
+          "caller": "normFull",
+          "callee": "(t || '').toLowerCase().replace",
+          "lineNumber": 255
+        },
+        {
+          "caller": "normFull",
+          "callee": "(t || '').toLowerCase",
+          "lineNumber": 255
+        },
+        {
+          "caller": "wordCount",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').match",
+          "lineNumber": 256
+        },
+        {
+          "caller": "wordCount",
+          "callee": "(t || '').toLowerCase().replace",
+          "lineNumber": 256
+        },
+        {
+          "caller": "wordCount",
+          "callee": "(t || '').toLowerCase",
+          "lineNumber": 256
+        },
+        {
+          "caller": "isDup",
+          "callee": "normFull",
+          "lineNumber": 259
+        },
+        {
+          "caller": "isDup",
+          "callee": "normFull",
+          "lineNumber": 259
+        },
+        {
+          "caller": "isDup",
+          "callee": "longer.includes",
+          "lineNumber": 263
+        },
+        {
+          "caller": "isDup",
+          "callee": "wordCount",
+          "lineNumber": 264
+        },
+        {
+          "caller": "isDup",
+          "callee": "wordCount",
+          "lineNumber": 264
+        },
+        {
+          "caller": "isDup",
+          "callee": "Math.max",
+          "lineNumber": 265
+        },
+        {
+          "caller": "isDup",
+          "callee": "sentenceSim",
+          "lineNumber": 265
+        },
+        {
+          "caller": "isDup",
+          "callee": "sentenceSim",
+          "lineNumber": 265
+        },
+        {
+          "caller": "deduplicateOverlap",
+          "callee": "isDup",
+          "lineNumber": 275
+        },
+        {
+          "caller": "deduplicateOverlap",
+          "callee": "kept.push",
+          "lineNumber": 277
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "formatTime",
+          "lineNumber": 302
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "(context && Array.isArray(context.before) ? context.before : []).filter",
+          "lineNumber": 306
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "Array.isArray",
+          "lineNumber": 306
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "(context && Array.isArray(context.after) ? context.after : []).filter",
+          "lineNumber": 307
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "Array.isArray",
+          "lineNumber": 307
+        },
+        {
+          "caller": "fmt",
+          "callee": "arr.map((t, i) => `  ${i + 1}) ${t}`).join",
+          "lineNumber": 309
+        },
+        {
+          "caller": "fmt",
+          "callee": "arr.map",
+          "lineNumber": 309
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "fmt",
+          "lineNumber": 313
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "fmt",
+          "lineNumber": 314
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "durationSec.toFixed",
+          "lineNumber": 331
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "durationSec.toFixed",
+          "lineNumber": 332
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "durationSec.toFixed",
+          "lineNumber": 334
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "Math.max",
+          "lineNumber": 340
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "Math.round",
+          "lineNumber": 340
+        },
+        {
+          "caller": "buildStage1Prompt",
+          "callee": "buildMarkerExample",
+          "lineNumber": 351
+        },
+        {
+          "caller": "buildMarkerExample",
+          "callee": "out.push",
+          "lineNumber": 364
+        },
+        {
+          "caller": "buildMarkerExample",
+          "callee": "out.push",
+          "lineNumber": 365
+        },
+        {
+          "caller": "buildMarkerExample",
+          "callee": "out.join",
+          "lineNumber": 367
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "model.generateContentStream",
+          "lineNumber": 389
+        },
+        {
+          "caller": "parseLine",
+          "callee": "line.match",
+          "lineNumber": 401
+        },
+        {
+          "caller": "parseLine",
+          "callee": "match[3].trim",
+          "lineNumber": 405
+        },
+        {
+          "caller": "parseLine",
+          "callee": "stripMarker",
+          "lineNumber": 407
+        },
+        {
+          "caller": "parseLine",
+          "callee": "SCREEN_TEXT_PATTERNS.test",
+          "lineNumber": 410
+        },
+        {
+          "caller": "parseLine",
+          "callee": "BRACKET_DESCRIPTION_PATTERN.test",
+          "lineNumber": 411
+        },
+        {
+          "caller": "parseLine",
+          "callee": "analyzeIntraLineRepetition",
+          "lineNumber": 413
+        },
+        {
+          "caller": "parseLine",
+          "callee": "rawTimeStr.replace(/[^\\d:.]/g, '').split(':').reverse",
+          "lineNumber": 421
+        },
+        {
+          "caller": "parseLine",
+          "callee": "rawTimeStr.replace(/[^\\d:.]/g, '').split",
+          "lineNumber": 421
+        },
+        {
+          "caller": "parseLine",
+          "callee": "rawTimeStr.replace",
+          "lineNumber": 421
+        },
+        {
+          "caller": "parseLine",
+          "callee": "parseFloat",
+          "lineNumber": 423
+        },
+        {
+          "caller": "parseLine",
+          "callee": "parseFloat",
+          "lineNumber": 424
+        },
+        {
+          "caller": "parseLine",
+          "callee": "parseFloat",
+          "lineNumber": 425
+        },
+        {
+          "caller": "parseLine",
+          "callee": "parseFloat",
+          "lineNumber": 428
+        },
+        {
+          "caller": "parseLine",
+          "callee": "content.toLowerCase().trim",
+          "lineNumber": 447
+        },
+        {
+          "caller": "parseLine",
+          "callee": "content.toLowerCase",
+          "lineNumber": 447
+        },
+        {
+          "caller": "parseLine",
+          "callee": "Math.floor(absTime / 60).toString().padStart",
+          "lineNumber": 457
+        },
+        {
+          "caller": "parseLine",
+          "callee": "Math.floor(absTime / 60).toString",
+          "lineNumber": 457
+        },
+        {
+          "caller": "parseLine",
+          "callee": "Math.floor",
+          "lineNumber": 457
+        },
+        {
+          "caller": "parseLine",
+          "callee": "(absTime % 60).toFixed(2).padStart",
+          "lineNumber": 458
+        },
+        {
+          "caller": "parseLine",
+          "callee": "(absTime % 60).toFixed",
+          "lineNumber": 458
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "chunk.text",
+          "lineNumber": 477
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "fullText.includes",
+          "lineNumber": 482
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "fullText.replace",
+          "lineNumber": 487
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "fullText.split",
+          "lineNumber": 492
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "lines.pop",
+          "lineNumber": 493
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "parseLine",
+          "lineNumber": 496
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "matches.push",
+          "lineNumber": 497
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "Date.now",
+          "lineNumber": 500
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "onPartial",
+          "lineNumber": 503
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "fullText.trim",
+          "lineNumber": 507
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "parseLine",
+          "lineNumber": 508
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "matches.push",
+          "lineNumber": 509
+        },
+        {
+          "caller": "transcribeStream",
+          "callee": "onPartial",
+          "lineNumber": 512
+        },
+        {
+          "caller": "rebuildWithReplacements",
+          "callee": "replacements.has",
+          "lineNumber": 522
+        },
+        {
+          "caller": "rebuildWithReplacements",
+          "callee": "out.push",
+          "lineNumber": 522
+        },
+        {
+          "caller": "rebuildWithReplacements",
+          "callee": "replacements.get",
+          "lineNumber": 522
+        },
+        {
+          "caller": "rebuildWithReplacements",
+          "callee": "out.push",
+          "lineNumber": 523
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "groupSentences",
+          "lineNumber": 542
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "splitIntoSentences",
+          "lineNumber": 542
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "textOf",
+          "lineNumber": 542
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "targets.push",
+          "lineNumber": 543
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "console.warn",
+          "lineNumber": 549
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "targets.slice",
+          "lineNumber": 551
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "Math.max",
+          "lineNumber": 565
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "Math.max",
+          "lineNumber": 566
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "extractSegmentWav",
+          "lineNumber": 569
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "blobToGeminiPart",
+          "lineNumber": 570
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "buildStage1Prompt",
+          "lineNumber": 571
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "transcribeStream",
+          "lineNumber": 572
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "(segMatches || []).filter",
+          "lineNumber": 580
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "replacements.set",
+          "lineNumber": 582
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "console.log",
+          "lineNumber": 583
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "blockStart.toFixed",
+          "lineNumber": 583
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "console.warn",
+          "lineNumber": 586
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "blockStart.toFixed",
+          "lineNumber": 586
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "onProgress",
+          "lineNumber": 590
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "rebuildWithReplacements",
+          "lineNumber": 590
+        },
+        {
+          "caller": "realignMergedBlocks",
+          "callee": "rebuildWithReplacements",
+          "lineNumber": 593
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "resolveModel",
+          "lineNumber": 626
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.min",
+          "lineNumber": 629
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "genAI.getGenerativeModel",
+          "lineNumber": 630
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "disableThinkingConfig",
+          "lineNumber": 636
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "makeMarkerStripper",
+          "lineNumber": 641
+        },
+        {
+          "caller": "getWholeAudio",
+          "callee": "extractAudioBlob",
+          "lineNumber": 650
+        },
+        {
+          "caller": "getWholeAudio",
+          "callee": "console.log",
+          "lineNumber": 651
+        },
+        {
+          "caller": "getWholeAudio",
+          "callee": "((audioBlob?.size || 0) / 1024 / 1024).toFixed",
+          "lineNumber": 651
+        },
+        {
+          "caller": "extractWindow",
+          "callee": "captureSegmentWav",
+          "lineNumber": 658
+        },
+        {
+          "caller": "extractWindow",
+          "callee": "console.warn",
+          "lineNumber": 660
+        },
+        {
+          "caller": "extractWindow",
+          "callee": "/차단|autoplay/.test",
+          "lineNumber": 661
+        },
+        {
+          "caller": "extractWindow",
+          "callee": "extractSegmentWav",
+          "lineNumber": 664
+        },
+        {
+          "caller": "extractWindow",
+          "callee": "getWholeAudio",
+          "lineNumber": 664
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.max",
+          "lineNumber": 680
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.min",
+          "lineNumber": 680
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "windows.map",
+          "lineNumber": 680
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.max",
+          "lineNumber": 680
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.max",
+          "lineNumber": 681
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "windows.map",
+          "lineNumber": 681
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.min",
+          "lineNumber": 682
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.max",
+          "lineNumber": 683
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "extractSegmentWav",
+          "lineNumber": 685
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "getWholeAudio",
+          "lineNumber": 685
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "console.log",
+          "lineNumber": 687
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "us.toFixed",
+          "lineNumber": 687
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "ue.toFixed",
+          "lineNumber": 687
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "console.warn",
+          "lineNumber": 689
+        },
+        {
+          "caller": "processOne",
+          "callee": "Math.max",
+          "lineNumber": 699
+        },
+        {
+          "caller": "processOne",
+          "callee": "Math.max",
+          "lineNumber": 703
+        },
+        {
+          "caller": "processOne",
+          "callee": "Math.min",
+          "lineNumber": 705
+        },
+        {
+          "caller": "processOne",
+          "callee": "Math.max",
+          "lineNumber": 706
+        },
+        {
+          "caller": "processOne",
+          "callee": "extractSegmentWav",
+          "lineNumber": 711
+        },
+        {
+          "caller": "processOne",
+          "callee": "extractWindow",
+          "lineNumber": 712
+        },
+        {
+          "caller": "processOne",
+          "callee": "snapSegmentToSilence",
+          "lineNumber": 719
+        },
+        {
+          "caller": "processOne",
+          "callee": "console.warn",
+          "lineNumber": 729
+        },
+        {
+          "caller": "processOne",
+          "callee": "blobToGeminiPart",
+          "lineNumber": 731
+        },
+        {
+          "caller": "processOne",
+          "callee": "buildStage1Prompt",
+          "lineNumber": 733
+        },
+        {
+          "caller": "processOne",
+          "callee": "transcribeStream",
+          "lineNumber": 737
+        },
+        {
+          "caller": "processOne",
+          "callee": "all.filter",
+          "lineNumber": 750
+        },
+        {
+          "caller": "processOne",
+          "callee": "splitMergedSentences",
+          "lineNumber": 752
+        },
+        {
+          "caller": "processOne",
+          "callee": "split.filter",
+          "lineNumber": 760
+        },
+        {
+          "caller": "processOne",
+          "callee": "Array.isArray",
+          "lineNumber": 766
+        },
+        {
+          "caller": "processOne",
+          "callee": "kept.filter",
+          "lineNumber": 768
+        },
+        {
+          "caller": "processOne",
+          "callee": "bts.some",
+          "lineNumber": 770
+        },
+        {
+          "caller": "processOne",
+          "callee": "Math.abs",
+          "lineNumber": 770
+        },
+        {
+          "caller": "processOne",
+          "callee": "Array.isArray",
+          "lineNumber": 774
+        },
+        {
+          "caller": "processOne",
+          "callee": "w.dropSimilarTo.filter",
+          "lineNumber": 774
+        },
+        {
+          "caller": "processOne",
+          "callee": "kept.filter",
+          "lineNumber": 776
+        },
+        {
+          "caller": "processOne",
+          "callee": "textOf",
+          "lineNumber": 777
+        },
+        {
+          "caller": "processOne",
+          "callee": "drops.some",
+          "lineNumber": 778
+        },
+        {
+          "caller": "processOne",
+          "callee": "Math.max",
+          "lineNumber": 778
+        },
+        {
+          "caller": "processOne",
+          "callee": "sentenceSim",
+          "lineNumber": 778
+        },
+        {
+          "caller": "processOne",
+          "callee": "sentenceSim",
+          "lineNumber": 778
+        },
+        {
+          "caller": "processOne",
+          "callee": "split.map",
+          "lineNumber": 786
+        },
+        {
+          "caller": "processOne",
+          "callee": "textOf",
+          "lineNumber": 787
+        },
+        {
+          "caller": "processOne",
+          "callee": "sentenceSim",
+          "lineNumber": 790
+        },
+        {
+          "caller": "processOne",
+          "callee": "sentenceSim",
+          "lineNumber": 791
+        },
+        {
+          "caller": "processOne",
+          "callee": "sentenceSim",
+          "lineNumber": 792
+        },
+        {
+          "caller": "processOne",
+          "callee": "scored.filter(x => x.self >= x.prev && x.self >= x.next).map",
+          "lineNumber": 795
+        },
+        {
+          "caller": "processOne",
+          "callee": "scored.filter",
+          "lineNumber": 795
+        },
+        {
+          "caller": "processOne",
+          "callee": "[...scored].sort",
+          "lineNumber": 798
+        },
+        {
+          "caller": "processOne",
+          "callee": "trimBoundaryOverlap",
+          "lineNumber": 807
+        },
+        {
+          "caller": "processOne",
+          "callee": "textOf",
+          "lineNumber": 807
+        },
+        {
+          "caller": "processOne",
+          "callee": "trimBoundaryOverlap",
+          "lineNumber": 811
+        },
+        {
+          "caller": "processOne",
+          "callee": "textOf",
+          "lineNumber": 811
+        },
+        {
+          "caller": "processOne",
+          "callee": "clean.filter",
+          "lineNumber": 813
+        },
+        {
+          "caller": "processOne",
+          "callee": "textOf(c).trim",
+          "lineNumber": 813
+        },
+        {
+          "caller": "processOne",
+          "callee": "textOf",
+          "lineNumber": 813
+        },
+        {
+          "caller": "processOne",
+          "callee": "isBoundaryLeakFragment",
+          "lineNumber": 817
+        },
+        {
+          "caller": "processOne",
+          "callee": "clean.slice",
+          "lineNumber": 818
+        },
+        {
+          "caller": "processOne",
+          "callee": "isBoundaryLeakFragment",
+          "lineNumber": 820
+        },
+        {
+          "caller": "processOne",
+          "callee": "clean.slice",
+          "lineNumber": 821
+        },
+        {
+          "caller": "processOne",
+          "callee": "mergeTinyFragments",
+          "lineNumber": 824
+        },
+        {
+          "caller": "processOne",
+          "callee": "console.log",
+          "lineNumber": 826
+        },
+        {
+          "caller": "processOne",
+          "callee": "blockStart.toFixed",
+          "lineNumber": 826
+        },
+        {
+          "caller": "processOne",
+          "callee": "blockEnd.toFixed",
+          "lineNumber": 826
+        },
+        {
+          "caller": "processOne",
+          "callee": "winStart.toFixed",
+          "lineNumber": 826
+        },
+        {
+          "caller": "processOne",
+          "callee": "winEnd.toFixed",
+          "lineNumber": 826
+        },
+        {
+          "caller": "processOne",
+          "callee": "console.warn",
+          "lineNumber": 833
+        },
+        {
+          "caller": "processOne",
+          "callee": "blockStart.toFixed",
+          "lineNumber": 833
+        },
+        {
+          "caller": "processOne",
+          "callee": "String",
+          "lineNumber": 834
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.max",
+          "lineNumber": 841
+        },
+        {
+          "caller": "runWorker",
+          "callee": "processOne",
+          "lineNumber": 847
+        },
+        {
+          "caller": "runWorker",
+          "callee": "onProgress",
+          "lineNumber": 849
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Promise.all",
+          "lineNumber": 852
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Array.from",
+          "lineNumber": 852
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "Math.min",
+          "lineNumber": 852
+        },
+        {
+          "caller": "retranscribeSegments",
+          "callee": "runWorker",
+          "lineNumber": 852
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "resolveModel",
+          "lineNumber": 872
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "console.log",
+          "lineNumber": 877
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "genAI.getGenerativeModel",
+          "lineNumber": 882
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "disableThinkingConfig",
+          "lineNumber": 888
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "makeMarkerStripper",
+          "lineNumber": 893
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "extractAudioBlob",
+          "lineNumber": 894
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "console.log",
+          "lineNumber": 901
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "totalDuration.toFixed",
+          "lineNumber": 901
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "splitAudio",
+          "lineNumber": 902
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "console.log",
+          "lineNumber": 907
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "chunks[i].durationSec.toFixed",
+          "lineNumber": 907
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "blobToGeminiPart",
+          "lineNumber": 909
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "buildStage1Prompt",
+          "lineNumber": 910
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "transcribeStream",
+          "lineNumber": 912
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "onProgress",
+          "lineNumber": 917
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "onProgress",
+          "lineNumber": 924
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "deduplicateOverlap",
+          "lineNumber": 927
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "blobToGeminiPart",
+          "lineNumber": 930
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "buildStage1Prompt",
+          "lineNumber": 931
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "transcribeStream",
+          "lineNumber": 935
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "console.error",
+          "lineNumber": 946
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "allMatches.sort",
+          "lineNumber": 951
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "realignMergedBlocks",
+          "lineNumber": 956
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "console.warn",
+          "lineNumber": 961
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "mergeTinyFragments",
+          "lineNumber": 967
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "splitMergedSentences",
+          "lineNumber": 967
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "console.error",
+          "lineNumber": 970
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "String",
+          "lineNumber": 971
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "errStr.includes",
+          "lineNumber": 972
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "errStr.includes",
+          "lineNumber": 975
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "errStr.includes",
+          "lineNumber": 975
+        },
+        {
+          "caller": "extractTranscript",
+          "callee": "errStr.includes",
+          "lineNumber": 975
+        },
+        {
+          "caller": "stage2TimeoutMs",
+          "callee": "String(modelId).includes",
+          "lineNumber": 992
+        },
+        {
+          "caller": "stage2TimeoutMs",
+          "callee": "String",
+          "lineNumber": 992
+        },
+        {
+          "caller": "linkAbort",
+          "callee": "target.abort",
+          "lineNumber": 998
+        },
+        {
+          "caller": "onAbort",
+          "callee": "target.abort",
+          "lineNumber": 999
+        },
+        {
+          "caller": "linkAbort",
+          "callee": "source.addEventListener",
+          "lineNumber": 1000
+        },
+        {
+          "caller": "linkAbort",
+          "callee": "source.removeEventListener",
+          "lineNumber": 1001
+        },
+        {
+          "caller": "isRetryableStage2Error",
+          "callee": "String",
+          "lineNumber": 1006
+        },
+        {
+          "caller": "isRetryableStage2Error",
+          "callee": "msg.match",
+          "lineNumber": 1007
+        },
+        {
+          "caller": "isRetryableStage2Error",
+          "callee": "Number",
+          "lineNumber": 1008
+        },
+        {
+          "caller": "abortableSleep",
+          "callee": "reject",
+          "lineNumber": 1017
+        },
+        {
+          "caller": "abortableSleep",
+          "callee": "setTimeout",
+          "lineNumber": 1018
+        },
+        {
+          "caller": "abortableSleep",
+          "callee": "signal?.addEventListener",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "abortableSleep",
+          "callee": "clearTimeout",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "abortableSleep",
+          "callee": "reject",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "genAI.getGenerativeModel",
+          "lineNumber": 1028
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "disableThinkingConfig",
+          "lineNumber": 1034
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "items.map",
+          "lineNumber": 1041
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "[\n        ...items.map(i => ({ index: i.index, text: i.text, target: true })),\n        ...(contextItems || []).filter(c => !targetSet.has(c.index)).map(c => ({ index: c.index, text: c.text, target: false })),\n    ].sort",
+          "lineNumber": 1042
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "items.map",
+          "lineNumber": 1043
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "(contextItems || []).filter(c => !targetSet.has(c.index)).map",
+          "lineNumber": 1044
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "(contextItems || []).filter",
+          "lineNumber": 1044
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "targetSet.has",
+          "lineNumber": 1044
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "rows.some",
+          "lineNumber": 1047
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "rows.map(r => r.target\n        ? `[분석대상] 문장(INDEX: ${r.index}): ${r.text} `\n        : `[문맥참고] (INDEX: ${r.index}): ${r.text} `\n    ).join",
+          "lineNumber": 1048
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "rows.map",
+          "lineNumber": 1048
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "text.indexOf",
+          "lineNumber": 1070
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "text.indexOf",
+          "lineNumber": 1071
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "text.substring",
+          "lineNumber": 1074
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "subText.match",
+          "lineNumber": 1075
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "[...subText.matchAll(/\\[분석\\]\\s*(.*)/g)]\n                    .map",
+          "lineNumber": 1076
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "subText.matchAll",
+          "lineNumber": 1076
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim",
+          "lineNumber": 1077
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "m[1].replace",
+          "lineNumber": 1077
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "results.push",
+          "lineNumber": 1079
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "translationMatch[1].trim",
+          "lineNumber": 1081
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "analysisLines.join(\"\\n\").trim",
+          "lineNumber": 1082
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "analysisLines.join",
+          "lineNumber": 1082
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "console.warn",
+          "lineNumber": 1085
+        },
+        {
+          "caller": "parseResponse",
+          "callee": "results.push",
+          "lineNumber": 1086
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "stage2TimeoutMs",
+          "lineNumber": 1093
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "linkAbort",
+          "lineNumber": 1099
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "linkAbort",
+          "lineNumber": 1100
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "setTimeout",
+          "lineNumber": 1101
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "timeoutCtrl.abort",
+          "lineNumber": 1101
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "model.generateContent",
+          "lineNumber": 1103
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "console.log",
+          "lineNumber": 1110
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "parseResponse",
+          "lineNumber": 1111
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "response.text",
+          "lineNumber": 1111
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "isRetryableStage2Error",
+          "lineNumber": 1116
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "Math.min",
+          "lineNumber": 1119
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "Math.floor",
+          "lineNumber": 1119
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "Math.random",
+          "lineNumber": 1119
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "console.warn",
+          "lineNumber": 1120
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "abortableSleep",
+          "lineNumber": 1121
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "console.error",
+          "lineNumber": 1124
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "items.map",
+          "lineNumber": 1125
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "clearTimeout",
+          "lineNumber": 1127
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "unlink1",
+          "lineNumber": 1128
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "unlink2",
+          "lineNumber": 1129
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "console.error",
+          "lineNumber": 1132
+        },
+        {
+          "caller": "analyzeBatchSentences",
+          "callee": "items.map",
+          "lineNumber": 1133
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 4,
+        "functionCount": 27,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/services/prompts.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 99,
+      "nonEmptyLines": 89,
+      "exports": [
+        {
+          "name": "ANALYSIS_VERSION",
+          "line": 7,
+          "isDefault": false
+        },
+        {
+          "name": "STAGE1_PROMPT",
+          "line": 9,
+          "isDefault": false
+        },
+        {
+          "name": "STAGE2_BATCH_PROMPT",
+          "line": 40,
+          "isDefault": false
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/audioExtractor.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 513,
+      "nonEmptyLines": 467,
+      "functions": [
+        {
+          "name": "getFFmpeg",
+          "startLine": 17,
+          "endLine": 41,
+          "params": []
+        },
+        {
+          "name": "encodeWAV",
+          "startLine": 44,
+          "endLine": 67,
+          "params": [
+            "samples",
+            "sampleRate"
+          ]
+        },
+        {
+          "name": "extractAudioWav",
+          "startLine": 77,
+          "endLine": 124,
+          "params": [
+            "file"
+          ]
+        },
+        {
+          "name": "splitAudio",
+          "startLine": 129,
+          "endLine": 169,
+          "params": [
+            "audioBlob",
+            "totalDuration",
+            "chunkDurationSec"
+          ]
+        },
+        {
+          "name": "parseWavHeader",
+          "startLine": 174,
+          "endLine": 205,
+          "params": [
+            "buf"
+          ]
+        },
+        {
+          "name": "sliceWavBlob",
+          "startLine": 211,
+          "endLine": 235,
+          "params": [
+            "wavBlob",
+            "startSec",
+            "durationSec"
+          ]
+        },
+        {
+          "name": "extractSegmentWav",
+          "startLine": 246,
+          "endLine": 274,
+          "params": [
+            "audioBlob",
+            "startSec",
+            "durationSec"
+          ]
+        },
+        {
+          "name": "snapSegmentToSilence",
+          "startLine": 285,
+          "endLine": 352,
+          "params": [
+            "wavBlob"
+          ]
+        },
+        {
+          "name": "captureSegmentWav",
+          "startLine": 367,
+          "endLine": 471,
+          "params": [
+            "src",
+            "startSec",
+            "durationSec"
+          ]
+        },
+        {
+          "name": "extractOriginalAudio",
+          "startLine": 480,
+          "endLine": 513,
+          "params": [
+            "file"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "extractAudioWav",
+          "line": 77,
+          "isDefault": false
+        },
+        {
+          "name": "splitAudio",
+          "line": 129,
+          "isDefault": false
+        },
+        {
+          "name": "extractSegmentWav",
+          "line": 246,
+          "isDefault": false
+        },
+        {
+          "name": "snapSegmentToSilence",
+          "line": 285,
+          "isDefault": false
+        },
+        {
+          "name": "captureSegmentWav",
+          "line": 367,
+          "isDefault": false
+        },
+        {
+          "name": "extractOriginalAudio",
+          "line": 480,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "getFFmpeg",
+          "callee": "setTimeout",
+          "lineNumber": 20
+        },
+        {
+          "caller": "getFFmpeg",
+          "callee": "ffmpeg.load",
+          "lineNumber": 29
+        },
+        {
+          "caller": "getFFmpeg",
+          "callee": "console.error",
+          "lineNumber": 36
+        },
+        {
+          "caller": "writeString",
+          "callee": "view.setUint8",
+          "lineNumber": 47
+        },
+        {
+          "caller": "writeString",
+          "callee": "str.charCodeAt",
+          "lineNumber": 47
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "writeString",
+          "lineNumber": 48
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint32",
+          "lineNumber": 49
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "writeString",
+          "lineNumber": 50
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "writeString",
+          "lineNumber": 51
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint32",
+          "lineNumber": 52
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint16",
+          "lineNumber": 53
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint16",
+          "lineNumber": 54
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint32",
+          "lineNumber": 55
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint32",
+          "lineNumber": 56
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint16",
+          "lineNumber": 57
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint16",
+          "lineNumber": 58
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "writeString",
+          "lineNumber": 59
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setUint32",
+          "lineNumber": 60
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "Math.max",
+          "lineNumber": 63
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "Math.min",
+          "lineNumber": 63
+        },
+        {
+          "caller": "encodeWAV",
+          "callee": "view.setInt16",
+          "lineNumber": 64
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "file.arrayBuffer",
+          "lineNumber": 78
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "ctx.decodeAudioData",
+          "lineNumber": 91
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "ctx.close",
+          "lineNumber": 93
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "decoded.getChannelData",
+          "lineNumber": 102
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "decoded.getChannelData",
+          "lineNumber": 103
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "decoded.getChannelData",
+          "lineNumber": 108
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "Math.max",
+          "lineNumber": 112
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "Math.ceil",
+          "lineNumber": 112
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "offline.createBufferSource",
+          "lineNumber": 114
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "src.connect",
+          "lineNumber": 116
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "src.start",
+          "lineNumber": 117
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "offline.startRendering",
+          "lineNumber": 118
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "rendered.getChannelData",
+          "lineNumber": 119
+        },
+        {
+          "caller": "extractAudioWav",
+          "callee": "encodeWAV",
+          "lineNumber": 122
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "getFFmpeg",
+          "lineNumber": 130
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "Date.now",
+          "lineNumber": 131
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "ffmpeg.writeFile",
+          "lineNumber": 132
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "fetchFile",
+          "lineNumber": 132
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "Math.min",
+          "lineNumber": 141
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "Date.now",
+          "lineNumber": 142
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "ffmpeg.exec",
+          "lineNumber": 144
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "String",
+          "lineNumber": 146
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "String",
+          "lineNumber": 147
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "ffmpeg.readFile",
+          "lineNumber": 152
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "chunks.push",
+          "lineNumber": 153
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "ffmpeg.deleteFile",
+          "lineNumber": 159
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "ffmpeg.deleteFile",
+          "lineNumber": 164
+        },
+        {
+          "caller": "splitAudio",
+          "callee": "console.log",
+          "lineNumber": 167
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint32",
+          "lineNumber": 177
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint32",
+          "lineNumber": 178
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint32",
+          "lineNumber": 184
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint32",
+          "lineNumber": 185
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint16",
+          "lineNumber": 189
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint16",
+          "lineNumber": 190
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint32",
+          "lineNumber": 191
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "view.getUint16",
+          "lineNumber": 192
+        },
+        {
+          "caller": "parseWavHeader",
+          "callee": "Math.min",
+          "lineNumber": 203
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "wavBlob.arrayBuffer",
+          "lineNumber": 212
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "parseWavHeader",
+          "lineNumber": 213
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.max",
+          "lineNumber": 215
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.floor",
+          "lineNumber": 216
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.min",
+          "lineNumber": 217
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.max",
+          "lineNumber": 217
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.floor",
+          "lineNumber": 217
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.max",
+          "lineNumber": 217
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.ceil",
+          "lineNumber": 218
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.max",
+          "lineNumber": 218
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.min",
+          "lineNumber": 219
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "Math.max",
+          "lineNumber": 220
+        },
+        {
+          "caller": "ws",
+          "callee": "v.setUint8",
+          "lineNumber": 226
+        },
+        {
+          "caller": "ws",
+          "callee": "s.charCodeAt",
+          "lineNumber": 226
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "ws",
+          "lineNumber": 227
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint32",
+          "lineNumber": 227
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "ws",
+          "lineNumber": 227
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "ws",
+          "lineNumber": 228
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint32",
+          "lineNumber": 228
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint16",
+          "lineNumber": 228
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint16",
+          "lineNumber": 229
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint32",
+          "lineNumber": 229
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint32",
+          "lineNumber": 230
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint16",
+          "lineNumber": 231
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint16",
+          "lineNumber": 231
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "ws",
+          "lineNumber": 232
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "v.setUint32",
+          "lineNumber": 232
+        },
+        {
+          "caller": "sliceWavBlob",
+          "callee": "new Uint8Array(out, 44).set",
+          "lineNumber": 233
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "sliceWavBlob",
+          "lineNumber": 249
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "console.warn",
+          "lineNumber": 251
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "getFFmpeg",
+          "lineNumber": 255
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "Date.now",
+          "lineNumber": 256
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "Date.now",
+          "lineNumber": 257
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "ffmpeg.writeFile",
+          "lineNumber": 259
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "fetchFile",
+          "lineNumber": 259
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "ffmpeg.exec",
+          "lineNumber": 261
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "String",
+          "lineNumber": 262
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "Math.max",
+          "lineNumber": 262
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "String",
+          "lineNumber": 264
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "Math.max",
+          "lineNumber": 264
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "String",
+          "lineNumber": 265
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "ffmpeg.readFile",
+          "lineNumber": 268
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "ffmpeg.deleteFile",
+          "lineNumber": 271
+        },
+        {
+          "caller": "extractSegmentWav",
+          "callee": "ffmpeg.deleteFile",
+          "lineNumber": 272
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "wavBlob.arrayBuffer",
+          "lineNumber": 295
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "parseWavHeader",
+          "lineNumber": 296
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "Math.max",
+          "lineNumber": 299
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "Math.floor",
+          "lineNumber": 301
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "Math.max",
+          "lineNumber": 306
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "Math.floor",
+          "lineNumber": 306
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "Math.floor",
+          "lineNumber": 307
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "view.getInt16",
+          "lineNumber": 314
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "Math.sqrt",
+          "lineNumber": 318
+        },
+        {
+          "caller": "t2f",
+          "callee": "Math.max",
+          "lineNumber": 320
+        },
+        {
+          "caller": "t2f",
+          "callee": "Math.min",
+          "lineNumber": 320
+        },
+        {
+          "caller": "t2f",
+          "callee": "Math.round",
+          "lineNumber": 320
+        },
+        {
+          "caller": "quietestIn",
+          "callee": "t2f",
+          "lineNumber": 323
+        },
+        {
+          "caller": "quietestIn",
+          "callee": "Math.max",
+          "lineNumber": 323
+        },
+        {
+          "caller": "quietestIn",
+          "callee": "t2f",
+          "lineNumber": 324
+        },
+        {
+          "caller": "quietestIn",
+          "callee": "Math.min",
+          "lineNumber": 324
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "quietestIn",
+          "lineNumber": 335
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "quietestIn",
+          "lineNumber": 339
+        },
+        {
+          "caller": "snapSegmentToSilence",
+          "callee": "sliceWavBlob",
+          "lineNumber": 347
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "Math.max",
+          "lineNumber": 372
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "document.createElement",
+          "lineNumber": 373
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "setTimeout",
+          "lineNumber": 380
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "rej",
+          "lineNumber": 380
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "clearTimeout",
+          "lineNumber": 381
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "res",
+          "lineNumber": 381
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "clearTimeout",
+          "lineNumber": 382
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "rej",
+          "lineNumber": 382
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.resume",
+          "lineNumber": 387
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.createMediaElementSource",
+          "lineNumber": 391
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.createScriptProcessor",
+          "lineNumber": 392
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.createGain",
+          "lineNumber": 393
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "source.connect",
+          "lineNumber": 396
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "processor.connect",
+          "lineNumber": 397
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "gain.connect",
+          "lineNumber": 398
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "Math.ceil",
+          "lineNumber": 402
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "chunks.push",
+          "lineNumber": 411
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "e.inputBuffer.getChannelData",
+          "lineNumber": 411
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "finish",
+          "lineNumber": 414
+        },
+        {
+          "caller": "onSeeked",
+          "callee": "el.removeEventListener",
+          "lineNumber": 419
+        },
+        {
+          "caller": "onSeeked",
+          "callee": "res",
+          "lineNumber": 419
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "el.addEventListener",
+          "lineNumber": 420
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "Math.max",
+          "lineNumber": 421
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "setTimeout",
+          "lineNumber": 423
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "el.play",
+          "lineNumber": 427
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "processor.disconnect",
+          "lineNumber": 430
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "source.disconnect",
+          "lineNumber": 430
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "gain.disconnect",
+          "lineNumber": 430
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "el.pause",
+          "lineNumber": 431
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.close",
+          "lineNumber": 432
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "Promise.race",
+          "lineNumber": 437
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "setTimeout",
+          "lineNumber": 437
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "el.pause",
+          "lineNumber": 439
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "processor.disconnect",
+          "lineNumber": 440
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "source.disconnect",
+          "lineNumber": 440
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "gain.disconnect",
+          "lineNumber": 440
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "chunks.reduce",
+          "lineNumber": 443
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.close",
+          "lineNumber": 445
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "merged.set",
+          "lineNumber": 450
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "Math.max",
+          "lineNumber": 456
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "Math.ceil",
+          "lineNumber": 456
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "offline.createBuffer",
+          "lineNumber": 458
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "buf.copyToChannel",
+          "lineNumber": 459
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "offline.createBufferSource",
+          "lineNumber": 460
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "bs.connect",
+          "lineNumber": 462
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "bs.start",
+          "lineNumber": 463
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "offline.startRendering",
+          "lineNumber": 464
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "rendered.getChannelData",
+          "lineNumber": 465
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "ctx.close",
+          "lineNumber": 468
+        },
+        {
+          "caller": "captureSegmentWav",
+          "callee": "encodeWAV",
+          "lineNumber": 470
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "getFFmpeg",
+          "lineNumber": 481
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "file.name.split('.').pop",
+          "lineNumber": 484
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "file.name.split",
+          "lineNumber": 484
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "Date.now",
+          "lineNumber": 485
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "Date.now",
+          "lineNumber": 487
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "ffmpeg.writeFile",
+          "lineNumber": 491
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "fetchFile",
+          "lineNumber": 491
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "ffmpeg.exec",
+          "lineNumber": 496
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "String",
+          "lineNumber": 496
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "ffmpeg.readFile",
+          "lineNumber": 499
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "console.error",
+          "lineNumber": 502
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "ffmpeg.deleteFile",
+          "lineNumber": 507
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "ffmpeg.deleteFile",
+          "lineNumber": 508
+        },
+        {
+          "caller": "extractOriginalAudio",
+          "callee": "console.warn",
+          "lineNumber": 510
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 6,
+        "functionCount": 10,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/cacheUtils.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 68,
+      "nonEmptyLines": 61,
+      "functions": [
+        {
+          "name": "isCacheStale",
+          "startLine": 10,
+          "endLine": 12,
+          "params": [
+            "metadata"
+          ]
+        },
+        {
+          "name": "parseCacheEntry",
+          "startLine": 14,
+          "endLine": 34,
+          "params": [
+            "cacheKey"
+          ]
+        },
+        {
+          "name": "isQuotaError",
+          "startLine": 37,
+          "endLine": 43,
+          "params": [
+            "e"
+          ]
+        },
+        {
+          "name": "saveCacheEntry",
+          "startLine": 47,
+          "endLine": 68,
+          "params": [
+            "fileInfo",
+            "data",
+            "status"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "isCacheStale",
+          "line": 10,
+          "isDefault": false
+        },
+        {
+          "name": "parseCacheEntry",
+          "line": 14,
+          "isDefault": false
+        },
+        {
+          "name": "saveCacheEntry",
+          "line": 47,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "parseCacheEntry",
+          "callee": "localStorage.getItem",
+          "lineNumber": 15
+        },
+        {
+          "caller": "parseCacheEntry",
+          "callee": "JSON.parse",
+          "lineNumber": 19
+        },
+        {
+          "caller": "parseCacheEntry",
+          "callee": "Array.isArray",
+          "lineNumber": 20
+        },
+        {
+          "caller": "parseCacheEntry",
+          "callee": "getCacheDisplayName",
+          "lineNumber": 22
+        },
+        {
+          "caller": "parseCacheEntry",
+          "callee": "Array.isArray",
+          "lineNumber": 24
+        },
+        {
+          "caller": "parseCacheEntry",
+          "callee": "console.error",
+          "lineNumber": 25
+        },
+        {
+          "caller": "parseCacheEntry",
+          "callee": "console.error",
+          "lineNumber": 31
+        },
+        {
+          "caller": "isQuotaError",
+          "callee": "/quota|exceeded/i.test",
+          "lineNumber": 42
+        },
+        {
+          "caller": "saveCacheEntry",
+          "callee": "localStorage.setItem",
+          "lineNumber": 51
+        },
+        {
+          "caller": "saveCacheEntry",
+          "callee": "JSON.stringify",
+          "lineNumber": 51
+        },
+        {
+          "caller": "saveCacheEntry",
+          "callee": "Date.now",
+          "lineNumber": 58
+        },
+        {
+          "caller": "saveCacheEntry",
+          "callee": "console.warn",
+          "lineNumber": 65
+        },
+        {
+          "caller": "saveCacheEntry",
+          "callee": "isQuotaError",
+          "lineNumber": 66
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 3,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/languageUtils.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 86,
+      "nonEmptyLines": 75,
+      "functions": [
+        {
+          "name": "collapseConsecutiveRepeats",
+          "startLine": 8,
+          "endLine": 60,
+          "params": [
+            "text"
+          ]
+        },
+        {
+          "name": "analyzeIntraLineRepetition",
+          "startLine": 62,
+          "endLine": 78,
+          "params": [
+            "text"
+          ]
+        },
+        {
+          "name": "detectLanguage",
+          "startLine": 80,
+          "endLine": 86,
+          "params": [
+            "text"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "analyzeIntraLineRepetition",
+          "line": 62,
+          "isDefault": false
+        },
+        {
+          "name": "detectLanguage",
+          "line": 80,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "text.split(/\\s+/).filter",
+          "lineNumber": 9
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "text.split",
+          "lineNumber": 9
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "tokens.map",
+          "lineNumber": 14
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "t.replace(PUNCT_STRIP, \"\").toLowerCase",
+          "lineNumber": 14
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "t.replace",
+          "lineNumber": 14
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "Math.min",
+          "lineNumber": 21
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "Math.floor",
+          "lineNumber": 21
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "Math.min",
+          "lineNumber": 43
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "out.push",
+          "lineNumber": 45
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "out.push",
+          "lineNumber": 54
+        },
+        {
+          "caller": "collapseConsecutiveRepeats",
+          "callee": "out.join",
+          "lineNumber": 59
+        },
+        {
+          "caller": "analyzeIntraLineRepetition",
+          "callee": "collapseConsecutiveRepeats",
+          "lineNumber": 66
+        },
+        {
+          "caller": "analyzeIntraLineRepetition",
+          "callee": "detectLanguage",
+          "lineNumber": 70
+        },
+        {
+          "caller": "detectLanguage",
+          "callee": "koreanRegex.test",
+          "lineNumber": 83
+        },
+        {
+          "caller": "detectLanguage",
+          "callee": "vietnameseRegex.test",
+          "lineNumber": 84
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/materializeFile.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 84,
+      "nonEmptyLines": 79,
+      "functions": [
+        {
+          "name": "viaArrayBuffer",
+          "startLine": 15,
+          "endLine": 19,
+          "params": [
+            "file"
+          ]
+        },
+        {
+          "name": "viaFileReader",
+          "startLine": 21,
+          "endLine": 32,
+          "params": [
+            "file"
+          ]
+        },
+        {
+          "name": "viaObjectUrl",
+          "startLine": 34,
+          "endLine": 46,
+          "params": [
+            "file"
+          ]
+        },
+        {
+          "name": "materializeFile",
+          "startLine": 58,
+          "endLine": 84,
+          "params": [
+            "file"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "materializeFile",
+          "line": 58,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "viaArrayBuffer",
+          "callee": "file.arrayBuffer",
+          "lineNumber": 16
+        },
+        {
+          "caller": "viaFileReader",
+          "callee": "resolve",
+          "lineNumber": 26
+        },
+        {
+          "caller": "viaFileReader",
+          "callee": "reject",
+          "lineNumber": 27
+        },
+        {
+          "caller": "viaFileReader",
+          "callee": "reject",
+          "lineNumber": 29
+        },
+        {
+          "caller": "viaFileReader",
+          "callee": "reader.readAsArrayBuffer",
+          "lineNumber": 30
+        },
+        {
+          "caller": "viaObjectUrl",
+          "callee": "URL.createObjectURL",
+          "lineNumber": 37
+        },
+        {
+          "caller": "viaObjectUrl",
+          "callee": "fetch",
+          "lineNumber": 39
+        },
+        {
+          "caller": "viaObjectUrl",
+          "callee": "res.arrayBuffer",
+          "lineNumber": 40
+        },
+        {
+          "caller": "viaObjectUrl",
+          "callee": "URL.revokeObjectURL",
+          "lineNumber": 44
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "strat",
+          "lineNumber": 63
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "console.log",
+          "lineNumber": 64
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "(buf.byteLength / 1024 / 1024).toFixed",
+          "lineNumber": 64
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "Date.now",
+          "lineNumber": 67
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "console.warn",
+          "lineNumber": 71
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "onWait",
+          "lineNumber": 75
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "setTimeout",
+          "lineNumber": 76
+        },
+        {
+          "caller": "materializeFile",
+          "callee": "String",
+          "lineNumber": 79
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/sentenceSplitter.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 120,
+      "nonEmptyLines": 106,
+      "functions": [
+        {
+          "name": "pickText",
+          "startLine": 13,
+          "endLine": 13,
+          "params": [
+            "m"
+          ]
+        },
+        {
+          "name": "splitIntoSentences",
+          "startLine": 17,
+          "endLine": 22,
+          "params": [
+            "text"
+          ]
+        },
+        {
+          "name": "groupSentences",
+          "startLine": 26,
+          "endLine": 48,
+          "params": [
+            "sentences"
+          ]
+        },
+        {
+          "name": "tinyWords",
+          "startLine": 59,
+          "endLine": 59,
+          "params": [
+            "t"
+          ]
+        },
+        {
+          "name": "isTinyFragment",
+          "startLine": 61,
+          "endLine": 64,
+          "params": [
+            "t"
+          ]
+        },
+        {
+          "name": "mergeTinyFragments",
+          "startLine": 66,
+          "endLine": 95,
+          "params": [
+            "matches"
+          ]
+        },
+        {
+          "name": "splitMergedSentences",
+          "startLine": 100,
+          "endLine": 120,
+          "params": [
+            "matches"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "splitIntoSentences",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "groupSentences",
+          "line": 26,
+          "isDefault": false
+        },
+        {
+          "name": "mergeTinyFragments",
+          "line": 66,
+          "isDefault": false
+        },
+        {
+          "name": "splitMergedSentences",
+          "line": 100,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "splitIntoSentences",
+          "callee": "(text || '').trim",
+          "lineNumber": 18
+        },
+        {
+          "caller": "splitIntoSentences",
+          "callee": "trimmed.split",
+          "lineNumber": 20
+        },
+        {
+          "caller": "splitIntoSentences",
+          "callee": "parts.map(s => s.trim()).filter",
+          "lineNumber": 21
+        },
+        {
+          "caller": "splitIntoSentences",
+          "callee": "parts.map",
+          "lineNumber": 21
+        },
+        {
+          "caller": "splitIntoSentences",
+          "callee": "s.trim",
+          "lineNumber": 21
+        },
+        {
+          "caller": "groupSentences",
+          "callee": "cur.push",
+          "lineNumber": 31
+        },
+        {
+          "caller": "groupSentences",
+          "callee": "groups.push",
+          "lineNumber": 34
+        },
+        {
+          "caller": "groupSentences",
+          "callee": "prev.push",
+          "lineNumber": 42
+        },
+        {
+          "caller": "groupSentences",
+          "callee": "groups.push",
+          "lineNumber": 44
+        },
+        {
+          "caller": "groupSentences",
+          "callee": "groups.map",
+          "lineNumber": 47
+        },
+        {
+          "caller": "groupSentences",
+          "callee": "g.join",
+          "lineNumber": 47
+        },
+        {
+          "caller": "tinyWords",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split(/\\s+/).filter",
+          "lineNumber": 59
+        },
+        {
+          "caller": "tinyWords",
+          "callee": "(t || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ').split",
+          "lineNumber": 59
+        },
+        {
+          "caller": "tinyWords",
+          "callee": "(t || '').toLowerCase().replace",
+          "lineNumber": 59
+        },
+        {
+          "caller": "tinyWords",
+          "callee": "(t || '').toLowerCase",
+          "lineNumber": 59
+        },
+        {
+          "caller": "isTinyFragment",
+          "callee": "tinyWords",
+          "lineNumber": 62
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "Array.isArray",
+          "lineNumber": 67
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "isTinyFragment",
+          "lineNumber": 72
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "pickText",
+          "lineNumber": 72
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "out.push",
+          "lineNumber": 72
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "isTinyFragment",
+          "lineNumber": 79
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "pickText",
+          "lineNumber": 79
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "run.push",
+          "lineNumber": 82
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "run.map(r => pickText(r).trim()).filter(Boolean).join",
+          "lineNumber": 87
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "run.map(r => pickText(r).trim()).filter",
+          "lineNumber": 87
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "run.map",
+          "lineNumber": 87
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "pickText(r).trim",
+          "lineNumber": 87
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "pickText",
+          "lineNumber": 87
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "out.push",
+          "lineNumber": 88
+        },
+        {
+          "caller": "mergeTinyFragments",
+          "callee": "out.push",
+          "lineNumber": 90
+        },
+        {
+          "caller": "splitMergedSentences",
+          "callee": "Array.isArray",
+          "lineNumber": 101
+        },
+        {
+          "caller": "splitMergedSentences",
+          "callee": "groupSentences",
+          "lineNumber": 105
+        },
+        {
+          "caller": "splitMergedSentences",
+          "callee": "splitIntoSentences",
+          "lineNumber": 105
+        },
+        {
+          "caller": "splitMergedSentences",
+          "callee": "pickText",
+          "lineNumber": 105
+        },
+        {
+          "caller": "splitMergedSentences",
+          "callee": "out.push",
+          "lineNumber": 109
+        },
+        {
+          "caller": "splitMergedSentences",
+          "callee": "out.push",
+          "lineNumber": 115
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 4,
+        "functionCount": 7,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/trashUtils.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 53,
+      "nonEmptyLines": 46,
+      "functions": [
+        {
+          "name": "keyFor",
+          "startLine": 8,
+          "endLine": 8,
+          "params": [
+            "name",
+            "size"
+          ]
+        },
+        {
+          "name": "sentenceKey",
+          "startLine": 11,
+          "endLine": 12,
+          "params": [
+            "it"
+          ]
+        },
+        {
+          "name": "getTrash",
+          "startLine": 14,
+          "endLine": 22,
+          "params": [
+            "name",
+            "size"
+          ]
+        },
+        {
+          "name": "addToTrash",
+          "startLine": 25,
+          "endLine": 39,
+          "params": [
+            "name",
+            "size",
+            "items"
+          ]
+        },
+        {
+          "name": "removeFromTrash",
+          "startLine": 42,
+          "endLine": 48,
+          "params": [
+            "name",
+            "size",
+            "items"
+          ]
+        },
+        {
+          "name": "clearTrash",
+          "startLine": 50,
+          "endLine": 53,
+          "params": [
+            "name",
+            "size"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "sentenceKey",
+          "line": 11,
+          "isDefault": false
+        },
+        {
+          "name": "getTrash",
+          "line": 14,
+          "isDefault": false
+        },
+        {
+          "name": "addToTrash",
+          "line": 25,
+          "isDefault": false
+        },
+        {
+          "name": "removeFromTrash",
+          "line": 42,
+          "isDefault": false
+        },
+        {
+          "name": "clearTrash",
+          "line": 50,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "sentenceKey",
+          "callee": "Math.round",
+          "lineNumber": 12
+        },
+        {
+          "caller": "sentenceKey",
+          "callee": "(it?.text ?? it?.o ?? '').trim().toLowerCase",
+          "lineNumber": 12
+        },
+        {
+          "caller": "sentenceKey",
+          "callee": "(it?.text ?? it?.o ?? '').trim",
+          "lineNumber": 12
+        },
+        {
+          "caller": "getTrash",
+          "callee": "localStorage.getItem",
+          "lineNumber": 16
+        },
+        {
+          "caller": "getTrash",
+          "callee": "keyFor",
+          "lineNumber": 16
+        },
+        {
+          "caller": "getTrash",
+          "callee": "JSON.parse",
+          "lineNumber": 17
+        },
+        {
+          "caller": "getTrash",
+          "callee": "Array.isArray",
+          "lineNumber": 18
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "getTrash",
+          "lineNumber": 27
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "cur.map",
+          "lineNumber": 28
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "sentenceKey",
+          "lineNumber": 31
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "seen.has",
+          "lineNumber": 32
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "seen.add",
+          "lineNumber": 32
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "add.push",
+          "lineNumber": 32
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "Date.now",
+          "lineNumber": 32
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "next.slice",
+          "lineNumber": 36
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "localStorage.setItem",
+          "lineNumber": 37
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "keyFor",
+          "lineNumber": 37
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "JSON.stringify",
+          "lineNumber": 37
+        },
+        {
+          "caller": "addToTrash",
+          "callee": "console.warn",
+          "lineNumber": 38
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "(items || []).map",
+          "lineNumber": 43
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "getTrash(name, size).filter",
+          "lineNumber": 45
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "getTrash",
+          "lineNumber": 45
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "rm.has",
+          "lineNumber": 45
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "sentenceKey",
+          "lineNumber": 45
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "localStorage.setItem",
+          "lineNumber": 46
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "keyFor",
+          "lineNumber": 46
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "JSON.stringify",
+          "lineNumber": 46
+        },
+        {
+          "caller": "removeFromTrash",
+          "callee": "console.warn",
+          "lineNumber": 47
+        },
+        {
+          "caller": "clearTrash",
+          "callee": "localStorage.removeItem",
+          "lineNumber": 51
+        },
+        {
+          "caller": "clearTrash",
+          "callee": "keyFor",
+          "lineNumber": 51
+        },
+        {
+          "caller": "clearTrash",
+          "callee": "console.warn",
+          "lineNumber": 52
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 5,
+        "functionCount": 6,
+        "classCount": 0
+      }
+    }
+  ]
+}

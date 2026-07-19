@@ -7,6 +7,7 @@ import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../s
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
+import { validSpeechEnd } from '../utils/speechSegments';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
@@ -429,7 +430,13 @@ export const useMediaAnalysis = ({
                     } catch (e) {
                         console.warn('[Cloud] 영상 업로드 실패:', e);
                     }
-                    await cloudSaveMeta(sourceFile, data, 'extracted', mediaUrl, duration);
+                    // [중요] 여기서 data를 보내면 안 된다.
+                    // 대용량 업로드는 수 분이 걸리는데 그 사이 Stage 2(분석)와 대사 구간 감지가
+                    // 이미 최신 결과를 클라우드에 저장한다. data는 Stage 1 시점 스냅샷에 고정돼
+                    // 있으므로(runStage2가 깊은 복사로 작업) 그걸 다시 올리면 분석·speechEnd가
+                    // 통째로 지워지고 status도 'extracted'로 되돌아간다.
+                    // → 업로드 완료 시엔 mediaUrl만 갱신한다(data 생략 = 서버가 data.json 보존).
+                    await cloudSaveMeta(sourceFile, undefined, undefined, mediaUrl, duration);
                 } catch (e) {
                     console.warn('[Cloud] 대본 저장 실패:', e);
                 }
@@ -792,7 +799,7 @@ export const useMediaAnalysis = ({
      * 병합은 스냅샷이 아니라 '최신 상태' 위에 한다 — 감지가 도는 몇 분 사이 Stage 2가
      * 분석을 채워 넣어도 덮어쓰지 않고, 문장별 seconds 일치 검사로 인덱스 어긋남도 방어.
      */
-    const detectSpeechEndsForFile = async (fileId) => {
+    const detectSpeechEndsForFile = async (fileId, { onlyMissing = false } = {}) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return false;
@@ -853,24 +860,50 @@ export const useMediaAnalysis = ({
             let duration = 0;
             try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
 
-            const sentences = snapshot.map((d, i) => ({ index: i, seconds: d.seconds, text: d.text }));
+            // onlyMissing: 유효한 speechEnd가 아직 없는 문장만 골라 재감지 —
+            // 이미 감지된 문장은 목록에서 빼서(덮어쓸 일 없음) 모델이 빠진 문장에만 집중하게 한다.
+            // onlyMissing: 유효 speechEnd가 없고 '아직 포기 표시도 안 된' 문장만 재요청
+            // (speechEndSkipped = 이미 시도했는데 모델이 판단 못 한 구간 → 반복 요청해봐야 비용만 든다)
+            const sentences = snapshot
+                .map((d, i) => ({ index: i, seconds: d.seconds, text: d.text, done: validSpeechEnd(d) !== null || !!d.speechEndSkipped }))
+                .filter(s => !onlyMissing || !s.done)
+                .map(({ index, seconds, text }) => ({ index, seconds, text }));
+            if (sentences.length === 0) {
+                if (showToast) showToast({ message: '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: 'success' });
+                return true;
+            }
             const ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
 
             // 최신 상태에 병합. 채택 조건(환각 방어): 시작+0.2초 이후, 지속 60초 이내, 영상 길이 이내.
             // 스냅샷과 seconds가 다른 문장(감지 중 재전사/삭제됨)은 건너뛴다.
+            // [필수 가드] 이번에 '요청한' 인덱스만 병합한다.
+            // onlyMissing이면 희소 인덱스([3],[17],[42]…)를 보내는데, 모델이 규칙 5의 '순서대로 출력'을
+            // 0,1,2…로 재번호매김하면 ends의 키가 요청과 무관해진다. 그대로 적용하면 이미 정상 감지된
+            // 앞쪽 문장들의 speechEnd가 엉뚱한 값으로 덮어쓰이고 캐시·클라우드에 영속된다.
+            const requested = new Set(sentences.map(s => s.index));
             let applied = 0; let latestData = null;
             setFiles(prev => prev.map(p => {
                 if (p.id !== fileId) return p;
                 const merged = p.data.map((d, i) => {
+                    if (!requested.has(i)) return d;
                     if (!snapshot[i] || snapshot[i].seconds !== d.seconds) return d;
                     let se = ends.get(i);
-                    if (typeof se !== 'number' || !Number.isFinite(se)) return d;
+                    if (typeof se !== 'number' || !Number.isFinite(se)) {
+                        // 요청했는데 값이 안 온 문장(모델이 SKIP했거나 누락) → '시도했음' 표시.
+                        // 안 하면 감지 불가 구간이 영원히 미감지로 집계돼 배지가 안 사라지고
+                        // 재감지를 누를 때마다 오디오 1회 전송 비용이 반복된다.
+                        return d.speechEndSkipped ? d : { ...d, speechEndSkipped: true };
+                    }
                     if (duration > 0) se = Math.min(se, duration);
-                    if (se <= d.seconds + 0.2 || se - d.seconds > 60) return d;
+                    if (se <= d.seconds + 0.2 || se - d.seconds > 60) {
+                        return d.speechEndSkipped ? d : { ...d, speechEndSkipped: true };
+                    }
                     applied++;
                     // 동기 사본(graft ref)에도 기록 — 진행 중인 Stage 2가 스냅샷으로 덮어써도 이식돼 살아남는다
                     speechEndGraftRef.current.set(`${targetFile.name}_${targetFile.size}|${d.seconds}`, se);
-                    return { ...d, speechEnd: se };
+                    const next = { ...d, speechEnd: se };
+                    delete next.speechEndSkipped; // 재시도로 성공하면 포기 표시 해제
+                    return next;
                 });
                 latestData = merged;
                 return { ...p, data: merged };
@@ -884,9 +917,31 @@ export const useMediaAnalysis = ({
             const status = latestData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
             persistCache(targetFile, latestData, status);
             if (refreshCacheKeys) refreshCacheKeys();
+            // 클라우드 반영 실패를 조용히 넘기지 않는다 — 클라우드로 연 대본은 이 저장이
+            // 유일한 영속 경로라(로컬 캐시를 만들지 않음), 실패하면 다음 방문에 감지 결과가 사라진다.
             cloudSaveMeta(targetFile, latestData, status, null, duration)
-                .catch(e => console.warn('[SpeechEnd] 클라우드 반영 실패:', e));
-            if (showToast) showToast({ message: `대사 구간 감지 완료 (${applied}/${snapshot.length}문장)`, type: 'success' });
+                .catch(e => {
+                    console.warn('[SpeechEnd] 클라우드 반영 실패:', e);
+                    if (showToast) showToast({
+                        message: '감지 결과를 서버에 저장하지 못했어요. 이 화면에서는 동작하지만, 다시 열면 사라질 수 있어요.',
+                        type: 'error',
+                        duration: 7000,
+                    });
+                });
+            // 미감지 문장이 남았으면 '그 문장들만' 재감지하는 액션 제공 (기감지분은 안 건드림)
+            const remaining = latestData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length;
+            if (showToast) {
+                if (remaining > 0) {
+                    showToast({
+                        message: `대사 구간 감지 완료 (${applied}/${sentences.length}문장 · 미감지 ${remaining}개)`,
+                        type: 'success',
+                        duration: 8000,
+                        action: { label: `빠진 ${remaining}개 재시도`, onClick: () => detectSpeechEndsForFile(fileId, { onlyMissing: true }) },
+                    });
+                } else {
+                    showToast({ message: `대사 구간 감지 완료 (전체 ${latestData.length}문장)`, type: 'success' });
+                }
+            }
             return true;
         } catch (e) {
             if (e.name !== 'AbortError') {

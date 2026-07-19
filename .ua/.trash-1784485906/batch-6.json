@@ -1,0 +1,209 @@
+{
+  "nodes": [
+    {
+      "id": "file:src/components/ClozeDrill.jsx",
+      "type": "file",
+      "name": "ClozeDrill.jsx",
+      "filePath": "src/components/ClozeDrill.jsx",
+      "summary": "의미 청크 기반 빈칸 학습 UI 컴포넌트. buildCloze로 생성된 문제를 렌더링하고, 탭 공개·전체 공개·알았음/몰랐음 자가표시 흐름을 제공한다.",
+      "tags": ["component", "learning-drill", "cloze", "react"],
+      "complexity": "moderate",
+      "languageNotes": "React 함수형 컴포넌트로 TranscriptItem의 drillMode에서 원문/분석 대신 렌더된다."
+    },
+    {
+      "id": "file:src/components/TranscriptItem.jsx",
+      "type": "file",
+      "name": "TranscriptItem.jsx",
+      "filePath": "src/components/TranscriptItem.jsx",
+      "summary": "전사 문장 카드 컴포넌트. 재생·반복·분석 표시·선택 모드·가리기 학습(ClozeDrill) 등 문장 단위 상호작용의 핵심 UI를 담당한다.",
+      "tags": ["component", "transcript", "memo", "react"],
+      "complexity": "complex",
+      "languageNotes": "memo로 감싸 재생 중 currentTime 틱마다 불필요한 리렌더를 방지한다."
+    },
+    {
+      "id": "file:src/utils/analysisParser.js",
+      "type": "file",
+      "name": "analysisParser.js",
+      "filePath": "src/utils/analysisParser.js",
+      "summary": "Stage 2 분석 문자열에서 **원어 청크**: 뜻 형식의 의미 청크를 파싱하는 유틸리티. 클로즈·향후 어휘 기능의 공용 부품이다.",
+      "tags": ["utility", "parser", "analysis", "chunks"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/utils/clozeUtils.js",
+      "type": "file",
+      "name": "clozeUtils.js",
+      "filePath": "src/utils/clozeUtils.js",
+      "summary": "시드 기반 난수(mulberry32)와 난이도별 청크 선택 로직으로 빈칸 문제를 생성한다. 같은 문장·라운드·난이도면 동일한 문제가 재현된다.",
+      "tags": ["utility", "cloze", "seed-random", "learning-drill"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/components/ClozeDrill.jsx:BlankChunk",
+      "type": "function",
+      "name": "BlankChunk",
+      "filePath": "src/components/ClozeDrill.jsx",
+      "lineRange": [11, 24],
+      "summary": "가려진 청크를 연노랑 박스와 단어별 밑줄로 렌더링하는 서브 컴포넌트. 탭 시 onReveal로 해당 청크를 공개한다.",
+      "tags": ["component", "ui", "blank-chunk"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+      "type": "function",
+      "name": "ClozeDrill",
+      "filePath": "src/components/ClozeDrill.jsx",
+      "lineRange": [32, 124],
+      "summary": "한 문장의 빈칸 학습 드릴 메인 컴포넌트. buildCloze 결과를 렌더하고 공개 상태·자가표시(알았음/몰랐음)를 관리한다.",
+      "tags": ["component", "learning-drill", "exported"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/components/TranscriptItem.jsx:dedupeSentenceInAnalysis",
+      "type": "function",
+      "name": "dedupeSentenceInAnalysis",
+      "filePath": "src/components/TranscriptItem.jsx",
+      "lineRange": [14, 25],
+      "summary": "분석 텍스트에서 원문 문장과 80% 이상 겹치는 볼드 청크를 제거해 카드 상단 문장과 중복 표시를 방지하는 안전망 함수.",
+      "tags": ["utility", "deduplication", "analysis-cleanup"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/components/TranscriptItem.jsx:TranscriptItem",
+      "type": "function",
+      "name": "TranscriptItem",
+      "filePath": "src/components/TranscriptItem.jsx",
+      "lineRange": [27, 243],
+      "summary": "memo로 최적화된 전사 문장 카드. drillMode일 때 ClozeDrill을, 일반 모드일 때 원문·분석·재생 컨트롤을 렌더한다.",
+      "tags": ["component", "transcript", "memo", "exported"],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/utils/analysisParser.js:parseChunks",
+      "type": "function",
+      "name": "parseChunks",
+      "filePath": "src/utils/analysisParser.js",
+      "lineRange": [6, 20],
+      "summary": "analysis 문자열의 각 줄에서 **원어 청크**: 뜻 패턴을 추출해 {chunk, meaning} 배열로 반환한다.",
+      "tags": ["utility", "parser", "exported"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/clozeUtils.js:buildCloze",
+      "type": "function",
+      "name": "buildCloze",
+      "filePath": "src/utils/clozeUtils.js",
+      "lineRange": [30, 60],
+      "summary": "parseChunks 결과와 난이도(easy/mid/hard)에 따라 가릴 청크를 선택하고 blank/text parts 배열을 생성한다.",
+      "tags": ["utility", "cloze", "exported"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/components/ClozeDrill.jsx",
+      "target": "file:src/utils/clozeUtils.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/components/TranscriptItem.jsx",
+      "target": "file:src/components/ClozeDrill.jsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/utils/clozeUtils.js",
+      "target": "file:src/utils/analysisParser.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/components/ClozeDrill.jsx",
+      "target": "function:src/components/ClozeDrill.jsx:BlankChunk",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/components/ClozeDrill.jsx",
+      "target": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/components/TranscriptItem.jsx",
+      "target": "function:src/components/TranscriptItem.jsx:dedupeSentenceInAnalysis",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/components/TranscriptItem.jsx",
+      "target": "function:src/components/TranscriptItem.jsx:TranscriptItem",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/analysisParser.js",
+      "target": "function:src/utils/analysisParser.js:parseChunks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/utils/clozeUtils.js",
+      "target": "function:src/utils/clozeUtils.js:buildCloze",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/components/ClozeDrill.jsx",
+      "target": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/components/TranscriptItem.jsx",
+      "target": "function:src/components/TranscriptItem.jsx:TranscriptItem",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/analysisParser.js",
+      "target": "function:src/utils/analysisParser.js:parseChunks",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/clozeUtils.js",
+      "target": "function:src/utils/clozeUtils.js:buildCloze",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+      "target": "function:src/utils/clozeUtils.js:buildCloze",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/utils/clozeUtils.js:buildCloze",
+      "target": "function:src/utils/analysisParser.js:parseChunks",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

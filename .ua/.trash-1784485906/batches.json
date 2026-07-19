@@ -1,0 +1,1122 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "louvain",
+  "totalFiles": 65,
+  "totalBatches": 8,
+  "exportsByPath": {
+    ".ua/.understandignore": [],
+    "api/delete.js": [
+      "handler"
+    ],
+    "api/favorites.js": [
+      "handler"
+    ],
+    "api/list.js": [
+      "handler"
+    ],
+    "api/migrate-vault.js": [
+      "handler"
+    ],
+    "api/save-meta.js": [
+      "handler"
+    ],
+    "api/upload.js": [
+      "handler"
+    ],
+    "eslint.config.js": [],
+    "lib/cloud.js": [
+      "resolveNamespace",
+      "isSafeFolder",
+      "blobToken"
+    ],
+    "postcss.config.js": [],
+    "public/ffmpeg/ffmpeg-core.js": [],
+    "public/ffmpeg/ffmpeg-core.wasm": [],
+    "src/App.jsx": [],
+    "src/buildInfo.js": [
+      "BUILD_ID"
+    ],
+    "src/components/CacheHistoryModal.jsx": [],
+    "src/components/ClozeDrill.jsx": [],
+    "src/components/ConfirmModal.jsx": [],
+    "src/components/EmptyState.jsx": [],
+    "src/components/ErrorBoundary.jsx": [],
+    "src/components/NoActiveFile.jsx": [],
+    "src/components/PassphraseGate.jsx": [],
+    "src/components/PlayerControls.jsx": [],
+    "src/components/SettingsModal.jsx": [],
+    "src/components/ShortcutsHelp.jsx": [],
+    "src/components/Toast.jsx": [],
+    "src/components/TranscriptItem.jsx": [],
+    "src/components/TrashModal.jsx": [],
+    "src/components/WorkspaceHeader.jsx": [],
+    "src/constants/models.js": [
+      "MODELS",
+      "MODEL_IDS",
+      "DEFAULT_MODEL_ID",
+      "DEFAULT_STAGE2_CONCURRENCY",
+      "getStage2Concurrency"
+    ],
+    "src/hooks/useAppUpdate.js": [
+      "useAppUpdate"
+    ],
+    "src/hooks/useAudioPlayer.js": [
+      "useAudioPlayer"
+    ],
+    "src/hooks/useEscapeToClose.js": [
+      "useEscapeToClose"
+    ],
+    "src/hooks/useFavorites.js": [
+      "useFavorites"
+    ],
+    "src/hooks/useKeyboardShortcuts.js": [
+      "useKeyboardShortcuts"
+    ],
+    "src/hooks/useLearningProgress.js": [
+      "useLearningProgress"
+    ],
+    "src/hooks/useMediaAnalysis.js": [
+      "useMediaAnalysis"
+    ],
+    "src/hooks/useMediaCache.js": [
+      "useMediaCache"
+    ],
+    "src/hooks/useSettings.js": [
+      "useSettings"
+    ],
+    "src/main.jsx": [],
+    "src/services/cloudSync.js": [
+      "getPassphrase",
+      "setPassphrase",
+      "hasPassphrase",
+      "uploadMedia",
+      "saveMeta",
+      "listItems",
+      "fetchData",
+      "getFavorites",
+      "saveFavorites",
+      "deleteItem"
+    ],
+    "src/services/gemini.js": [
+      "deduplicateOverlap",
+      "retranscribeSegments",
+      "extractTranscript",
+      "analyzeBatchSentences"
+    ],
+    "src/services/prompts.js": [
+      "ANALYSIS_VERSION",
+      "STAGE1_PROMPT",
+      "STAGE2_BATCH_PROMPT"
+    ],
+    "src/utils/MediaStore.js": [
+      "mediaStore"
+    ],
+    "src/utils/analysisParser.js": [
+      "parseChunks"
+    ],
+    "src/utils/audioExtractor.js": [
+      "extractAudioWav",
+      "splitAudio",
+      "extractSegmentWav",
+      "snapSegmentToSilence",
+      "captureSegmentWav",
+      "extractOriginalAudio"
+    ],
+    "src/utils/cacheStatus.js": [
+      "getCacheStatus",
+      "getCacheDisplayName"
+    ],
+    "src/utils/cacheUtils.js": [
+      "isCacheStale",
+      "parseCacheEntry",
+      "saveCacheEntry"
+    ],
+    "src/utils/clozeUtils.js": [
+      "buildCloze"
+    ],
+    "src/utils/languageUtils.js": [
+      "analyzeIntraLineRepetition",
+      "detectLanguage"
+    ],
+    "src/utils/loopGroups.js": [
+      "LOOP_GROUP_MIN",
+      "LOOP_GROUP_MAX",
+      "clampLoopGroupSize",
+      "slidingGroupBounds"
+    ],
+    "src/utils/materializeFile.js": [
+      "materializeFile"
+    ],
+    "src/utils/mediaUtils.js": [
+      "getMediaDuration",
+      "sanitizeData"
+    ],
+    "src/utils/sentenceSplitter.js": [
+      "splitIntoSentences",
+      "groupSentences",
+      "mergeTinyFragments",
+      "splitMergedSentences"
+    ],
+    "src/utils/timeUtils.js": [
+      "parseTime",
+      "formatClock"
+    ],
+    "src/utils/trashUtils.js": [
+      "sentenceKey",
+      "getTrash",
+      "addToTrash",
+      "removeFromTrash",
+      "clearTrash"
+    ],
+    "src/utils/viewPosition.js": [
+      "getLastPos",
+      "setLastPos"
+    ],
+    "tailwind.config.js": [],
+    "vite.config.js": []
+  },
+  "batches": [
+    {
+      "batchIndex": 1,
+      "files": [
+        {
+          "path": "src/App.jsx",
+          "language": "javascript",
+          "sizeLines": 996,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/buildInfo.js",
+          "language": "javascript",
+          "sizeLines": 3,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/ErrorBoundary.jsx",
+          "language": "javascript",
+          "sizeLines": 34,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/NoActiveFile.jsx",
+          "language": "javascript",
+          "sizeLines": 37,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/PassphraseGate.jsx",
+          "language": "javascript",
+          "sizeLines": 61,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/ShortcutsHelp.jsx",
+          "language": "javascript",
+          "sizeLines": 53,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/Toast.jsx",
+          "language": "javascript",
+          "sizeLines": 37,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/WorkspaceHeader.jsx",
+          "language": "javascript",
+          "sizeLines": 75,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useAppUpdate.js",
+          "language": "javascript",
+          "sizeLines": 42,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useAudioPlayer.js",
+          "language": "javascript",
+          "sizeLines": 482,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useKeyboardShortcuts.js",
+          "language": "javascript",
+          "sizeLines": 105,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useLearningProgress.js",
+          "language": "javascript",
+          "sizeLines": 77,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useSettings.js",
+          "language": "javascript",
+          "sizeLines": 82,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/main.jsx",
+          "language": "javascript",
+          "sizeLines": 10,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/loopGroups.js",
+          "language": "javascript",
+          "sizeLines": 44,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/viewPosition.js",
+          "language": "javascript",
+          "sizeLines": 31,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "src/App.jsx": [
+          "src/components/CacheHistoryModal.jsx",
+          "src/components/ConfirmModal.jsx",
+          "src/components/EmptyState.jsx",
+          "src/components/ErrorBoundary.jsx",
+          "src/components/NoActiveFile.jsx",
+          "src/components/PassphraseGate.jsx",
+          "src/components/PlayerControls.jsx",
+          "src/components/SettingsModal.jsx",
+          "src/components/ShortcutsHelp.jsx",
+          "src/components/Toast.jsx",
+          "src/components/TranscriptItem.jsx",
+          "src/components/TrashModal.jsx",
+          "src/components/WorkspaceHeader.jsx",
+          "src/hooks/useAppUpdate.js",
+          "src/hooks/useAudioPlayer.js",
+          "src/hooks/useFavorites.js",
+          "src/hooks/useKeyboardShortcuts.js",
+          "src/hooks/useLearningProgress.js",
+          "src/hooks/useMediaAnalysis.js",
+          "src/hooks/useMediaCache.js",
+          "src/hooks/useSettings.js",
+          "src/services/cloudSync.js",
+          "src/utils/cacheUtils.js",
+          "src/utils/loopGroups.js",
+          "src/utils/trashUtils.js",
+          "src/utils/viewPosition.js"
+        ],
+        "src/buildInfo.js": [],
+        "src/components/ErrorBoundary.jsx": [],
+        "src/components/NoActiveFile.jsx": [],
+        "src/components/PassphraseGate.jsx": [],
+        "src/components/ShortcutsHelp.jsx": [],
+        "src/components/Toast.jsx": [],
+        "src/components/WorkspaceHeader.jsx": [],
+        "src/hooks/useAppUpdate.js": [
+          "src/buildInfo.js"
+        ],
+        "src/hooks/useAudioPlayer.js": [
+          "src/utils/loopGroups.js"
+        ],
+        "src/hooks/useKeyboardShortcuts.js": [],
+        "src/hooks/useLearningProgress.js": [],
+        "src/hooks/useSettings.js": [
+          "src/utils/loopGroups.js"
+        ],
+        "src/main.jsx": [
+          "src/App.jsx",
+          "src/index.css"
+        ],
+        "src/utils/loopGroups.js": [],
+        "src/utils/viewPosition.js": []
+      },
+      "neighborMap": {
+        "src/App.jsx": [
+          {
+            "path": "src/components/CacheHistoryModal.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "src/components/ConfirmModal.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "src/components/EmptyState.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "src/components/PlayerControls.jsx",
+            "batchIndex": 5,
+            "symbols": []
+          },
+          {
+            "path": "src/components/SettingsModal.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "src/components/TranscriptItem.jsx",
+            "batchIndex": 6,
+            "symbols": []
+          },
+          {
+            "path": "src/components/TrashModal.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "src/hooks/useFavorites.js",
+            "batchIndex": 5,
+            "symbols": [
+              "useFavorites"
+            ]
+          },
+          {
+            "path": "src/hooks/useMediaAnalysis.js",
+            "batchIndex": 2,
+            "symbols": [
+              "useMediaAnalysis"
+            ]
+          },
+          {
+            "path": "src/hooks/useMediaCache.js",
+            "batchIndex": 5,
+            "symbols": [
+              "useMediaCache"
+            ]
+          },
+          {
+            "path": "src/services/cloudSync.js",
+            "batchIndex": 5,
+            "symbols": [
+              "getPassphrase",
+              "setPassphrase",
+              "hasPassphrase",
+              "uploadMedia",
+              "saveMeta",
+              "listItems",
+              "fetchData",
+              "getFavorites",
+              "saveFavorites",
+              "deleteItem"
+            ]
+          },
+          {
+            "path": "src/utils/cacheUtils.js",
+            "batchIndex": 2,
+            "symbols": [
+              "isCacheStale",
+              "parseCacheEntry",
+              "saveCacheEntry"
+            ]
+          },
+          {
+            "path": "src/utils/trashUtils.js",
+            "batchIndex": 2,
+            "symbols": [
+              "sentenceKey",
+              "getTrash",
+              "addToTrash",
+              "removeFromTrash",
+              "clearTrash"
+            ]
+          }
+        ],
+        "src/main.jsx": [
+          {
+            "path": "src/index.css",
+            "batchIndex": 8,
+            "symbols": []
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 2,
+      "files": [
+        {
+          "path": "src/constants/models.js",
+          "language": "javascript",
+          "sizeLines": 69,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useMediaAnalysis.js",
+          "language": "javascript",
+          "sizeLines": 1050,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/services/gemini.js",
+          "language": "javascript",
+          "sizeLines": 1135,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/services/prompts.js",
+          "language": "javascript",
+          "sizeLines": 99,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/audioExtractor.js",
+          "language": "javascript",
+          "sizeLines": 513,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/cacheUtils.js",
+          "language": "javascript",
+          "sizeLines": 68,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/languageUtils.js",
+          "language": "javascript",
+          "sizeLines": 86,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/materializeFile.js",
+          "language": "javascript",
+          "sizeLines": 84,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/sentenceSplitter.js",
+          "language": "javascript",
+          "sizeLines": 120,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/trashUtils.js",
+          "language": "javascript",
+          "sizeLines": 53,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "src/constants/models.js": [],
+        "src/hooks/useMediaAnalysis.js": [
+          "src/constants/models.js",
+          "src/services/cloudSync.js",
+          "src/services/gemini.js",
+          "src/utils/MediaStore.js",
+          "src/utils/cacheUtils.js",
+          "src/utils/materializeFile.js",
+          "src/utils/mediaUtils.js",
+          "src/utils/trashUtils.js"
+        ],
+        "src/services/gemini.js": [
+          "src/constants/models.js",
+          "src/services/prompts.js",
+          "src/utils/audioExtractor.js",
+          "src/utils/languageUtils.js",
+          "src/utils/sentenceSplitter.js"
+        ],
+        "src/services/prompts.js": [],
+        "src/utils/audioExtractor.js": [],
+        "src/utils/cacheUtils.js": [
+          "src/services/prompts.js",
+          "src/utils/cacheStatus.js"
+        ],
+        "src/utils/languageUtils.js": [],
+        "src/utils/materializeFile.js": [],
+        "src/utils/sentenceSplitter.js": [],
+        "src/utils/trashUtils.js": []
+      },
+      "neighborMap": {
+        "src/constants/models.js": [
+          {
+            "path": "src/components/SettingsModal.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          }
+        ],
+        "src/hooks/useMediaAnalysis.js": [
+          {
+            "path": "src/services/cloudSync.js",
+            "batchIndex": 5,
+            "symbols": [
+              "getPassphrase",
+              "setPassphrase",
+              "hasPassphrase",
+              "uploadMedia",
+              "saveMeta",
+              "listItems",
+              "fetchData",
+              "getFavorites",
+              "saveFavorites",
+              "deleteItem"
+            ]
+          },
+          {
+            "path": "src/utils/MediaStore.js",
+            "batchIndex": 5,
+            "symbols": [
+              "mediaStore"
+            ]
+          },
+          {
+            "path": "src/utils/mediaUtils.js",
+            "batchIndex": 5,
+            "symbols": [
+              "getMediaDuration",
+              "sanitizeData"
+            ]
+          },
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/utils/cacheUtils.js": [
+          {
+            "path": "src/utils/cacheStatus.js",
+            "batchIndex": 4,
+            "symbols": [
+              "getCacheStatus",
+              "getCacheDisplayName"
+            ]
+          },
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          },
+          {
+            "path": "src/hooks/useMediaCache.js",
+            "batchIndex": 5,
+            "symbols": [
+              "useMediaCache"
+            ]
+          }
+        ],
+        "src/utils/trashUtils.js": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 3,
+      "files": [
+        {
+          "path": "api/delete.js",
+          "language": "javascript",
+          "sizeLines": 32,
+          "fileCategory": "code"
+        },
+        {
+          "path": "api/favorites.js",
+          "language": "javascript",
+          "sizeLines": 52,
+          "fileCategory": "code"
+        },
+        {
+          "path": "api/list.js",
+          "language": "javascript",
+          "sizeLines": 34,
+          "fileCategory": "code"
+        },
+        {
+          "path": "api/migrate-vault.js",
+          "language": "javascript",
+          "sizeLines": 72,
+          "fileCategory": "code"
+        },
+        {
+          "path": "api/save-meta.js",
+          "language": "javascript",
+          "sizeLines": 70,
+          "fileCategory": "code"
+        },
+        {
+          "path": "api/upload.js",
+          "language": "javascript",
+          "sizeLines": 45,
+          "fileCategory": "code"
+        },
+        {
+          "path": "lib/cloud.js",
+          "language": "javascript",
+          "sizeLines": 28,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "api/delete.js": [
+          "lib/cloud.js"
+        ],
+        "api/favorites.js": [
+          "lib/cloud.js"
+        ],
+        "api/list.js": [
+          "lib/cloud.js"
+        ],
+        "api/migrate-vault.js": [
+          "lib/cloud.js"
+        ],
+        "api/save-meta.js": [
+          "lib/cloud.js"
+        ],
+        "api/upload.js": [
+          "lib/cloud.js"
+        ],
+        "lib/cloud.js": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 4,
+      "files": [
+        {
+          "path": "src/components/CacheHistoryModal.jsx",
+          "language": "javascript",
+          "sizeLines": 282,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/ConfirmModal.jsx",
+          "language": "javascript",
+          "sizeLines": 38,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/EmptyState.jsx",
+          "language": "javascript",
+          "sizeLines": 225,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/SettingsModal.jsx",
+          "language": "javascript",
+          "sizeLines": 529,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/TrashModal.jsx",
+          "language": "javascript",
+          "sizeLines": 79,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useEscapeToClose.js",
+          "language": "javascript",
+          "sizeLines": 34,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/cacheStatus.js",
+          "language": "javascript",
+          "sizeLines": 34,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "src/components/CacheHistoryModal.jsx": [
+          "src/hooks/useEscapeToClose.js",
+          "src/utils/cacheStatus.js"
+        ],
+        "src/components/ConfirmModal.jsx": [
+          "src/hooks/useEscapeToClose.js"
+        ],
+        "src/components/EmptyState.jsx": [
+          "src/components/SettingsModal.jsx",
+          "src/utils/cacheStatus.js"
+        ],
+        "src/components/SettingsModal.jsx": [
+          "src/constants/models.js",
+          "src/hooks/useEscapeToClose.js",
+          "src/utils/MediaStore.js"
+        ],
+        "src/components/TrashModal.jsx": [
+          "src/hooks/useEscapeToClose.js"
+        ],
+        "src/hooks/useEscapeToClose.js": [],
+        "src/utils/cacheStatus.js": []
+      },
+      "neighborMap": {
+        "src/components/CacheHistoryModal.jsx": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/components/ConfirmModal.jsx": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/components/EmptyState.jsx": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/components/SettingsModal.jsx": [
+          {
+            "path": "src/constants/models.js",
+            "batchIndex": 2,
+            "symbols": [
+              "MODELS",
+              "MODEL_IDS",
+              "DEFAULT_MODEL_ID",
+              "DEFAULT_STAGE2_CONCURRENCY",
+              "getStage2Concurrency"
+            ]
+          },
+          {
+            "path": "src/utils/MediaStore.js",
+            "batchIndex": 5,
+            "symbols": [
+              "mediaStore"
+            ]
+          },
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/components/TrashModal.jsx": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/utils/cacheStatus.js": [
+          {
+            "path": "src/utils/cacheUtils.js",
+            "batchIndex": 2,
+            "symbols": [
+              "isCacheStale",
+              "parseCacheEntry",
+              "saveCacheEntry"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 5,
+      "files": [
+        {
+          "path": "src/components/PlayerControls.jsx",
+          "language": "javascript",
+          "sizeLines": 276,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useFavorites.js",
+          "language": "javascript",
+          "sizeLines": 80,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/hooks/useMediaCache.js",
+          "language": "javascript",
+          "sizeLines": 445,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/services/cloudSync.js",
+          "language": "javascript",
+          "sizeLines": 127,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/MediaStore.js",
+          "language": "javascript",
+          "sizeLines": 169,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/mediaUtils.js",
+          "language": "javascript",
+          "sizeLines": 140,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/timeUtils.js",
+          "language": "javascript",
+          "sizeLines": 38,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "src/components/PlayerControls.jsx": [
+          "src/utils/timeUtils.js"
+        ],
+        "src/hooks/useFavorites.js": [
+          "src/services/cloudSync.js"
+        ],
+        "src/hooks/useMediaCache.js": [
+          "src/services/cloudSync.js",
+          "src/utils/MediaStore.js",
+          "src/utils/cacheUtils.js",
+          "src/utils/mediaUtils.js"
+        ],
+        "src/services/cloudSync.js": [],
+        "src/utils/MediaStore.js": [],
+        "src/utils/mediaUtils.js": [
+          "src/utils/timeUtils.js"
+        ],
+        "src/utils/timeUtils.js": []
+      },
+      "neighborMap": {
+        "src/components/PlayerControls.jsx": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/hooks/useFavorites.js": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/hooks/useMediaCache.js": [
+          {
+            "path": "src/utils/cacheUtils.js",
+            "batchIndex": 2,
+            "symbols": [
+              "isCacheStale",
+              "parseCacheEntry",
+              "saveCacheEntry"
+            ]
+          },
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ],
+        "src/services/cloudSync.js": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          },
+          {
+            "path": "src/hooks/useMediaAnalysis.js",
+            "batchIndex": 2,
+            "symbols": [
+              "useMediaAnalysis"
+            ]
+          }
+        ],
+        "src/utils/MediaStore.js": [
+          {
+            "path": "src/components/SettingsModal.jsx",
+            "batchIndex": 4,
+            "symbols": []
+          },
+          {
+            "path": "src/hooks/useMediaAnalysis.js",
+            "batchIndex": 2,
+            "symbols": [
+              "useMediaAnalysis"
+            ]
+          }
+        ],
+        "src/utils/mediaUtils.js": [
+          {
+            "path": "src/hooks/useMediaAnalysis.js",
+            "batchIndex": 2,
+            "symbols": [
+              "useMediaAnalysis"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 6,
+      "files": [
+        {
+          "path": "src/components/ClozeDrill.jsx",
+          "language": "javascript",
+          "sizeLines": 126,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/components/TranscriptItem.jsx",
+          "language": "javascript",
+          "sizeLines": 245,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/analysisParser.js",
+          "language": "javascript",
+          "sizeLines": 20,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/utils/clozeUtils.js",
+          "language": "javascript",
+          "sizeLines": 60,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "src/components/ClozeDrill.jsx": [
+          "src/utils/clozeUtils.js"
+        ],
+        "src/components/TranscriptItem.jsx": [
+          "src/components/ClozeDrill.jsx"
+        ],
+        "src/utils/analysisParser.js": [],
+        "src/utils/clozeUtils.js": [
+          "src/utils/analysisParser.js"
+        ]
+      },
+      "neighborMap": {
+        "src/components/TranscriptItem.jsx": [
+          {
+            "path": "src/App.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 7,
+      "files": [
+        {
+          "path": "README.md",
+          "language": "markdown",
+          "sizeLines": 55,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "index.html",
+          "language": "html",
+          "sizeLines": 13,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "package.json",
+          "language": "json",
+          "sizeLines": 40,
+          "fileCategory": "config"
+        },
+        {
+          "path": "vercel.json",
+          "language": "json",
+          "sizeLines": 6,
+          "fileCategory": "config"
+        },
+        {
+          "path": "배포_가이드.md",
+          "language": "markdown",
+          "sizeLines": 114,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "README.md": [],
+        "index.html": [],
+        "package.json": [],
+        "vercel.json": [],
+        "배포_가이드.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 8,
+      "files": [
+        {
+          "path": ".ua/.understandignore",
+          "language": "unknown",
+          "sizeLines": 68,
+          "fileCategory": "code"
+        },
+        {
+          "path": ".ua/config.json",
+          "language": "json",
+          "sizeLines": 3,
+          "fileCategory": "config"
+        },
+        {
+          "path": "eslint.config.js",
+          "language": "javascript",
+          "sizeLines": 37,
+          "fileCategory": "code"
+        },
+        {
+          "path": "postcss.config.js",
+          "language": "javascript",
+          "sizeLines": 6,
+          "fileCategory": "code"
+        },
+        {
+          "path": "public/ffmpeg/ffmpeg-core.js",
+          "language": "javascript",
+          "sizeLines": 15,
+          "fileCategory": "code"
+        },
+        {
+          "path": "public/ffmpeg/ffmpeg-core.wasm",
+          "language": "wasm",
+          "sizeLines": 277426,
+          "fileCategory": "code"
+        },
+        {
+          "path": "src/index.css",
+          "language": "css",
+          "sizeLines": 36,
+          "fileCategory": "markup"
+        },
+        {
+          "path": "tailwind.config.js",
+          "language": "javascript",
+          "sizeLines": 11,
+          "fileCategory": "code"
+        },
+        {
+          "path": "vite.config.js",
+          "language": "javascript",
+          "sizeLines": 39,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        ".ua/.understandignore": [],
+        ".ua/config.json": [],
+        "eslint.config.js": [],
+        "postcss.config.js": [],
+        "public/ffmpeg/ffmpeg-core.js": [],
+        "public/ffmpeg/ffmpeg-core.wasm": [],
+        "src/index.css": [],
+        "tailwind.config.js": [],
+        "vite.config.js": []
+      },
+      "neighborMap": {
+        "src/index.css": [
+          {
+            "path": "src/main.jsx",
+            "batchIndex": 1,
+            "symbols": []
+          }
+        ]
+      }
+    }
+  ]
+}

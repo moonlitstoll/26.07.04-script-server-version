@@ -1,0 +1,2648 @@
+[
+  {
+    "source": "file:src/main.jsx",
+    "target": "file:src/App.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/main.jsx",
+    "target": "file:src/index.css",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/CacheHistoryModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/ConfirmModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/EmptyState.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/ErrorBoundary.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/NoActiveFile.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/PassphraseGate.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/PlayerControls.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/SettingsModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/ShortcutsHelp.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/Toast.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/TranscriptItem.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/TrashModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/WorkspaceHeader.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useAppUpdate.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useAudioPlayer.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useFavorites.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useKeyboardShortcuts.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useLearningProgress.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useMediaAnalysis.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useMediaCache.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useSettings.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/cacheUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/loopGroups.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/trashUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/viewPosition.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useAppUpdate.js",
+    "target": "file:src/buildInfo.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useAudioPlayer.js",
+    "target": "file:src/utils/loopGroups.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useSettings.js",
+    "target": "file:src/utils/loopGroups.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "function:src/App.jsx:App",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/ErrorBoundary.jsx",
+    "target": "class:src/components/ErrorBoundary.jsx:ErrorBoundary",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/NoActiveFile.jsx",
+    "target": "function:src/components/NoActiveFile.jsx:NoActiveFile",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/PassphraseGate.jsx",
+    "target": "function:src/components/PassphraseGate.jsx:PassphraseGate",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/ShortcutsHelp.jsx",
+    "target": "function:src/components/ShortcutsHelp.jsx:ShortcutsHelp",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/Toast.jsx",
+    "target": "function:src/components/Toast.jsx:Toast",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/WorkspaceHeader.jsx",
+    "target": "function:src/components/WorkspaceHeader.jsx:WorkspaceHeader",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useAppUpdate.js",
+    "target": "function:src/hooks/useAppUpdate.js:useAppUpdate",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useAudioPlayer.js",
+    "target": "function:src/hooks/useAudioPlayer.js:useAudioPlayer",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useKeyboardShortcuts.js",
+    "target": "function:src/hooks/useKeyboardShortcuts.js:useKeyboardShortcuts",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useLearningProgress.js",
+    "target": "function:src/hooks/useLearningProgress.js:useLearningProgress",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useSettings.js",
+    "target": "function:src/hooks/useSettings.js:loadFromStorage",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useSettings.js",
+    "target": "function:src/hooks/useSettings.js:useSettings",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/loopGroups.js",
+    "target": "function:src/utils/loopGroups.js:clampLoopGroupSize",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/loopGroups.js",
+    "target": "function:src/utils/loopGroups.js:slidingGroupBounds",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/viewPosition.js",
+    "target": "function:src/utils/viewPosition.js:getLastPos",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/viewPosition.js",
+    "target": "function:src/utils/viewPosition.js:setLastPos",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/ErrorBoundary.jsx",
+    "target": "class:src/components/ErrorBoundary.jsx:ErrorBoundary",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/NoActiveFile.jsx",
+    "target": "function:src/components/NoActiveFile.jsx:NoActiveFile",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/PassphraseGate.jsx",
+    "target": "function:src/components/PassphraseGate.jsx:PassphraseGate",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/ShortcutsHelp.jsx",
+    "target": "function:src/components/ShortcutsHelp.jsx:ShortcutsHelp",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/Toast.jsx",
+    "target": "function:src/components/Toast.jsx:Toast",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/WorkspaceHeader.jsx",
+    "target": "function:src/components/WorkspaceHeader.jsx:WorkspaceHeader",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useAppUpdate.js",
+    "target": "function:src/hooks/useAppUpdate.js:useAppUpdate",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useAudioPlayer.js",
+    "target": "function:src/hooks/useAudioPlayer.js:useAudioPlayer",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useKeyboardShortcuts.js",
+    "target": "function:src/hooks/useKeyboardShortcuts.js:useKeyboardShortcuts",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useLearningProgress.js",
+    "target": "function:src/hooks/useLearningProgress.js:useLearningProgress",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useSettings.js",
+    "target": "function:src/hooks/useSettings.js:useSettings",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/loopGroups.js",
+    "target": "function:src/utils/loopGroups.js:clampLoopGroupSize",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/loopGroups.js",
+    "target": "function:src/utils/loopGroups.js:slidingGroupBounds",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/viewPosition.js",
+    "target": "function:src/utils/viewPosition.js:getLastPos",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/viewPosition.js",
+    "target": "function:src/utils/viewPosition.js:setLastPos",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useSettings.js:useSettings",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/services/cloudSync.js:getPassphrase",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/cacheUtils.js:isCacheStale",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useAppUpdate.js:useAppUpdate",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/loopGroups.js:clampLoopGroupSize",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/loopGroups.js:slidingGroupBounds",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useAudioPlayer.js:useAudioPlayer",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useLearningProgress.js:useLearningProgress",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useFavorites.js:useFavorites",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/trashUtils.js:getTrash",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/trashUtils.js:clearTrash",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/hooks/useKeyboardShortcuts.js:useKeyboardShortcuts",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/viewPosition.js:getLastPos",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/utils/viewPosition.js:setLastPos",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/App.jsx:App",
+    "target": "function:src/services/cloudSync.js:setPassphrase",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useAudioPlayer.js:useAudioPlayer",
+    "target": "function:src/utils/loopGroups.js:clampLoopGroupSize",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useAudioPlayer.js:useAudioPlayer",
+    "target": "function:src/utils/loopGroups.js:slidingGroupBounds",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useSettings.js:loadFromStorage",
+    "target": "function:src/utils/loopGroups.js:clampLoopGroupSize",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/main.jsx",
+    "target": "file:src/App.jsx",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/main.jsx",
+    "target": "file:src/components/ErrorBoundary.jsx",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/hooks/useAppUpdate.js",
+    "target": "file:src/buildInfo.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/constants/models.js",
+    "target": "function:src/constants/models.js:getStage2Concurrency",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/constants/models.js",
+    "target": "function:src/constants/models.js:getStage2Concurrency",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "function:src/hooks/useMediaAnalysis.js:isLumpedAnalysis",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:sentenceSim",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:trimBoundaryOverlap",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:isBoundaryLeakFragment",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:blobToInlinePart",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:uploadToGemini",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:extractAudioBlob",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:blobToGeminiPart",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:deduplicateOverlap",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:deduplicateOverlap",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:buildStage1Prompt",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:transcribeStream",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:realignMergedBlocks",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:retranscribeSegments",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:retranscribeSegments",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:extractTranscript",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:extractTranscript",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:analyzeBatchSentences",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "function:src/services/gemini.js:analyzeBatchSentences",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:getFFmpeg",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:encodeWAV",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:splitAudio",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:splitAudio",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:parseWavHeader",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:sliceWavBlob",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:extractSegmentWav",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:extractSegmentWav",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:captureSegmentWav",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:captureSegmentWav",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/audioExtractor.js",
+    "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/constants/models.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/services/gemini.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/cacheUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/materializeFile.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/mediaUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/trashUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/constants/models.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/services/prompts.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/utils/audioExtractor.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/utils/languageUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/utils/sentenceSplitter.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/constants/models.js:getStage2Concurrency",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/services/gemini.js:extractTranscript",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/services/gemini.js:analyzeBatchSentences",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/services/gemini.js:retranscribeSegments",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/services/gemini.js:deduplicateOverlap",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/cacheUtils.js:saveCacheEntry",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/materializeFile.js:materializeFile",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/trashUtils.js:addToTrash",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/trashUtils.js:removeFromTrash",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/trashUtils.js:sentenceKey",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:useMediaAnalysis",
+    "target": "function:src/utils/mediaUtils.js:sanitizeData",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/utils/audioExtractor.js:splitAudio",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/services/gemini.js:deduplicateOverlap",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/services/gemini.js:transcribeStream",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/utils/sentenceSplitter.js:groupSentences",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractTranscript",
+    "target": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:retranscribeSegments",
+    "target": "function:src/utils/audioExtractor.js:extractSegmentWav",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:retranscribeSegments",
+    "target": "function:src/utils/audioExtractor.js:captureSegmentWav",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:retranscribeSegments",
+    "target": "function:src/utils/audioExtractor.js:snapSegmentToSilence",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:retranscribeSegments",
+    "target": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:transcribeStream",
+    "target": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:blobToGeminiPart",
+    "target": "function:src/services/gemini.js:uploadToGemini",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:blobToGeminiPart",
+    "target": "function:src/services/gemini.js:blobToInlinePart",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractAudioBlob",
+    "target": "function:src/utils/audioExtractor.js:extractAudioWav",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:extractAudioBlob",
+    "target": "function:src/utils/audioExtractor.js:extractOriginalAudio",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:analyzeBatchSentences",
+    "target": "function:src/constants/models.js:getStage2Concurrency",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:buildStage1Prompt",
+    "target": "file:src/services/prompts.js",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/services/gemini.js:analyzeBatchSentences",
+    "target": "file:src/services/prompts.js",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaAnalysis.js:isLumpedAnalysis",
+    "target": "file:src/services/prompts.js",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/services/prompts.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "function:src/utils/cacheUtils.js:isCacheStale",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "function:src/utils/cacheUtils.js:isCacheStale",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "function:src/utils/cacheUtils.js:saveCacheEntry",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "function:src/utils/cacheUtils.js:saveCacheEntry",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/languageUtils.js",
+    "target": "function:src/utils/languageUtils.js:collapseConsecutiveRepeats",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/languageUtils.js",
+    "target": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/languageUtils.js",
+    "target": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/languageUtils.js",
+    "target": "function:src/utils/languageUtils.js:detectLanguage",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/languageUtils.js",
+    "target": "function:src/utils/languageUtils.js:detectLanguage",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/materializeFile.js",
+    "target": "function:src/utils/materializeFile.js:viaFileReader",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/materializeFile.js",
+    "target": "function:src/utils/materializeFile.js:viaObjectUrl",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/materializeFile.js",
+    "target": "function:src/utils/materializeFile.js:materializeFile",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/materializeFile.js",
+    "target": "function:src/utils/materializeFile.js:materializeFile",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:groupSentences",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:groupSentences",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/sentenceSplitter.js",
+    "target": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:sentenceKey",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:sentenceKey",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:getTrash",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:getTrash",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:addToTrash",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:addToTrash",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:removeFromTrash",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:removeFromTrash",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:clearTrash",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/trashUtils.js",
+    "target": "function:src/utils/trashUtils.js:clearTrash",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "file:src/services/prompts.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "file:src/utils/cacheStatus.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "function:src/utils/cacheUtils.js:parseCacheEntry",
+    "target": "function:src/utils/cacheStatus.js:getCacheDisplayName",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/utils/cacheUtils.js:isCacheStale",
+    "target": "file:src/services/prompts.js",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:api/delete.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/favorites.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/list.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/migrate-vault.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/save-meta.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/upload.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/delete.js",
+    "target": "function:api/delete.js:handler",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:api/favorites.js",
+    "target": "function:api/favorites.js:handler",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:api/list.js",
+    "target": "function:api/list.js:handler",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:api/migrate-vault.js",
+    "target": "function:api/migrate-vault.js:handler",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:api/save-meta.js",
+    "target": "function:api/save-meta.js:handler",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:api/upload.js",
+    "target": "function:api/upload.js:handler",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:lib/cloud.js",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:lib/cloud.js",
+    "target": "function:lib/cloud.js:isSafeFolder",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:lib/cloud.js",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:api/delete.js",
+    "target": "function:api/delete.js:handler",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:api/favorites.js",
+    "target": "function:api/favorites.js:handler",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:api/list.js",
+    "target": "function:api/list.js:handler",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:api/migrate-vault.js",
+    "target": "function:api/migrate-vault.js:handler",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:api/save-meta.js",
+    "target": "function:api/save-meta.js:handler",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:api/upload.js",
+    "target": "function:api/upload.js:handler",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:lib/cloud.js",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:lib/cloud.js",
+    "target": "function:lib/cloud.js:isSafeFolder",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:lib/cloud.js",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/delete.js:handler",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/delete.js:handler",
+    "target": "function:lib/cloud.js:isSafeFolder",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/delete.js:handler",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/favorites.js:handler",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/favorites.js:handler",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/list.js:handler",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/list.js:handler",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/migrate-vault.js:handler",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/migrate-vault.js:handler",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/save-meta.js:handler",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/save-meta.js:handler",
+    "target": "function:lib/cloud.js:isSafeFolder",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/save-meta.js:handler",
+    "target": "function:lib/cloud.js:blobToken",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:api/upload.js:handler",
+    "target": "function:lib/cloud.js:resolveNamespace",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/CacheHistoryModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/CacheHistoryModal.jsx",
+    "target": "file:src/utils/cacheStatus.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/ConfirmModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "file:src/components/SettingsModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "file:src/utils/cacheStatus.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/constants/models.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/TrashModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/CacheHistoryModal.jsx",
+    "target": "function:src/components/CacheHistoryModal.jsx:CacheHistoryModal",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/ConfirmModal.jsx",
+    "target": "function:src/components/ConfirmModal.jsx:ConfirmModal",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "function:src/components/EmptyState.jsx:EmptyState",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "function:src/components/SettingsModal.jsx:SettingsModal",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/TrashModal.jsx",
+    "target": "function:src/components/TrashModal.jsx:TrashModal",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useEscapeToClose.js",
+    "target": "function:src/hooks/useEscapeToClose.js:useEscapeToClose",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/cacheStatus.js",
+    "target": "function:src/utils/cacheStatus.js:getCacheStatus",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/cacheStatus.js",
+    "target": "function:src/utils/cacheStatus.js:getCacheDisplayName",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/CacheHistoryModal.jsx",
+    "target": "function:src/components/CacheHistoryModal.jsx:CacheHistoryModal",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/ConfirmModal.jsx",
+    "target": "function:src/components/ConfirmModal.jsx:ConfirmModal",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "function:src/components/EmptyState.jsx:EmptyState",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "function:src/components/SettingsModal.jsx:SettingsModal",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/TrashModal.jsx",
+    "target": "function:src/components/TrashModal.jsx:TrashModal",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useEscapeToClose.js",
+    "target": "function:src/hooks/useEscapeToClose.js:useEscapeToClose",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/cacheStatus.js",
+    "target": "function:src/utils/cacheStatus.js:getCacheStatus",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/cacheStatus.js",
+    "target": "function:src/utils/cacheStatus.js:getCacheDisplayName",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/CacheHistoryModal.jsx:CacheHistoryModal",
+    "target": "function:src/hooks/useEscapeToClose.js:useEscapeToClose",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/CacheHistoryModal.jsx:CacheHistoryModal",
+    "target": "function:src/utils/cacheStatus.js:getCacheStatus",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/CacheHistoryModal.jsx:CacheHistoryModal",
+    "target": "function:src/utils/cacheStatus.js:getCacheDisplayName",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/ConfirmModal.jsx:ConfirmModal",
+    "target": "function:src/hooks/useEscapeToClose.js:useEscapeToClose",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/EmptyState.jsx:EmptyState",
+    "target": "function:src/utils/cacheStatus.js:getCacheDisplayName",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/SettingsModal.jsx:SettingsModal",
+    "target": "function:src/hooks/useEscapeToClose.js:useEscapeToClose",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/TrashModal.jsx:TrashModal",
+    "target": "function:src/hooks/useEscapeToClose.js:useEscapeToClose",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/constants/models.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "file:src/components/SettingsModal.jsx",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/components/PlayerControls.jsx",
+    "target": "file:src/utils/timeUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useFavorites.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/cacheUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/mediaUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/mediaUtils.js",
+    "target": "file:src/utils/timeUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/PlayerControls.jsx",
+    "target": "function:src/components/PlayerControls.jsx:PlayerControls",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useFavorites.js",
+    "target": "function:src/hooks/useFavorites.js:useFavorites",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "function:src/hooks/useMediaCache.js:fetchBlobWithProgress",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:getPassphrase",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:setPassphrase",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:hasPassphrase",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:uploadMedia",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:saveMeta",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:listItems",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:fetchData",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:getFavorites",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:saveFavorites",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:deleteItem",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/MediaStore.js",
+    "target": "class:src/utils/MediaStore.js:MediaStore",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/mediaUtils.js",
+    "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/mediaUtils.js",
+    "target": "function:src/utils/mediaUtils.js:sanitizeData",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/timeUtils.js",
+    "target": "function:src/utils/timeUtils.js:parseTime",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/timeUtils.js",
+    "target": "function:src/utils/timeUtils.js:formatClock",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/hooks/useFavorites.js",
+    "target": "function:src/hooks/useFavorites.js:useFavorites",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:getPassphrase",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:setPassphrase",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:hasPassphrase",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:uploadMedia",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:saveMeta",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:listItems",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:fetchData",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:getFavorites",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:saveFavorites",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/services/cloudSync.js",
+    "target": "function:src/services/cloudSync.js:deleteItem",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/MediaStore.js",
+    "target": "class:src/utils/MediaStore.js:MediaStore",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/mediaUtils.js",
+    "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/mediaUtils.js",
+    "target": "function:src/utils/mediaUtils.js:sanitizeData",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/timeUtils.js",
+    "target": "function:src/utils/timeUtils.js:parseTime",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/timeUtils.js",
+    "target": "function:src/utils/timeUtils.js:formatClock",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/PlayerControls.jsx:PlayerControls",
+    "target": "function:src/utils/timeUtils.js:formatClock",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useFavorites.js:useFavorites",
+    "target": "function:src/services/cloudSync.js:saveFavorites",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useFavorites.js:useFavorites",
+    "target": "function:src/services/cloudSync.js:getFavorites",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/utils/mediaUtils.js:getMediaDuration",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/utils/mediaUtils.js:sanitizeData",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/services/cloudSync.js:uploadMedia",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/services/cloudSync.js:saveMeta",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/services/cloudSync.js:listItems",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/services/cloudSync.js:fetchData",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/hooks/useMediaCache.js:useMediaCache",
+    "target": "function:src/services/cloudSync.js:deleteItem",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/utils/mediaUtils.js:sanitizeData",
+    "target": "function:src/utils/timeUtils.js:parseTime",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/hooks/useFavorites.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:src/components/ClozeDrill.jsx",
+    "target": "file:src/utils/clozeUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/TranscriptItem.jsx",
+    "target": "file:src/components/ClozeDrill.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/clozeUtils.js",
+    "target": "file:src/utils/analysisParser.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/ClozeDrill.jsx",
+    "target": "function:src/components/ClozeDrill.jsx:BlankChunk",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/ClozeDrill.jsx",
+    "target": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/TranscriptItem.jsx",
+    "target": "function:src/components/TranscriptItem.jsx:dedupeSentenceInAnalysis",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/TranscriptItem.jsx",
+    "target": "function:src/components/TranscriptItem.jsx:TranscriptItem",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/analysisParser.js",
+    "target": "function:src/utils/analysisParser.js:parseChunks",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/utils/clozeUtils.js",
+    "target": "function:src/utils/clozeUtils.js:buildCloze",
+    "type": "contains",
+    "direction": "forward",
+    "weight": 1
+  },
+  {
+    "source": "file:src/components/ClozeDrill.jsx",
+    "target": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/components/TranscriptItem.jsx",
+    "target": "function:src/components/TranscriptItem.jsx:TranscriptItem",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/analysisParser.js",
+    "target": "function:src/utils/analysisParser.js:parseChunks",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:src/utils/clozeUtils.js",
+    "target": "function:src/utils/clozeUtils.js:buildCloze",
+    "type": "exports",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/components/ClozeDrill.jsx:ClozeDrill",
+    "target": "function:src/utils/clozeUtils.js:buildCloze",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "function:src/utils/clozeUtils.js:buildCloze",
+    "target": "function:src/utils/analysisParser.js:parseChunks",
+    "type": "calls",
+    "direction": "forward",
+    "weight": 0.8
+  },
+  {
+    "source": "file:index.html",
+    "target": "file:src/main.jsx",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "config:package.json",
+    "target": "file:vite.config.js",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "config:package.json",
+    "target": "file:src/main.jsx",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "config:vercel.json",
+    "target": "file:index.html",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "config:vercel.json",
+    "target": "file:src/main.jsx",
+    "type": "deploys",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "document:README.md",
+    "target": "file:src/main.jsx",
+    "type": "documents",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "document:README.md",
+    "target": "config:package.json",
+    "type": "documents",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "document:README.md",
+    "target": "document:배포_가이드.md",
+    "type": "related",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "document:배포_가이드.md",
+    "target": "config:vercel.json",
+    "type": "documents",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "document:배포_가이드.md",
+    "target": "file:api/migrate-vault.js",
+    "type": "documents",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "document:배포_가이드.md",
+    "target": "config:package.json",
+    "type": "documents",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "document:배포_가이드.md",
+    "target": "document:README.md",
+    "type": "related",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "config:.ua/config.json",
+    "target": "file:.ua/.understandignore",
+    "type": "related",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "file:eslint.config.js",
+    "target": "file:src/main.jsx",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:postcss.config.js",
+    "target": "file:src/index.css",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:postcss.config.js",
+    "target": "file:tailwind.config.js",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:tailwind.config.js",
+    "target": "file:src/index.css",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:vite.config.js",
+    "target": "file:src/main.jsx",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:vite.config.js",
+    "target": "file:src/index.css",
+    "type": "configures",
+    "direction": "forward",
+    "weight": 0.6
+  },
+  {
+    "source": "file:vite.config.js",
+    "target": "file:public/ffmpeg/ffmpeg-core.js",
+    "type": "related",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "file:src/index.css",
+    "target": "file:src/main.jsx",
+    "type": "related",
+    "direction": "forward",
+    "weight": 0.5
+  },
+  {
+    "source": "file:public/ffmpeg/ffmpeg-core.js",
+    "target": "file:public/ffmpeg/ffmpeg-core.wasm",
+    "type": "depends_on",
+    "direction": "forward",
+    "weight": 0.6
+  }
+]

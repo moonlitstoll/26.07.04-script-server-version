@@ -1,0 +1,130 @@
+[
+  {
+    "id": "layer:application",
+    "name": "애플리케이션 셸",
+    "description": "React SPA 진입점과 App.jsx 최상위 orchestration으로 설정·분석·재생·학습·클라우드 UI를 통합한다.",
+    "nodeIds": [
+      "file:src/App.jsx",
+      "file:src/main.jsx",
+      "file:index.html"
+    ]
+  },
+  {
+    "id": "layer:ui",
+    "name": "UI 레이어",
+    "description": "전사 카드·모달·플레이어·클로즈 드릴 등 사용자 인터페이스 컴포넌트와 전역 Tailwind 스타일을 담당한다.",
+    "nodeIds": [
+      "file:src/components/ErrorBoundary.jsx",
+      "file:src/components/NoActiveFile.jsx",
+      "file:src/components/PassphraseGate.jsx",
+      "file:src/components/ShortcutsHelp.jsx",
+      "file:src/components/Toast.jsx",
+      "file:src/components/WorkspaceHeader.jsx",
+      "file:src/components/CacheHistoryModal.jsx",
+      "file:src/components/ConfirmModal.jsx",
+      "file:src/components/EmptyState.jsx",
+      "file:src/components/SettingsModal.jsx",
+      "file:src/components/TrashModal.jsx",
+      "file:src/components/PlayerControls.jsx",
+      "file:src/components/ClozeDrill.jsx",
+      "file:src/components/TranscriptItem.jsx",
+      "file:src/index.css"
+    ]
+  },
+  {
+    "id": "layer:state",
+    "name": "상태·훅 레이어",
+    "description": "미디어 분석 큐·오디오 재생·캐시·설정·학습 진행·키보드 단축키 등 React 커스텀 훅으로 앱 상태와 부수효과를 관리한다.",
+    "nodeIds": [
+      "file:src/hooks/useAppUpdate.js",
+      "file:src/hooks/useAudioPlayer.js",
+      "file:src/hooks/useKeyboardShortcuts.js",
+      "file:src/hooks/useLearningProgress.js",
+      "file:src/hooks/useSettings.js",
+      "file:src/hooks/useMediaAnalysis.js",
+      "file:src/hooks/useEscapeToClose.js",
+      "file:src/hooks/useFavorites.js",
+      "file:src/hooks/useMediaCache.js"
+    ]
+  },
+  {
+    "id": "layer:service",
+    "name": "서비스 레이어",
+    "description": "Gemini 2단계 전사·분석 파이프라인, 프롬프트 정의, 클라이언트 클라우드 동기화 API 호출 등 핵심 비즈니스 로직을 캡슐화한다.",
+    "nodeIds": [
+      "file:src/services/gemini.js",
+      "file:src/services/prompts.js",
+      "file:src/services/cloudSync.js"
+    ]
+  },
+  {
+    "id": "layer:api",
+    "name": "API 레이어",
+    "description": "Vercel Serverless 엔드포인트로 Blob 업로드·메타 저장·목록·즐겨찾기·삭제·vault 마이그레이션과 공용 passphrase 검증을 처리한다.",
+    "nodeIds": [
+      "file:api/delete.js",
+      "file:api/favorites.js",
+      "file:api/list.js",
+      "file:api/migrate-vault.js",
+      "file:api/save-meta.js",
+      "file:api/upload.js",
+      "file:lib/cloud.js"
+    ]
+  },
+  {
+    "id": "layer:utility",
+    "name": "유틸리티 레이어",
+    "description": "FFmpeg 오디오 처리·캐시·IndexedDB·문장 분할·클로즈 생성·시간 포맷 등 서비스·UI·훅이 공유하는 순수 헬퍼와 Gemini 모델 상수를 제공한다.",
+    "nodeIds": [
+      "file:src/buildInfo.js",
+      "file:src/utils/loopGroups.js",
+      "file:src/utils/viewPosition.js",
+      "file:src/constants/models.js",
+      "file:src/utils/audioExtractor.js",
+      "file:src/utils/cacheUtils.js",
+      "file:src/utils/languageUtils.js",
+      "file:src/utils/materializeFile.js",
+      "file:src/utils/sentenceSplitter.js",
+      "file:src/utils/trashUtils.js",
+      "file:src/utils/cacheStatus.js",
+      "file:src/utils/MediaStore.js",
+      "file:src/utils/mediaUtils.js",
+      "file:src/utils/timeUtils.js",
+      "file:src/utils/analysisParser.js",
+      "file:src/utils/clozeUtils.js"
+    ]
+  },
+  {
+    "id": "layer:config",
+    "name": "설정·빌드",
+    "description": "Vite·Tailwind·ESLint·PostCSS 빌드 파이프라인, npm 의존성, Vercel SPA 라우팅, Understand Anything 분석 도구 설정을 정의한다.",
+    "nodeIds": [
+      "config:package.json",
+      "config:vercel.json",
+      "file:vite.config.js",
+      "file:tailwind.config.js",
+      "file:postcss.config.js",
+      "file:eslint.config.js",
+      "config:.ua/config.json",
+      "file:.ua/.understandignore"
+    ]
+  },
+  {
+    "id": "layer:documentation",
+    "name": "문서",
+    "description": "프로젝트 개요·로컬 실행·Vercel 배포·Blob 클라우드 동기화·passphrase 마이그레이션 절차를 안내하는 마크다운 문서.",
+    "nodeIds": [
+      "document:README.md",
+      "document:배포_가이드.md"
+    ]
+  },
+  {
+    "id": "layer:assets",
+    "name": "정적 자산",
+    "description": "브라우저 FFmpeg.wasm 코어 JS·WASM 바이너리로 오디오 추출·청크 분할 등 클라이언트 미디어 처리에 사용된다.",
+    "nodeIds": [
+      "file:public/ffmpeg/ffmpeg-core.js",
+      "file:public/ffmpeg/ffmpeg-core.wasm"
+    ]
+  }
+]

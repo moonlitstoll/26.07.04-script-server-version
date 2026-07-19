@@ -1,0 +1,621 @@
+{
+  "nodes": [
+    {
+      "id": "file:src/utils/cacheUtils.js",
+      "type": "file",
+      "name": "cacheUtils.js",
+      "filePath": "src/utils/cacheUtils.js",
+      "summary": "localStorage 기반 전사·분석 캐시 엔트리의 파싱·저장·버전 만료 검사를 제공한다.",
+      "tags": [
+        "utility",
+        "cache",
+        "localStorage",
+        "persistence"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/utils/languageUtils.js",
+      "type": "file",
+      "name": "languageUtils.js",
+      "filePath": "src/utils/languageUtils.js",
+      "summary": "전사 텍스트의 행 내 반복(환각) 축약과 한국어·베트남어 등 언어 감지 헬퍼를 제공한다.",
+      "tags": [
+        "utility",
+        "language",
+        "hallucination-filter"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/utils/materializeFile.js",
+      "type": "file",
+      "name": "materializeFile.js",
+      "filePath": "src/utils/materializeFile.js",
+      "summary": "iOS 등 환경에서 File/Blob을 분석 가능한 실제 바이트로 materialize하는 다중 전략 헬퍼.",
+      "tags": [
+        "utility",
+        "file-io",
+        "ios-compat"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/utils/sentenceSplitter.js",
+      "type": "file",
+      "name": "sentenceSplitter.js",
+      "filePath": "src/utils/sentenceSplitter.js",
+      "summary": "전사 블록을 문장 단위로 분할·병합·미세 조각 통합·재분할하는 텍스트 후처리 유틸리티.",
+      "tags": [
+        "utility",
+        "text-processing",
+        "transcription"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/utils/trashUtils.js",
+      "type": "file",
+      "name": "trashUtils.js",
+      "filePath": "src/utils/trashUtils.js",
+      "summary": "삭제된 문장을 파일별 localStorage 휴지통에 저장·복구·비우는 CRUD 헬퍼.",
+      "tags": [
+        "utility",
+        "trash",
+        "localStorage",
+        "sentence-management"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/cacheUtils.js:isCacheStale",
+      "type": "function",
+      "name": "isCacheStale",
+      "filePath": "src/utils/cacheUtils.js",
+      "lineRange": [
+        10,
+        12
+      ],
+      "summary": "캐시 엔트리의 ANALYSIS_VERSION이 현재 버전과 다르면 stale로 판정한다.",
+      "tags": [
+        "cache",
+        "versioning"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/cacheUtils.js:parseCacheEntry",
+      "type": "function",
+      "name": "parseCacheEntry",
+      "filePath": "src/utils/cacheUtils.js",
+      "lineRange": [
+        14,
+        34
+      ],
+      "summary": "localStorage JSON을 파싱해 transcript·메타·캐시 상태를 정규화된 객체로 반환한다.",
+      "tags": [
+        "cache",
+        "parsing"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/cacheUtils.js:saveCacheEntry",
+      "type": "function",
+      "name": "saveCacheEntry",
+      "filePath": "src/utils/cacheUtils.js",
+      "lineRange": [
+        47,
+        68
+      ],
+      "summary": "전사·분석 결과를 gemini_analysis 키로 localStorage에 저장하고 quota 초과 시 경고한다.",
+      "tags": [
+        "cache",
+        "persistence"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/languageUtils.js:collapseConsecutiveRepeats",
+      "type": "function",
+      "name": "collapseConsecutiveRepeats",
+      "filePath": "src/utils/languageUtils.js",
+      "lineRange": [
+        8,
+        60
+      ],
+      "summary": "토큰 시퀀스에서 연속 반복 n-gram을 축약해 환각성 반복을 제거한다.",
+      "tags": [
+        "hallucination-filter",
+        "text-processing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+      "type": "function",
+      "name": "analyzeIntraLineRepetition",
+      "filePath": "src/utils/languageUtils.js",
+      "lineRange": [
+        62,
+        78
+      ],
+      "summary": "한 줄 전사 텍스트 내 반복 패턴을 감지·축약해 Stage1 파싱 품질을 높인다.",
+      "tags": [
+        "hallucination-filter",
+        "transcription"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/languageUtils.js:detectLanguage",
+      "type": "function",
+      "name": "detectLanguage",
+      "filePath": "src/utils/languageUtils.js",
+      "lineRange": [
+        80,
+        86
+      ],
+      "summary": "한글·베트남어 정규식으로 텍스트 주 언어를 ko/vi/unknown 중 하나로 추정한다.",
+      "tags": [
+        "language-detection",
+        "i18n"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/materializeFile.js:viaFileReader",
+      "type": "function",
+      "name": "viaFileReader",
+      "filePath": "src/utils/materializeFile.js",
+      "lineRange": [
+        21,
+        32
+      ],
+      "summary": "FileReader로 File을 ArrayBuffer로 읽어 새 File 객체를 생성한다.",
+      "tags": [
+        "file-io",
+        "fallback"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/materializeFile.js:viaObjectUrl",
+      "type": "function",
+      "name": "viaObjectUrl",
+      "filePath": "src/utils/materializeFile.js",
+      "lineRange": [
+        34,
+        46
+      ],
+      "summary": "Object URL fetch로 Blob 바이트를 materialize하는 전략.",
+      "tags": [
+        "file-io",
+        "fetch"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/materializeFile.js:materializeFile",
+      "type": "function",
+      "name": "materializeFile",
+      "filePath": "src/utils/materializeFile.js",
+      "lineRange": [
+        58,
+        84
+      ],
+      "summary": "여러 전략을 순차 시도해 분석 가능한 File/Blob을 보장하고 iOS 대기 콜백을 지원한다.",
+      "tags": [
+        "file-io",
+        "ios-compat",
+        "entry-point"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+      "type": "function",
+      "name": "splitIntoSentences",
+      "filePath": "src/utils/sentenceSplitter.js",
+      "lineRange": [
+        17,
+        22
+      ],
+      "summary": "마침표·물음표·느낌표 기준으로 텍스트를 문장 배열로 분할한다.",
+      "tags": [
+        "text-processing",
+        "sentence"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/sentenceSplitter.js:groupSentences",
+      "type": "function",
+      "name": "groupSentences",
+      "filePath": "src/utils/sentenceSplitter.js",
+      "lineRange": [
+        26,
+        48
+      ],
+      "summary": "짧은 문장들을 인접 그룹으로 묶어 의미 단위 블록을 만든다.",
+      "tags": [
+        "text-processing",
+        "grouping"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+      "type": "function",
+      "name": "mergeTinyFragments",
+      "filePath": "src/utils/sentenceSplitter.js",
+      "lineRange": [
+        66,
+        95
+      ],
+      "summary": "너무 짧은 전사 조각을 인접 문장과 병합해 가독성을 높인다.",
+      "tags": [
+        "text-processing",
+        "merge"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+      "type": "function",
+      "name": "splitMergedSentences",
+      "filePath": "src/utils/sentenceSplitter.js",
+      "lineRange": [
+        100,
+        120
+      ],
+      "summary": "한 줄에 합쳐진 다중 문장을 다시 개별 항목으로 분리한다.",
+      "tags": [
+        "text-processing",
+        "split"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/trashUtils.js:sentenceKey",
+      "type": "function",
+      "name": "sentenceKey",
+      "filePath": "src/utils/trashUtils.js",
+      "lineRange": [
+        11,
+        12
+      ],
+      "summary": "초·텍스트 앞 24자로 문장의 안정적인 휴지통 키를 생성한다.",
+      "tags": [
+        "identifier",
+        "trash"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/trashUtils.js:getTrash",
+      "type": "function",
+      "name": "getTrash",
+      "filePath": "src/utils/trashUtils.js",
+      "lineRange": [
+        14,
+        22
+      ],
+      "summary": "파일명·크기별 localStorage 휴지통 항목 배열을 로드한다.",
+      "tags": [
+        "trash",
+        "localStorage"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/trashUtils.js:addToTrash",
+      "type": "function",
+      "name": "addToTrash",
+      "filePath": "src/utils/trashUtils.js",
+      "lineRange": [
+        25,
+        39
+      ],
+      "summary": "삭제 문장을 휴지통에 추가하고 중복 키를 dedupe한다.",
+      "tags": [
+        "trash",
+        "crud"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/trashUtils.js:removeFromTrash",
+      "type": "function",
+      "name": "removeFromTrash",
+      "filePath": "src/utils/trashUtils.js",
+      "lineRange": [
+        42,
+        48
+      ],
+      "summary": "휴지통에서 특정 문장 키를 제거(복구)한다.",
+      "tags": [
+        "trash",
+        "crud"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/utils/trashUtils.js:clearTrash",
+      "type": "function",
+      "name": "clearTrash",
+      "filePath": "src/utils/trashUtils.js",
+      "lineRange": [
+        50,
+        53
+      ],
+      "summary": "파일별 휴지통 localStorage 키를 삭제한다.",
+      "tags": [
+        "trash",
+        "cleanup"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "function:src/utils/cacheUtils.js:isCacheStale",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "function:src/utils/cacheUtils.js:isCacheStale",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "function:src/utils/cacheUtils.js:parseCacheEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "function:src/utils/cacheUtils.js:saveCacheEntry",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "function:src/utils/cacheUtils.js:saveCacheEntry",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/languageUtils.js",
+      "target": "function:src/utils/languageUtils.js:collapseConsecutiveRepeats",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/languageUtils.js",
+      "target": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/languageUtils.js",
+      "target": "function:src/utils/languageUtils.js:analyzeIntraLineRepetition",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/languageUtils.js",
+      "target": "function:src/utils/languageUtils.js:detectLanguage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/languageUtils.js",
+      "target": "function:src/utils/languageUtils.js:detectLanguage",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/materializeFile.js",
+      "target": "function:src/utils/materializeFile.js:viaFileReader",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/materializeFile.js",
+      "target": "function:src/utils/materializeFile.js:viaObjectUrl",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/materializeFile.js",
+      "target": "function:src/utils/materializeFile.js:materializeFile",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/materializeFile.js",
+      "target": "function:src/utils/materializeFile.js:materializeFile",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:splitIntoSentences",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:groupSentences",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:groupSentences",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:mergeTinyFragments",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/sentenceSplitter.js",
+      "target": "function:src/utils/sentenceSplitter.js:splitMergedSentences",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:sentenceKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:sentenceKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:getTrash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:getTrash",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:addToTrash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:addToTrash",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:removeFromTrash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:removeFromTrash",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:clearTrash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/utils/trashUtils.js",
+      "target": "function:src/utils/trashUtils.js:clearTrash",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "file:src/services/prompts.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/utils/cacheUtils.js",
+      "target": "file:src/utils/cacheStatus.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:src/utils/cacheUtils.js:parseCacheEntry",
+      "target": "function:src/utils/cacheStatus.js:getCacheDisplayName",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/utils/cacheUtils.js:isCacheStale",
+      "target": "file:src/services/prompts.js",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

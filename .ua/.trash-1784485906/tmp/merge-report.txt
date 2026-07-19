@@ -1,0 +1,25 @@
+﻿python : Found 9 batch files (8 logical batches, 1 multi-part):
+위치 C:\Users\moong\AppData\Local\Temp\ps-script-59c49b0d-444e-4aaa-8496-384306492637.ps1:103 문자:1
++ python "$SKILL_DIR\merge-batch-graphs.py" "$PROJECT_ROOT" 2> $mergeLo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Found 9 batch f... 1 multi-part)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  batch-1.json: 33 nodes, 87 edges
+  batch-2-part-1.json: 32 nodes, 87 edges
+  batch-2-part-2.json: 23 nodes, 37 edges
+  batch-3.json: 16 nodes, 37 edges
+  batch-4.json: 15 nodes, 35 edges
+  batch-5.json: 26 nodes, 58 edges
+  batch-6.json: 10 nodes, 15 edges
+  batch-7.json: 5 nodes, 12 edges
+  batch-8.json: 9 nodes, 10 edges
+
+Input: 169 nodes, 378 edges
+
+Output: 169 nodes, 378 edges
+
+Imports edge recovery:
+  Recovered 0 `imports` edges from importMap (65 entries scanned)
+
+Written to D:\0. 클로드연습용\0. 개인용\26.07.08 대본 완성본\media-analyzer\.ua\intermediate\assembled-graph.json (158 KB)

@@ -1,0 +1,499 @@
+[
+  {
+    "source": "file:src/main.jsx",
+    "target": "file:src/App.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/main.jsx",
+    "target": "file:src/index.css",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/CacheHistoryModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/ConfirmModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/EmptyState.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/ErrorBoundary.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/NoActiveFile.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/PassphraseGate.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/PlayerControls.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/SettingsModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/ShortcutsHelp.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/Toast.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/TranscriptItem.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/TrashModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/components/WorkspaceHeader.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useAppUpdate.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useAudioPlayer.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useFavorites.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useKeyboardShortcuts.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useLearningProgress.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useMediaAnalysis.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useMediaCache.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/hooks/useSettings.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/cacheUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/loopGroups.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/trashUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/App.jsx",
+    "target": "file:src/utils/viewPosition.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useAppUpdate.js",
+    "target": "file:src/buildInfo.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useAudioPlayer.js",
+    "target": "file:src/utils/loopGroups.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useSettings.js",
+    "target": "file:src/utils/loopGroups.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/constants/models.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/services/gemini.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/cacheUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/materializeFile.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/mediaUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaAnalysis.js",
+    "target": "file:src/utils/trashUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/constants/models.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/services/prompts.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/utils/audioExtractor.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/utils/languageUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/services/gemini.js",
+    "target": "file:src/utils/sentenceSplitter.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "file:src/services/prompts.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/cacheUtils.js",
+    "target": "file:src/utils/cacheStatus.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/delete.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/favorites.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/list.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/migrate-vault.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/save-meta.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:api/upload.js",
+    "target": "file:lib/cloud.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/CacheHistoryModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/CacheHistoryModal.jsx",
+    "target": "file:src/utils/cacheStatus.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/ConfirmModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "file:src/components/SettingsModal.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/EmptyState.jsx",
+    "target": "file:src/utils/cacheStatus.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/constants/models.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/SettingsModal.jsx",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/TrashModal.jsx",
+    "target": "file:src/hooks/useEscapeToClose.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/PlayerControls.jsx",
+    "target": "file:src/utils/timeUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useFavorites.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/services/cloudSync.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/MediaStore.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/cacheUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/hooks/useMediaCache.js",
+    "target": "file:src/utils/mediaUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/mediaUtils.js",
+    "target": "file:src/utils/timeUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/ClozeDrill.jsx",
+    "target": "file:src/utils/clozeUtils.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/components/TranscriptItem.jsx",
+    "target": "file:src/components/ClozeDrill.jsx",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  },
+  {
+    "source": "file:src/utils/clozeUtils.js",
+    "target": "file:src/utils/analysisParser.js",
+    "type": "imports",
+    "direction": "forward",
+    "weight": 0.7
+  }
+]

@@ -1,0 +1,1171 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 7,
+  "filesSkipped": [],
+  "analysisOutcomes": {
+    "structure": {
+      "succeeded": 7,
+      "failed": 0
+    },
+    "callGraph": {
+      "succeeded": 7,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "results": [
+    {
+      "path": "src/components/CacheHistoryModal.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 282,
+      "nonEmptyLines": 263,
+      "functions": [
+        {
+          "name": "favIdFromKey",
+          "startLine": 9,
+          "endLine": 9,
+          "params": [
+            "key"
+          ]
+        },
+        {
+          "name": "favIdFromItem",
+          "startLine": 10,
+          "endLine": 10,
+          "params": [
+            "item"
+          ]
+        },
+        {
+          "name": "stripExt",
+          "startLine": 11,
+          "endLine": 11,
+          "params": [
+            "n"
+          ]
+        },
+        {
+          "name": "CacheHistoryModal",
+          "startLine": 13,
+          "endLine": 280,
+          "params": []
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "favIdFromKey",
+          "callee": "key.replace",
+          "lineNumber": 9
+        },
+        {
+          "caller": "stripExt",
+          "callee": "(n || '').replace",
+          "lineNumber": 11
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "useEscapeToClose",
+          "lineNumber": 20
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "useMemo",
+          "lineNumber": 21
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "files.filter",
+          "lineNumber": 21
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "useMemo",
+          "lineNumber": 24
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "searchQuery.toLowerCase",
+          "lineNumber": 25
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "cacheKeys.forEach",
+          "lineNumber": 27
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "favIdFromKey",
+          "lineNumber": 28
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "map.set",
+          "lineNumber": 29
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "(cloudItems || []).forEach",
+          "lineNumber": 31
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "favIdFromItem",
+          "lineNumber": 32
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "map.get",
+          "lineNumber": 33
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "map.set",
+          "lineNumber": 35
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "map.values",
+          "lineNumber": 39
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "getCacheDisplayName",
+          "lineNumber": 40
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "name.toLowerCase().includes",
+          "lineNumber": 41
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "name.toLowerCase",
+          "lineNumber": 41
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "arr.push",
+          "lineNumber": 42
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "arr.sort",
+          "lineNumber": 45
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "a.name.localeCompare",
+          "lineNumber": 48
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "useMemo",
+          "lineNumber": 53
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "records.filter",
+          "lineNumber": 53
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "isFavorite",
+          "lineNumber": 53
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "useMemo",
+          "lineNumber": 54
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "records.filter",
+          "lineNumber": 54
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "isFavorite",
+          "lineNumber": 54
+        },
+        {
+          "caller": "renderStar",
+          "callee": "isFavorite",
+          "lineNumber": 57
+        },
+        {
+          "caller": "renderStar",
+          "callee": "e.stopPropagation",
+          "lineNumber": 60
+        },
+        {
+          "caller": "renderStar",
+          "callee": "toggleFavorite",
+          "lineNumber": 60
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "stripExt",
+          "lineNumber": 72
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "localVideoIds.has",
+          "lineNumber": 75
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "getCacheStatus",
+          "lineNumber": 80
+        },
+        {
+          "caller": "open",
+          "callee": "loadCache",
+          "lineNumber": 88
+        },
+        {
+          "caller": "open",
+          "callee": "loadCloud",
+          "lineNumber": 88
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "renderStar",
+          "lineNumber": 124
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "e.stopPropagation",
+          "lineNumber": 127
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "deleteLocal",
+          "lineNumber": 127
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "e.stopPropagation",
+          "lineNumber": 136
+        },
+        {
+          "caller": "renderRecordRow",
+          "callee": "deleteServer",
+          "lineNumber": 136
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "e.stopPropagation",
+          "lineNumber": 150
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "processFiles",
+          "lineNumber": 185
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "onClose",
+          "lineNumber": 187
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "setSearchQuery",
+          "lineNumber": 200
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "analyzingFiles.map",
+          "lineNumber": 215
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "setActiveFileId",
+          "lineNumber": 220
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "onClose",
+          "lineNumber": 220
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "stripExt",
+          "lineNumber": 230
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "f.data.filter",
+          "lineNumber": 233
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "e.stopPropagation",
+          "lineNumber": 245
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "removeFile",
+          "lineNumber": 245
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "favRecords.map",
+          "lineNumber": 265
+        },
+        {
+          "caller": "CacheHistoryModal",
+          "callee": "restRecords.map",
+          "lineNumber": 273
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 0,
+        "functionCount": 4,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/components/ConfirmModal.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 38,
+      "nonEmptyLines": 36,
+      "functions": [
+        {
+          "name": "ConfirmModal",
+          "startLine": 4,
+          "endLine": 36,
+          "params": []
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "ConfirmModal",
+          "callee": "useEscapeToClose",
+          "lineNumber": 5
+        },
+        {
+          "caller": "ConfirmModal",
+          "callee": "e.stopPropagation",
+          "lineNumber": 8
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/components/EmptyState.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 225,
+      "nonEmptyLines": 210,
+      "functions": [
+        {
+          "name": "favIdFromKey",
+          "startLine": 7,
+          "endLine": 7,
+          "params": [
+            "key"
+          ]
+        },
+        {
+          "name": "favIdFromItem",
+          "startLine": 8,
+          "endLine": 8,
+          "params": [
+            "item"
+          ]
+        },
+        {
+          "name": "EmptyState",
+          "startLine": 10,
+          "endLine": 223,
+          "params": []
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "favIdFromKey",
+          "callee": "key.replace",
+          "lineNumber": 7
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "cacheKeys.filter",
+          "lineNumber": 20
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "isFavorite",
+          "lineNumber": 20
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favIdFromKey",
+          "lineNumber": 20
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "cacheKeys.filter",
+          "lineNumber": 21
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "isFavorite",
+          "lineNumber": 21
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favIdFromKey",
+          "lineNumber": 21
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "cacheKeys.map",
+          "lineNumber": 25
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "(cloudItems || []).filter",
+          "lineNumber": 26
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "localIdSet.has",
+          "lineNumber": 26
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favIdFromItem",
+          "lineNumber": 26
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "cloudOnlyItems.filter",
+          "lineNumber": 27
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "isFavorite",
+          "lineNumber": 27
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favIdFromItem",
+          "lineNumber": 27
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "cloudOnlyItems.filter",
+          "lineNumber": 28
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "isFavorite",
+          "lineNumber": 28
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favIdFromItem",
+          "lineNumber": 28
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "(cloudItems || []).map",
+          "lineNumber": 31
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favIdFromItem",
+          "lineNumber": 31
+        },
+        {
+          "caller": "renderDeleteButtons",
+          "callee": "e.stopPropagation",
+          "lineNumber": 40
+        },
+        {
+          "caller": "renderDeleteButtons",
+          "callee": "deleteLocal",
+          "lineNumber": 40
+        },
+        {
+          "caller": "renderDeleteButtons",
+          "callee": "e.stopPropagation",
+          "lineNumber": 49
+        },
+        {
+          "caller": "renderDeleteButtons",
+          "callee": "deleteServer",
+          "lineNumber": 49
+        },
+        {
+          "caller": "renderStar",
+          "callee": "isFavorite",
+          "lineNumber": 61
+        },
+        {
+          "caller": "renderStar",
+          "callee": "e.stopPropagation",
+          "lineNumber": 64
+        },
+        {
+          "caller": "renderStar",
+          "callee": "toggleFavorite",
+          "lineNumber": 64
+        },
+        {
+          "caller": "renderRow",
+          "callee": "favIdFromKey",
+          "lineNumber": 75
+        },
+        {
+          "caller": "renderRow",
+          "callee": "getCacheDisplayName(key).replace",
+          "lineNumber": 76
+        },
+        {
+          "caller": "renderRow",
+          "callee": "getCacheDisplayName",
+          "lineNumber": 76
+        },
+        {
+          "caller": "renderRow",
+          "callee": "cloudById.get",
+          "lineNumber": 77
+        },
+        {
+          "caller": "renderRow",
+          "callee": "loadCache",
+          "lineNumber": 82
+        },
+        {
+          "caller": "renderRow",
+          "callee": "renderStar",
+          "lineNumber": 89
+        },
+        {
+          "caller": "renderRow",
+          "callee": "renderDeleteButtons",
+          "lineNumber": 90
+        },
+        {
+          "caller": "renderCloudRow",
+          "callee": "favIdFromItem",
+          "lineNumber": 97
+        },
+        {
+          "caller": "renderCloudRow",
+          "callee": "(item.name || 'Untitled').replace",
+          "lineNumber": 98
+        },
+        {
+          "caller": "renderCloudRow",
+          "callee": "localVideoIds.has",
+          "lineNumber": 99
+        },
+        {
+          "caller": "renderCloudRow",
+          "callee": "loadCloud",
+          "lineNumber": 107
+        },
+        {
+          "caller": "renderCloudRow",
+          "callee": "renderStar",
+          "lineNumber": 114
+        },
+        {
+          "caller": "renderCloudRow",
+          "callee": "renderDeleteButtons",
+          "lineNumber": 115
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "setShowSettings",
+          "lineNumber": 133
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "setShowSettings",
+          "lineNumber": 142
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "setShowSettings",
+          "lineNumber": 158
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "processFiles",
+          "lineNumber": 167
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favKeys.map",
+          "lineNumber": 204
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "favCloudItems.map",
+          "lineNumber": 205
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "restKeys.map",
+          "lineNumber": 206
+        },
+        {
+          "caller": "EmptyState",
+          "callee": "restCloudItems.map",
+          "lineNumber": 207
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 0,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/components/SettingsModal.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 529,
+      "nonEmptyLines": 500,
+      "functions": [
+        {
+          "name": "formatBytes",
+          "startLine": 11,
+          "endLine": 15,
+          "params": [
+            "b"
+          ]
+        },
+        {
+          "name": "SettingsModal",
+          "startLine": 17,
+          "endLine": 527,
+          "params": []
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "formatBytes",
+          "callee": "(mb / 1024).toFixed",
+          "lineNumber": 14
+        },
+        {
+          "caller": "formatBytes",
+          "callee": "mb.toFixed",
+          "lineNumber": 14
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useState",
+          "lineNumber": 18
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useRef",
+          "lineNumber": 22
+        },
+        {
+          "caller": "handleCancel",
+          "callee": "Object.keys(initial).forEach",
+          "lineNumber": 25
+        },
+        {
+          "caller": "handleCancel",
+          "callee": "Object.keys",
+          "lineNumber": 25
+        },
+        {
+          "caller": "handleCancel",
+          "callee": "updateField",
+          "lineNumber": 26
+        },
+        {
+          "caller": "handleCancel",
+          "callee": "onClose",
+          "lineNumber": 28
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useEscapeToClose",
+          "lineNumber": 33
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useState",
+          "lineNumber": 36
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useState",
+          "lineNumber": 37
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useState",
+          "lineNumber": 38
+        },
+        {
+          "caller": "refreshUsage",
+          "callee": "navigator.storage.estimate",
+          "lineNumber": 43
+        },
+        {
+          "caller": "refreshUsage",
+          "callee": "setUsage",
+          "lineNumber": 44
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "useEffect",
+          "lineNumber": 48
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "(async () => {\n            try {\n                if (navigator.storage?.estimate) {\n                    const { usage: used, quota } = await navigator.storage.estimate();\n                    if (alive) setUsage({ used, quota });\n                }\n            } catch { /* 미지원 브라우저 */ }\n        })",
+          "lineNumber": 50
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "navigator.storage.estimate",
+          "lineNumber": 53
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "setUsage",
+          "lineNumber": 54
+        },
+        {
+          "caller": "handleClearVideoCache",
+          "callee": "setClearing",
+          "lineNumber": 62
+        },
+        {
+          "caller": "handleClearVideoCache",
+          "callee": "mediaStore.clearAll",
+          "lineNumber": 63
+        },
+        {
+          "caller": "handleClearVideoCache",
+          "callee": "console.warn",
+          "lineNumber": 63
+        },
+        {
+          "caller": "handleClearVideoCache",
+          "callee": "setClearing",
+          "lineNumber": 64
+        },
+        {
+          "caller": "handleClearVideoCache",
+          "callee": "setConfirmClear",
+          "lineNumber": 65
+        },
+        {
+          "caller": "handleClearVideoCache",
+          "callee": "refreshUsage",
+          "lineNumber": 66
+        },
+        {
+          "caller": "renderModelSelector",
+          "callee": "MODELS.map",
+          "lineNumber": 73
+        },
+        {
+          "caller": "renderModelSelector",
+          "callee": "updateField",
+          "lineNumber": 76
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "e.stopPropagation",
+          "lineNumber": 103
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 132
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "setShowModelInfo",
+          "lineNumber": 143
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "MODELS.map",
+          "lineNumber": 164
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "MODELS.map",
+          "lineNumber": 177
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "renderModelSelector",
+          "lineNumber": 194
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "renderModelSelector",
+          "lineNumber": 203
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "renderModelSelector",
+          "lineNumber": 212
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "config.bufferTime.toFixed",
+          "lineNumber": 226
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 235
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "parseFloat",
+          "lineNumber": 235
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "config.temperature.toFixed",
+          "lineNumber": 256
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 265
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "parseFloat",
+          "lineNumber": 265
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "config.topP.toFixed",
+          "lineNumber": 283
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 292
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "parseFloat",
+          "lineNumber": 292
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 314
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 334
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "parseInt",
+          "lineNumber": 334
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 362
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 381
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "MARKER_PRESETS.map",
+          "lineNumber": 393
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 397
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 409
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "updateField",
+          "lineNumber": 431
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "parseInt",
+          "lineNumber": 431
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "formatBytes",
+          "lineNumber": 456
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "formatBytes",
+          "lineNumber": 456
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "setConfirmClear",
+          "lineNumber": 463
+        },
+        {
+          "caller": "SettingsModal",
+          "callee": "setConfirmClear",
+          "lineNumber": 472
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 0,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/components/TrashModal.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 79,
+      "nonEmptyLines": 75,
+      "functions": [
+        {
+          "name": "TrashModal",
+          "startLine": 5,
+          "endLine": 77,
+          "params": []
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "TrashModal",
+          "callee": "useEscapeToClose",
+          "lineNumber": 6
+        },
+        {
+          "caller": "TrashModal",
+          "callee": "e.stopPropagation",
+          "lineNumber": 9
+        },
+        {
+          "caller": "TrashModal",
+          "callee": "onRestore",
+          "lineNumber": 28
+        },
+        {
+          "caller": "TrashModal",
+          "callee": "items.map",
+          "lineNumber": 50
+        },
+        {
+          "caller": "TrashModal",
+          "callee": "(it.text || it.o || '').slice",
+          "lineNumber": 52
+        },
+        {
+          "caller": "TrashModal",
+          "callee": "onRestore",
+          "lineNumber": 64
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/hooks/useEscapeToClose.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 34,
+      "nonEmptyLines": 29,
+      "functions": [
+        {
+          "name": "handleKeyDown",
+          "startLine": 8,
+          "endLine": 15,
+          "params": [
+            "e"
+          ]
+        },
+        {
+          "name": "useEscapeToClose",
+          "startLine": 19,
+          "endLine": 34,
+          "params": [
+            "onClose"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "useEscapeToClose",
+          "line": 19,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "handleKeyDown",
+          "callee": "e.preventDefault",
+          "lineNumber": 12
+        },
+        {
+          "caller": "handleKeyDown",
+          "callee": "top.current",
+          "lineNumber": 13
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "useRef",
+          "lineNumber": 20
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "useEffect",
+          "lineNumber": 23
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "useEffect",
+          "lineNumber": 25
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "window.addEventListener",
+          "lineNumber": 26
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "stack.push",
+          "lineNumber": 27
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "stack.indexOf",
+          "lineNumber": 29
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "stack.splice",
+          "lineNumber": 30
+        },
+        {
+          "caller": "useEscapeToClose",
+          "callee": "window.removeEventListener",
+          "lineNumber": 31
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/utils/cacheStatus.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 34,
+      "nonEmptyLines": 30,
+      "functions": [
+        {
+          "name": "getCacheStatus",
+          "startLine": 1,
+          "endLine": 30,
+          "params": [
+            "cacheKey"
+          ]
+        },
+        {
+          "name": "getCacheDisplayName",
+          "startLine": 32,
+          "endLine": 34,
+          "params": [
+            "cacheKey"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "getCacheStatus",
+          "line": 1,
+          "isDefault": false
+        },
+        {
+          "name": "getCacheDisplayName",
+          "line": 32,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "getCacheStatus",
+          "callee": "JSON.parse",
+          "lineNumber": 7
+        },
+        {
+          "caller": "getCacheStatus",
+          "callee": "localStorage.getItem",
+          "lineNumber": 7
+        },
+        {
+          "caller": "getCacheStatus",
+          "callee": "cachedData.data.filter",
+          "lineNumber": 10
+        },
+        {
+          "caller": "getCacheStatus",
+          "callee": "console.error",
+          "lineNumber": 26
+        },
+        {
+          "caller": "getCacheDisplayName",
+          "callee": "cacheKey.replace('gemini_analysis_', '').replace",
+          "lineNumber": 33
+        },
+        {
+          "caller": "getCacheDisplayName",
+          "callee": "cacheKey.replace",
+          "lineNumber": 33
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    }
+  ]
+}
