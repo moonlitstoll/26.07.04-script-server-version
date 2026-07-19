@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, X, Languages } from 'lucide-react';
 import { buildCloze } from '../utils/clozeUtils';
 
 // 가려진 청크를 '박스 하나 + 단어별 밑줄'로 렌더.
@@ -26,6 +26,7 @@ const BlankChunk = ({ text, title, label, onReveal }) => (
 // 한 문장의 빈칸 학습 UI. TranscriptItem 안에서 원문/분석 대신 렌더된다.
 // 흐름: 빈칸 탭 → 그 청크 공개(채점 없음) → 전부 공개되면 [알았음/몰랐음] 자가표시.
 // 통째 가림(1청크/고급)이면 문장 전체가 단어 칸으로 나오고, 아무 칸이나 탭하면 전체 공개 → 자가표시.
+// 회상 모드(recall)는 통째 가림에 더해 번역을 단서로 위에 보여준다 — 뜻을 보고 원어를 산출하는 연습.
 // round/difficulty가 바뀌면 부모가 key로 remount시켜 상태(공개/표시)를 초기화한다.
 // [점프] 청크(빈칸/공개청크)·마크버튼이 아닌 빈 영역을 탭하면 onJump → 그 문장으로 이동
 //   (하이라이트+재생, 일반 모드 문장 클릭과 동일). 청크/버튼은 모두 stopPropagation이라 점프로 안 샌다.
@@ -59,6 +60,25 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
     return (
         // 빈 영역 탭 → 점프. 내부 청크/버튼은 stopPropagation으로 자기 동작만 한다.
         <div onClick={onJump} className="px-1 cursor-pointer">
+            {/* [회상 모드] 번역 단서 — 이걸 보고 원어를 입으로 꺼낸 뒤 빈칸을 열어 확인.
+                stopPropagation 필수: 단서를 읽으려고 탭했는데 onJump로 문장이 재생되면 정답 음성이 샌다. */}
+            {drill.recall && (
+                item.translation ? (
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="mb-2 rounded-xl px-3 py-1.5 border bg-indigo-50/80 border-indigo-100 cursor-default"
+                    >
+                        <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-[11px] uppercase tracking-wider mb-0.5">
+                            <Languages size={12} /> 번역 단서 — 원어로 말해보세요
+                        </div>
+                        <p className="text-slate-700 text-[15px] leading-snug whitespace-pre-line font-medium">
+                            {item.translation.replace(/\\n/g, '\n')}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="mb-1 text-[12px] text-slate-400 font-medium">(번역 없음 — 고급 가리기와 동일)</div>
+                )
+            )}
             {/* 클로즈 문장 */}
             <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 mb-2">
                 {drill.parts.map((p, i) => {

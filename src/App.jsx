@@ -1,8 +1,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
+import { useEscapeToClose } from './hooks/useEscapeToClose';
 
 // 상단 툴바 칩 공통 크기 — 하단 플레이어 바와 같은 min(Nvw, 최대px) 방식.
 // px 고정 크기면 좁은 화면(모바일·확대)에서 칩 합계가 화면 폭을 넘어 두 줄로 접힌다.
@@ -11,6 +13,42 @@ import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX 
 // 아이콘은 lucide size 대신 클래스로 지정(SVG 속성보다 CSS가 우선).
 const CHIP = 'shrink-0 whitespace-nowrap inline-flex items-center gap-[min(0.9vw,4px)] px-[min(1.8vw,8px)] py-0.5 rounded-lg text-[min(2.9vw,12px)] font-bold border transition-colors';
 const CHIP_ICON = 'w-[min(3vw,13px)] h-[min(3vw,13px)] shrink-0';
+
+// 묶음 반복 문장 수 프리셋 — 숫자를 탭하면 −/+ 연타 없이 바로 고른다 (1↔20 왕복이 탭 1번).
+const LOOP_PRESETS = [1, 2, 3, 5, 10, 15, 20];
+
+// 프리셋 팝오버. 툴바 안에 띄우면 안 되는 이유 두 가지:
+//  ① 칩 행이 overflow-x-auto → absolute 팝오버가 행 높이에서 잘린다
+//  ② 툴바 래퍼의 backdrop-blur가 fixed의 containing block이 돼 좌표가 툴바 기준으로 틀어진다
+// → body 포털 + fixed로 띄우고, 앵커(숫자 버튼) 좌표는 열 때 한 번 계산해 받는다.
+const LoopPresetPopover = ({ anchor, current, onPick, onClose }) => {
+  useEscapeToClose(onClose); // 조건부 마운트라 열려 있을 때만 ESC 스택에 올라간다
+  // 앵커 중심 정렬하되 화면 밖으로 안 나가게 클램프 (패널 폭 근사 250px, 좁으면 wrap으로 줄바꿈)
+  const half = 125;
+  const vw = window.innerWidth || 360;
+  const left = Math.min(Math.max(anchor.x, half + 8), vw - half - 8);
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[60]" onClick={onClose} />
+      <div
+        className="fixed z-[61] -translate-x-1/2 flex flex-wrap justify-center items-center gap-1 p-1.5 max-w-[calc(100vw-16px)] rounded-xl bg-white border border-slate-200 shadow-lg"
+        style={{ left, top: anchor.y + 6 }}
+      >
+        {LOOP_PRESETS.map((v) => (
+          <button
+            key={v}
+            onClick={() => { onPick(v); onClose(); }}
+            aria-label={`묶음 ${v}문장`}
+            className={`w-[30px] h-[30px] rounded-lg text-[13px] font-black tabular-nums transition-colors ${v === current ? 'bg-amber-500 text-white' : 'text-slate-600 bg-slate-50 hover:bg-amber-50'}`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </>,
+    document.body
+  );
+};
 import { useSettings } from './hooks/useSettings';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
@@ -113,7 +151,7 @@ const App = () => {
   // ─── 가리기 학습(클로즈) + 오답 복습 ───
   // [주의] mistakeOnly는 useAudioPlayer보다 먼저 선언돼야 한다 — 아래 effLoopN이 이걸 읽는다.
   const [drillMode, setDrillMode] = useState(false);
-  const [difficulty, setDifficulty] = useState('easy'); // 'easy' | 'mid' | 'hard'
+  const [difficulty, setDifficulty] = useState('easy'); // 'easy' | 'mid' | 'hard' | 'recall'(번역 단서→원어 산출)
   const [drillRound, setDrillRound] = useState(0);       // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
   const [mistakeOnly, setMistakeOnly] = useState(false);
   const prevLoopRef = useRef(false);                     // 오답 모드 진입 전 반복 상태 (복원용)
@@ -137,6 +175,9 @@ const App = () => {
     updateField('loopGroupSize', v);
     if (v > 1) setLoopActive(true);
   }, [updateField, setLoopActive]);
+
+  // 묶음 프리셋 팝오버: null=닫힘, {x,y}=앵커(숫자 버튼) 좌표. 좌표는 열 때 1회 스냅샷.
+  const [loopPresetAnchor, setLoopPresetAnchor] = useState(null);
 
   // 지금 반복 중인 묶음의 범위 (카드 띠 표시용). 묶음 반복이 꺼져 있으면 null.
   // 엔진·←/→와 같은 slidingGroupBounds를 쓰므로 띠와 실제 반복 구간이 어긋날 수 없다.
@@ -554,6 +595,14 @@ const App = () => {
           </span>
         </div>
       )}
+      {loopPresetAnchor && (
+        <LoopPresetPopover
+          anchor={loopPresetAnchor}
+          current={effLoopN}
+          onPick={changeLoopGroupSize}
+          onClose={() => setLoopPresetAnchor(null)}
+        />
+      )}
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       {showTrash && (
         <TrashModal
@@ -705,7 +754,7 @@ const App = () => {
                       {drillMode && (
                         <>
                           <div className="shrink-0 inline-flex rounded-lg border border-slate-200 overflow-hidden">
-                            {[['easy', '초급'], ['mid', '중급'], ['hard', '고급']].map(([v, label]) => (
+                            {[['easy', '초급'], ['mid', '중급'], ['hard', '고급'], ['recall', '회상']].map(([v, label]) => (
                               <button
                                 key={v}
                                 onClick={() => setDifficulty(v)}
@@ -746,9 +795,19 @@ const App = () => {
                         >
                           −
                         </button>
-                        <span className={`w-[min(3.7vw,16px)] text-center text-[min(2.9vw,12px)] font-black tabular-nums ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700' : 'text-slate-600'}`}>
+                        {/* 숫자 탭 → 프리셋 팝오버 (−/+ 연타 없이 바로 선택). 오답 모드에선 −/+처럼 잠금 */}
+                        <button
+                          onClick={(e) => {
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setLoopPresetAnchor({ x: r.left + r.width / 2, y: r.bottom });
+                          }}
+                          disabled={mistakeOnly}
+                          title="탭하면 자주 쓰는 문장 수를 바로 고를 수 있어요"
+                          aria-label="묶음 문장 수 바로 선택"
+                          className={`min-w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] px-0.5 rounded flex items-center justify-center text-[min(2.9vw,12px)] font-black tabular-nums hover:bg-slate-100 disabled:hover:bg-transparent ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700' : 'text-slate-600'}`}
+                        >
                           {effLoopN}
-                        </span>
+                        </button>
                         <button
                           onClick={() => changeLoopGroupSize(effLoopN + 1)}
                           disabled={mistakeOnly || effLoopN >= LOOP_GROUP_MAX}
