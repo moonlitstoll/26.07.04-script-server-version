@@ -66,6 +66,7 @@ export const useMediaAnalysis = ({
     chunkEnabled,
     chunkMinutes,
     realignEnabled,
+    speechAutoDetect, // 전사+분석 완료 후 대사 구간 감지 자동 실행 (설정, 기본 꺼짐)
     stage2AbortRef,
     showToast,
     onTrashChange
@@ -76,6 +77,11 @@ export const useMediaAnalysis = ({
     const [stage2Progress, setStage2Progress] = useState(null);
     // [대사 끝 감지] 진행 중인 파일 id (칩 스피너 표시용). null = 유휴.
     const [speechDetectBusy, setSpeechDetectBusy] = useState(null);
+    const speechBusyRef = useRef(false); // 중복 실행 가드는 ref로 (자동 실행 경로의 stale closure 방지)
+    // [대사 끝 감지 결과의 동기 사본] key: `${name}_${size}|${seconds}` → speechEnd(초).
+    // Stage 2가 자기 스냅샷으로 상태/캐시를 통째로 덮어쓸 때, 그 사이 감지가 채운 speechEnd가
+    // 지워지지 않도록 덮어쓰기 직전에 여기서 이식한다(상태는 지연 갱신이라 ref가 필요).
+    const speechEndGraftRef = useRef(new Map());
     const stage1AbortRef = useRef(null);
     const analysisQueueRef = useRef([]);   // 순차 분석 대기 파일 목록
     const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
@@ -116,7 +122,19 @@ export const useMediaAnalysis = ({
         stage2AbortRef.current = new AbortController();
         const { signal } = stage2AbortRef.current;
 
+        // [필드 보존] Stage 2는 시작 시점 스냅샷(workingData)을 통째로 상태/캐시에 덮어쓴다.
+        // 분석이 도는 사이 '대사 끝 감지'가 채운 speechEnd는 이 스냅샷에 없어 배치가 끝날 때마다
+        // 지워지는 경합이 있다 → 덮어쓰기 직전에 감지 결과(ref)를 스냅샷에 이식한다.
+        // (배열 항목을 직접 교체하므로 바로 뒤따르는 persistCache도 이식된 값을 저장한다)
         const updateGlobalState = (data) => {
+            const graft = speechEndGraftRef.current;
+            if (graft.size > 0) {
+                for (let i = 0; i < data.length; i++) {
+                    if (typeof data[i].speechEnd === 'number') continue;
+                    const se = graft.get(`${fileInfo.name}_${fileInfo.size}|${data[i].seconds}`);
+                    if (typeof se === 'number') data[i] = { ...data[i], speechEnd: se };
+                }
+            }
             setFiles(prev => prev.map(f => f.id === fileId ? { ...f, data: [...data] } : f));
         };
 
@@ -379,7 +397,17 @@ export const useMediaAnalysis = ({
         persistCache(sourceFile, data, 'extracted');
         if (refreshCacheKeys) refreshCacheKeys();
 
-        const stage2Promise = runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model);
+        // [자동 감지 옵션] 전사+분석이 '완료된 뒤' 대사 구간 감지를 자동 실행 (설정, 기본 꺼짐).
+        // 완료 후에 돌리는 이유: 분석과 병행하면 API 동시 부하 + 결과 덮어쓰기 경합 창이 넓어진다.
+        // 중단(aborted)이나 전량 실패 시엔 실행하지 않는다 — 취소한 파일에 감지 비용을 쓰지 않기 위함.
+        const stage2Promise = runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model)
+            .then((res) => {
+                // 전량 실패(success 0)면 API 자체가 아픈 상태 — 감지까지 얹지 않는다
+                if (speechAutoDetect && res && !res.aborted && (res.total === 0 || res.success > 0)) {
+                    detectSpeechEndsForFile(fileId);
+                }
+                return res;
+            });
 
         if (saveMedia) {
             try {
@@ -769,7 +797,7 @@ export const useMediaAnalysis = ({
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return false;
         }
-        if (speechDetectBusy) return false; // 중복 실행 방지
+        if (speechBusyRef.current) return false; // 중복 실행 방지 (ref — 자동 실행 경로의 stale state 회피)
 
         let targetFile = null; let targetUrl = null; let snapshot = null;
         setFiles(prev => {
@@ -780,6 +808,7 @@ export const useMediaAnalysis = ({
         await new Promise(r => setTimeout(r, 0));
         if (!targetFile || !Array.isArray(snapshot) || snapshot.length === 0) return false;
 
+        speechBusyRef.current = true;
         setSpeechDetectBusy(fileId);
         try {
             // [실체 확보 3단 폴백] 캐시에서 복원한 파일의 f.file은 실제 파일이 아니라
@@ -839,6 +868,8 @@ export const useMediaAnalysis = ({
                     if (duration > 0) se = Math.min(se, duration);
                     if (se <= d.seconds + 0.2 || se - d.seconds > 60) return d;
                     applied++;
+                    // 동기 사본(graft ref)에도 기록 — 진행 중인 Stage 2가 스냅샷으로 덮어써도 이식돼 살아남는다
+                    speechEndGraftRef.current.set(`${targetFile.name}_${targetFile.size}|${d.seconds}`, se);
                     return { ...d, speechEnd: se };
                 });
                 latestData = merged;
@@ -864,6 +895,7 @@ export const useMediaAnalysis = ({
             }
             return false;
         } finally {
+            speechBusyRef.current = false;
             setSpeechDetectBusy(null);
         }
     };

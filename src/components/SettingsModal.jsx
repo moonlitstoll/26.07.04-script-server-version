@@ -367,6 +367,25 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         </div>
                     </div>
 
+                    {/* 대사 구간 자동 감지 ('대사만 재생'용 데이터를 전사 직후 자동 확보) */}
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col pr-3">
+                                <label className="text-sm font-bold text-slate-700">대사 구간 자동 감지</label>
+                                <span className="text-[10px] text-slate-400 leading-relaxed">전사+분석이 끝나면 문장별 대사 끝 시각 감지를 자동 실행합니다. '대사만 재생'(반복 시 배경음악·무음 건너뛰기)을 바로 쓸 수 있게 됩니다. 영상당 감지 1회(전사 1회와 비슷한 비용)가 추가되며, 끄면 툴바 '대사만' 칩으로 필요할 때만 수동 실행합니다.</span>
+                            </div>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={config.speechAutoDetect}
+                                onClick={() => updateField('speechAutoDetect', !config.speechAutoDetect)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${config.speechAutoDetect ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                            >
+                                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${config.speechAutoDetect ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Anti-Recitation */}
                     <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div className="flex items-center justify-between">

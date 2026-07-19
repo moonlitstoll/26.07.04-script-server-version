@@ -17,6 +17,7 @@ const DEFAULTS = {
     realignEnabled: true,
     loopGroupSize: 1,   // 묶음 반복: 한 번에 반복할 문장 수 (1 = 기존 한 문장 반복)
     speechOnlyEnabled: false, // 대사만 재생: 반복 시 대사 끝~다음 대사 사이 긴 배경음악/무음 건너뛰기
+    speechAutoDetect: false,  // 전사+분석 완료 후 대사 구간 감지 자동 실행 (감지 1회 비용 추가)
 };
 
 const STORAGE_KEYS = {
@@ -35,6 +36,7 @@ const STORAGE_KEYS = {
     realignEnabled: 'miniapp_realign_enabled',
     loopGroupSize: 'miniapp_loop_group_size',
     speechOnlyEnabled: 'miniapp_speech_only',
+    speechAutoDetect: 'miniapp_speech_auto_detect',
 };
 
 function loadFromStorage() {
@@ -65,6 +67,7 @@ function loadFromStorage() {
             ? clampLoopGroupSize(localStorage.getItem(STORAGE_KEYS.loopGroupSize))
             : DEFAULTS.loopGroupSize,
         speechOnlyEnabled: localStorage.getItem(STORAGE_KEYS.speechOnlyEnabled) === 'true',
+        speechAutoDetect: localStorage.getItem(STORAGE_KEYS.speechAutoDetect) === 'true',
     };
 }
 
