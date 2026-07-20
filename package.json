@@ -9,7 +9,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "echo \"이 사이트는 Vercel이 main 브랜치에서 자동 배포합니다. 배포하려면: git add -A && git commit -m ... && git push origin main (gh-pages 아님)\" && exit 1"
+    "deploy": "echo \"이 사이트는 Vercel이 main 브랜치에서 자동 배포합니다. 배포하려면: git add -A && git commit -m ... && git push origin main (gh-pages 아님)\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.6",
@@ -35,6 +37,7 @@
     "globals": "^16.5.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.1.10"
   }
 }

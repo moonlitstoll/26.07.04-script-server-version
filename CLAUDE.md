@@ -15,7 +15,22 @@ npm install        # 의존성 설치
 npm run dev        # 개발 서버 (Vite)
 npm run build      # 프로덕션 빌드
 npm run lint       # ESLint
+npm test           # vitest 1회 실행
+npm run test:watch # vitest 감시 모드
+npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 ```
+
+### 테스트 (`src/utils/__tests__/`)
+
+순수 함수 유틸만 덮는다 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+
+**테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
+
+- **사본을 import 하면 안 된다.** 예전 테스트가 스크래치패드 사본을 읽어서, 소스의 `SPEECH_TAIL_PAD`를 0.4→0.8로 바꿔도 그대로 통과했다. 반드시 상대경로로 실제 소스를 import 할 것.
+- **단정에 상수를 그대로 쓰면 무의미해진다.** `validSpeechEnd(...10 + MIN_SPEECH_SEC)` 같은 단정은 기준을 되돌려도 같이 움직여 버그를 못 잡는다. **경계 회귀는 실측 사례를 숫자로 박아둘 것** (예: `{seconds:272.6, speechEnd:272.8}` = "À.", 04:32 구간).
+- 검증 방법: 상수를 일부러 옛 값으로 되돌리고 `npm test`가 **실패하는지** 본다. 4개 변이(`SPEECH_TAIL_PAD`/`MIN_SPEECH_SEC`/`GAP_SKIP_MIN`/graft 덮어쓰기 가드)가 각각 잡히는 것을 확인해 뒀다.
+
+**알려진 공백**: `gemini.js`의 응답 파서와 `useMediaAnalysis`의 감지 병합 로직은 함수로 분리돼 있지 않아 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
 
 배포: **Vercel이 main 브랜치 푸시를 자동 배포한다.** `git push origin main`이 곧 배포다.
 (`npm run deploy`는 안내 메시지만 출력하고 종료. `gh-pages` 브랜치는 옛 방식의 잔재 — 사용 안 함.)
