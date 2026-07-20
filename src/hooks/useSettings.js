@@ -21,7 +21,17 @@ const DEFAULTS = {
     speechAutoDetect: false,  // 전사+분석 완료 후 대사 구간 감지 자동 실행 (감지 1회 비용 추가)
     // 대사만 재생에서 대사 끝 뒤에 더 듣는 여유(초). 기본값 출처는 speechSegments 하나뿐이다.
     speechTailPad: SPEECH_TAIL_PAD,
+    // ─── 학습 화면 상태 (툴바에서 조작하지만 '마지막 설정'으로 유지되는 게 이로운 것들) ───
+    // 유지하지 않는 것과의 경계: 오답만 보기·선택 모드·모달 열림은 유지하면 앱이 이상한 화면으로
+    // 시작한다(대본이 사라지거나 파괴적 모드로 진입). 그래서 여기 넣지 않았다 — 의도적 제외다.
+    difficulty: 'easy',   // 가리기 난이도. 학습자의 실력 수준이라 안정적 선호값이다.
+    showAnalysis: true,   // 번역/분석 표시. 끈 채로 열려도 원문은 보이므로 혼란이 없다.
+    drillRound: 0,        // 빈칸 섞기 시드. 화면에 드러나지 않지만, 리셋되면 '새 문제'를
+                          // 다시 눌러야 하고 그 버튼이 오답 기록까지 지운다(강제 교환).
 };
+
+// 가리기 난이도 허용값. 오염된 문자열이 buildCloze로 흘러들면 출제가 깨지므로 화이트리스트로 막는다.
+const DIFFICULTIES = ['easy', 'mid', 'hard', 'recall'];
 
 const STORAGE_KEYS = {
     apiKey: 'miniapp_gemini_key',
@@ -41,9 +51,14 @@ const STORAGE_KEYS = {
     speechOnlyEnabled: 'miniapp_speech_only',
     speechAutoDetect: 'miniapp_speech_auto_detect',
     speechTailPad: 'miniapp_speech_tail_pad',
+    difficulty: 'miniapp_drill_difficulty',
+    showAnalysis: 'miniapp_show_analysis',
+    drillRound: 'miniapp_drill_round',
 };
 
-function loadFromStorage() {
+// export: 저장값 파싱 규칙(기본값·화이트리스트·범위)을 테스트가 직접 검증하기 위함.
+// 앱 코드에서는 useSettings 초기화에만 쓴다.
+export function loadFromStorage() {
     return {
         apiKey: localStorage.getItem(STORAGE_KEYS.apiKey) || import.meta.env.VITE_GEMINI_API_KEY || DEFAULTS.apiKey,
         stage1Model: localStorage.getItem(STORAGE_KEYS.stage1Model) || DEFAULTS.stage1Model,
@@ -78,19 +93,43 @@ function loadFromStorage() {
         speechTailPad: localStorage.getItem(STORAGE_KEYS.speechTailPad) !== null
             ? clampTailPad(localStorage.getItem(STORAGE_KEYS.speechTailPad))
             : DEFAULTS.speechTailPad,
+        // 오염값은 조용히 기본값으로. 모르는 난이도가 buildCloze에 들어가면 출제가 깨진다.
+        difficulty: DIFFICULTIES.includes(localStorage.getItem(STORAGE_KEYS.difficulty))
+            ? localStorage.getItem(STORAGE_KEYS.difficulty)
+            : DEFAULTS.difficulty,
+        // 기본값이 true라 `=== 'true'`를 쓰면 안 된다(키가 없을 때 false로 뒤집힘).
+        showAnalysis: localStorage.getItem(STORAGE_KEYS.showAnalysis) !== null
+            ? localStorage.getItem(STORAGE_KEYS.showAnalysis) === 'true'
+            : DEFAULTS.showAnalysis,
+        drillRound: (() => {
+            const n = parseInt(localStorage.getItem(STORAGE_KEYS.drillRound), 10);
+            return Number.isFinite(n) && n >= 0 ? n : DEFAULTS.drillRound;
+        })(),
     };
 }
 
 export const useSettings = () => {
     const [config, setConfig] = useState(loadFromStorage);
 
+    // value에 함수를 넘기면 이전 값을 받아 계산한다(setState와 동일한 규약).
+    //   updateField('showAnalysis', prev => !prev)
+    // 이게 필요한 이유: 토글 콜백이 현재 값을 클로저로 잡으면 deps에 값을 넣어야 하고,
+    // 그러면 콜백 참조가 매번 바뀌어 memo된 TranscriptItem들이 재생 틱마다 리렌더된다.
+    // 함수형 업데이트를 쓰면 콜백을 deps 없이 안정 참조로 유지할 수 있다.
     const updateField = useCallback((field, value) => {
         setConfig(prev => {
-            const next = { ...prev, [field]: value };
+            const nextValue = typeof value === 'function' ? value(prev[field]) : value;
             if (STORAGE_KEYS[field]) {
-                localStorage.setItem(STORAGE_KEYS[field], String(value));
+                // 저장 실패로 앱이 죽으면 안 된다 — 화면 상태는 그대로 반영하고 경고만 남긴다.
+                // (localStorage는 대본 캐시가 5MB 한도를 쓰므로 실제로 꽉 찰 수 있고,
+                //  사파리 프라이빗 모드에서는 setItem 자체가 예외를 던진다.)
+                try {
+                    localStorage.setItem(STORAGE_KEYS[field], String(nextValue));
+                } catch (e) {
+                    console.warn(`[Settings] '${field}' 저장 실패 — 이번 세션에만 적용됩니다.`, e);
+                }
             }
-            return next;
+            return { ...prev, [field]: nextValue };
         });
     }, []);
 

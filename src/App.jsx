@@ -97,7 +97,11 @@ const App = () => {
 
   // UI state
   const [showSettings, setShowSettings] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(true);
+  // 번역/분석 표시 — config에 있어 마지막 설정이 유지된다(miniapp_show_analysis).
+  // setter 모양을 유지해 PlayerControls 등 기존 호출부를 그대로 둔다. updateField가
+  // 안정 참조(useCallback [])라 이 래퍼도 안정적 → memo된 카드가 재생 틱마다 리렌더되지 않는다.
+  const showAnalysis = config.showAnalysis;
+  const setShowAnalysis = useCallback((v) => updateField('showAnalysis', v), [updateField]);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showCacheHistory, setShowCacheHistory] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -128,7 +132,9 @@ const App = () => {
     });
   }, [showConfirm]);
 
-  const toggleGlobalAnalysis = useCallback(() => setShowAnalysis(prev => !prev), []);
+  // 함수형 업데이트를 쓰는 이유: 현재 값을 클로저로 잡으면 deps에 showAnalysis를 넣어야 하고,
+  // 그러면 이 콜백 참조가 토글마다 바뀌어 memo된 TranscriptItem이 전부 리렌더된다.
+  const toggleGlobalAnalysis = useCallback(() => updateField('showAnalysis', prev => !prev), [updateField]);
   const stage2AbortRef = useRef(null);
   // 현재 Stage 2가 돌고 있는 파일: Map<fileId, 실행중인 개수>.
   // 왜 필요한가: loadCache는 미분석 문장이 남아 있으면 Stage 2를 새로 시작하는데,
@@ -195,8 +201,12 @@ const App = () => {
   // ─── 가리기 학습(클로즈) + 오답 복습 ───
   // [주의] mistakeOnly는 useAudioPlayer보다 먼저 선언돼야 한다 — 아래 effLoopN이 이걸 읽는다.
   const [drillMode, setDrillMode] = useState(false);
-  const [difficulty, setDifficulty] = useState('easy'); // 'easy' | 'mid' | 'hard' | 'recall'(번역 단서→원어 산출)
-  const [drillRound, setDrillRound] = useState(0);       // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
+  // 난이도·회차는 config에 있어 새로고침/앱 재시작 후에도 유지된다.
+  // (가리기 모드 on/off는 일부러 휘발로 둔다 — '고급/회상'으로 저장된 채 켜져 열리면
+  //  문장이 통째로 가려져 '대본이 안 보인다'가 되기 때문. 난이도 선택기는 drillMode일 때만
+  //  렌더되므로, 저장된 난이도는 사용자가 가리기를 켤 때 칩 하이라이트로 바로 보인다.)
+  const difficulty = config.difficulty;  // 'easy' | 'mid' | 'hard' | 'recall'(번역 단서→원어 산출)
+  const drillRound = config.drillRound;  // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
   const [mistakeOnly, setMistakeOnly] = useState(false);
   const prevLoopRef = useRef(false);                     // 오답 모드 진입 전 반복 상태 (복원용)
 
@@ -889,7 +899,7 @@ const App = () => {
                             {[['easy', '초급'], ['mid', '중급'], ['hard', '고급'], ['recall', '회상']].map(([v, label]) => (
                               <button
                                 key={v}
-                                onClick={() => setDifficulty(v)}
+                                onClick={() => updateField('difficulty', v)}
                                 className={`whitespace-nowrap px-[min(1.8vw,8px)] py-0.5 text-[min(2.9vw,12px)] font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                               >
                                 {label}
@@ -897,7 +907,7 @@ const App = () => {
                             ))}
                           </div>
                           <button
-                            onClick={() => { setDrillRound(r => r + 1); clearLearnProgress(); }}
+                            onClick={() => { updateField('drillRound', r => r + 1); clearLearnProgress(); }}
                             title="빈칸을 새로 섞고 이 영상의 오답 표시를 초기화합니다"
                             className={`${CHIP} text-slate-500 bg-white hover:bg-slate-50 border-slate-200`}
                           >
