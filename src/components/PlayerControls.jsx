@@ -40,7 +40,7 @@ const PlayerControls = ({
     togglePlay, seekTo, handlePrev, handleNext,
     handleRateChange, toggleLoop,
     setShowAnalysis, setShowSpeedMenu,
-    processFiles
+    processFiles, onMediaError
 }) => {
     // 백그라운드 연속재생: 소리는 <audio>가 담당(videoRef가 여기 붙음).
     // 크롬은 <video>를 화면 꺼짐 시 자동 정지시키나 <audio>는 계속 재생하므로,
@@ -97,7 +97,9 @@ const PlayerControls = ({
 
                 {/* 사운드+클럭 드라이버: 오디오 요소(화면 꺼져도 자동정지 안 됨).
                     display:none은 피하고 sr-only로 렌더 트리에 유지. */}
-                {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="sr-only" />}
+                {/* onError: blob 링크가 죽으면(모바일 메모리 회수 등) App이 저장소 원본으로 재연결한다.
+                    이게 없으면 '검은 화면 + 재생 불가'가 되고 사용자는 재업로드밖에 방법이 없다. */}
+                {mediaUrl && <audio ref={attachVideo} src={mediaUrl} className="sr-only" onError={onMediaError} />}
 
                 {/* Left: Video Thumbnail or Recovery UI
 

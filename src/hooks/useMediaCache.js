@@ -320,21 +320,35 @@ export const useMediaCache = ({
             }
 
             let mediaBlob = null;
-            let mediaUrl = matchingFile ? matchingFile.url : null;
+            let mediaUrl = null;
             let fileForDuration = matchingFile ? matchingFile.file : null;
 
-            if (!mediaUrl && metadata.name) {
+            // [재생 주소 항상 새로 발급] 저장소(IndexedDB) 원본이 있으면 그것으로 blob URL을 새로 만든다.
+            // 이전에는 이미 열려 있던 항목의 url을 그대로 재사용했는데, 그 주소는 '업로드 때 고른 파일'을
+            // 가리키는 임시 링크라 모바일에서 메모리 회수·백그라운드 복귀 후 죽는 일이 잦다.
+            // 죽어도 문자열은 남아 앱은 '미디어 있음'으로 판단 → 검은 화면 + 재생 불가가 된다.
+            if (metadata.name) {
                 try {
                     // 정확 매칭 실패 시 이름 폴백 + 자가 치유 (온디맨드 파일 키 불일치 복구)
                     mediaBlob = await mediaStore.getFileFlexible(metadata.name, metadata.size);
                     if (mediaBlob) {
                         mediaUrl = URL.createObjectURL(mediaBlob);
                         fileForDuration = mediaBlob;
+                        // 옛 주소 회수는 '지연' 실행한다. 지금 재생 중인 미디어 요소가 아직 옛 주소를
+                        // 물고 있어서, 즉시 회수하면 새 src로 교체되기 전 찰나에 error가 발생해
+                        // 자가 복구 로직이 헛돌 수 있다. (중복 항목을 만들지 않으므로 이 주소를
+                        // 공유하는 다른 항목은 없어 지연 회수해도 안전하다)
+                        const stale = matchingFile?.url;
+                        if (stale && stale !== mediaUrl && stale.startsWith('blob:')) {
+                            setTimeout(() => { try { URL.revokeObjectURL(stale); } catch { /* noop */ } }, 5000);
+                        }
                     }
                 } catch (e) {
                     console.error("Failed to load media from store:", e);
                 }
             }
+            // 저장소에 원본이 없을 때만 기존 주소를 폴백으로 사용 (없는 것보단 낫다)
+            if (!mediaUrl && matchingFile?.url) mediaUrl = matchingFile.url;
 
             // [원격 폴백] 이 기기에 영상이 없으면 같은 항목의 클라우드 mediaUrl로 스트리밍한다.
             // 클라우드로 연 대본도 재분석·감지 시 로컬 캐시 행이 생기는데(persistCache),
@@ -353,7 +367,10 @@ export const useMediaCache = ({
             }
             const data = sanitizeData(rawData, cacheDuration);
 
-            const id = 'cached-' + crypto.randomUUID();
+            // [중복 항목 방지] 같은 파일이 이미 열려 있으면 새 항목을 추가하지 않고 그 항목을 갱신한다.
+            // 예전에는 열 때마다 항목이 쌓였고 그것들이 '같은 blob URL 문자열'을 공유했다 →
+            // 그중 하나를 X로 닫으면 removeFile이 그 주소를 회수해 나머지까지 한꺼번에 검은 화면이 됐다.
+            const id = matchingFile ? matchingFile.id : ('cached-' + crypto.randomUUID());
 
             const newFileEntry = {
                 id,
@@ -364,7 +381,13 @@ export const useMediaCache = ({
                 isFromCache: true
             };
 
-            if (setFiles) setFiles(prev => [...prev, newFileEntry]);
+            if (setFiles) setFiles(prev => (
+                prev.some(f => f.id === id)
+                    // 분석 진행 중인 항목이면 데이터는 건드리지 않고 재생 주소만 되살린다
+                    // (runStage2가 들고 있는 최신 진행분을 캐시 스냅샷으로 덮어쓰지 않기 위함)
+                    ? prev.map(f => (f.id === id ? (f.isAnalyzing ? { ...f, url: mediaUrl } : { ...f, ...newFileEntry }) : f))
+                    : [...prev, newFileEntry]
+            ));
             if (setActiveFileId) setActiveFileId(id);
             if (setShowSettings) setShowSettings(false);
             if (setShowCacheHistory) setShowCacheHistory(false);

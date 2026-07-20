@@ -75,6 +75,7 @@ import ShortcutsHelp from './components/ShortcutsHelp';
 import TrashModal from './components/TrashModal';
 import { getPassphrase, setPassphrase as persistPassphrase, CLOUD_ENABLED } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
+import { mediaStore } from './utils/MediaStore';
 import { getTrash, clearTrash } from './utils/trashUtils';
 import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
 
@@ -89,6 +90,10 @@ const App = () => {
   // Multi-file state
   const [files, setFiles] = useState([]);
   const [activeFileId, setActiveFileId] = useState(null);
+  // 미디어 자가 복구 콜백이 최신 값을 stale closure 없이 읽기 위한 거울 ref
+  const filesRef = useRef(files);
+  const activeFileIdRef = useRef(activeFileId);
+  useEffect(() => { filesRef.current = files; activeFileIdRef.current = activeFileId; });
 
   // UI state
   const [showSettings, setShowSettings] = useState(false);
@@ -125,6 +130,35 @@ const App = () => {
 
   const toggleGlobalAnalysis = useCallback(() => setShowAnalysis(prev => !prev), []);
   const stage2AbortRef = useRef(null);
+
+  // ─── [자가 복구] 재생 링크가 죽었을 때 저장소 원본으로 되살리기 ───
+  // blob URL은 '업로드 때 고른 파일'을 가리키는 임시 링크라, 모바일에서 메모리 회수·백그라운드
+  // 복귀 후 무효가 되는 일이 잦다. 무효가 돼도 문자열은 남아 화면엔 검은 영상만 뜨고 재생이 안 된다.
+  // → 미디어 요소가 error를 내면 IndexedDB 원본으로 새 주소를 만들어 갈아끼운다.
+  // 파일당 최대 2회까지만 시도한다 — 복구한 주소가 또 죽으면 원본 자체 문제이므로,
+  // error→복구→error 무한 루프에 빠지지 않게 상한을 둔다.
+  const mediaRecoverRef = useRef(new Map());
+  const handleMediaError = useCallback(async () => {
+    const f = filesRef.current.find(x => x.id === activeFileIdRef.current);
+    if (!f?.file?.name) return;
+    const key = `${f.file.name}_${f.file.size}`;
+    const tries = mediaRecoverRef.current.get(key) || 0;
+    if (tries >= 2) return;
+    mediaRecoverRef.current.set(key, tries + 1);
+    try {
+      const blob = await mediaStore.getFileFlexible(f.file.name, f.file.size);
+      if (!blob || !blob.size) {
+        showToast({ message: '영상을 읽을 수 없어요. 하단 "연결하기"로 원본 파일을 다시 선택해 주세요.', type: 'error', duration: 7000 });
+        return;
+      }
+      const fresh = URL.createObjectURL(blob);
+      setFiles(prev => prev.map(x => (x.id === f.id ? { ...x, url: fresh } : x)));
+      console.log('[MediaRecover] 재생 링크가 끊겨 저장소 원본으로 재연결했습니다.');
+    } catch (e) {
+      console.warn('[MediaRecover] 복구 실패:', e);
+      showToast({ message: '영상을 읽을 수 없어요. 하단 "연결하기"로 원본 파일을 다시 선택해 주세요.', type: 'error', duration: 7000 });
+    }
+  }, [showToast]);
 
   // Derived active file
   const activeFile = files.find(f => f.id === activeFileId);
@@ -1102,6 +1136,7 @@ const App = () => {
               setShowAnalysis={setShowAnalysis}
               setShowSpeedMenu={setShowSpeedMenu}
               processFiles={processFiles}
+              onMediaError={handleMediaError}
             />
           </div>
         ) : (

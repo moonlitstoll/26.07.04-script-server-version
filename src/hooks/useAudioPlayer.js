@@ -481,6 +481,9 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         // 엉뚱한 문장이 반복 기준이 되고, 묶음 띠도 엉뚱한 곳에 그려진다.
         setAnchor(null);
         setCurrentTime(0);
+        // 재생 길이도 반드시 초기화. 안 하면 이전 파일(또는 링크가 죽기 전)의 길이가 그대로 남아
+        // 재생 불가 상태인데도 "14:04" 같은 총 시간이 표시돼 정상처럼 보인다.
+        setDuration(0);
         setIsPlaying(false);
         // isGlobalLoopActive stays as is (Global Setting)
         if (videoRef.current) {
