@@ -4,7 +4,7 @@ import {
   AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
-import { validSpeechEnd, longSkipGap } from './utils/speechSegments';
+import { validSpeechEnd } from './utils/speechSegments';
 import { useEscapeToClose } from './hooks/useEscapeToClose';
 
 // 상단 툴바 칩 공통 크기 — 하단 플레이어 바와 같은 min(Nvw, 최대px) 방식.
@@ -528,27 +528,6 @@ const App = () => {
     deleteSentences(fileId, idxs);
     exitSelectMode();
   };
-
-  // [전사 누락 의심] 건너뛰는 무음이 유난히 길면 = 대본이 그 구간 대사를 빠뜨렸을 수 있다.
-  // (앱은 대본에 없는 구간을 '대사 없음'으로 보고 건너뛰므로, 놓친 대사일수록 더 확실히 안 들린다)
-  // 문장별로 미리 계산해 둔다 — 배지 렌더마다 다음 문장을 다시 훑지 않게.
-  const longSkips = useMemo(
-    () => transcriptData.map((_, i) => longSkipGap(transcriptData, i)),
-    [transcriptData]
-  );
-
-  const handleRecoverLongSkip = useCallback((idx) => {
-    if (!activeFileId) return;
-    const gap = longSkipGap(transcriptData, idx);
-    if (gap === null) return;
-    showConfirm({
-      message: `이 문장 뒤로 ${gap.toFixed(1)}초를 건너뜁니다. 그 구간에 대본에 없는 대사가 있는지 다시 듣고, 있으면 문장을 복구합니다. (오디오 전송 비용이 듭니다) 진행할까요?`,
-      confirmText: '확인하고 복구',
-      danger: false,
-      // 'forward' = 앵커 ~ 다음 살아있는 문장 사이(뒤 빈칸)만 확인 — 우리가 의심하는 바로 그 구간
-      onConfirm: () => recoverGap(activeFileId, idx, 'forward'),
-    });
-  }, [activeFileId, transcriptData, showConfirm, recoverGap]);
 
   // 빈칸 구간 복구 — 선택 문장은 그대로 두고, 그 앞·뒤 이웃 사이 빈칸에서 지워진 문장 복구
   const confirmRecover = () => {
@@ -1149,8 +1128,6 @@ const App = () => {
                               onRetryAnalysis={handleRetryOne}
                               onCoverageRetry={handleCoverageRetry}
                               onRetranscribe={handleRetranscribeOne}
-                              longSkipSec={longSkips[idx]}
-                              onRecoverLongSkip={handleRecoverLongSkip}
                               drillMode={drillMode}
                               difficulty={difficulty}
                               drillRound={drillRound}
