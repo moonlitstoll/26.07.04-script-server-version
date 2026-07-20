@@ -114,6 +114,11 @@ export const useMediaAnalysis = ({
     /**
      * STAGE 2: FULL BATCH ANALYSIS
      */
+    // [주의] fileInfo는 '신원'(name/size)으로만 쓰인다 — 캐시 키·graft 키·클라우드 폴더 계산.
+    // 실제 바이트는 읽지 않으므로, 호출부는 반드시 '원본 신원'을 넘겨야 한다.
+    // materializeFile이 만든 메모리 적재본(new File([buf], ...))은 size가 '실제 읽은 바이트 수'로
+    // 바뀌어, 온디맨드 파일(드라이브/OneDrive)에서 원본 보고 크기와 달라질 수 있다. 그걸 넘기면
+    // 전사·감지는 원본 키에, 분석은 다른 키에 저장돼 캐시가 두 갈래로 쪼개진다.
     const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId, opts = {}) => {
         // reportPartialFail: 부분 실패 시 이 함수가 직접 토스트를 띄울지. 재분석(원본 복원 로직)에서는 false로 두고 호출부가 처리.
         const { reportPartialFail = true } = opts;
@@ -401,7 +406,8 @@ export const useMediaAnalysis = ({
         // [자동 감지 옵션] 전사+분석이 '완료된 뒤' 대사 구간 감지를 자동 실행 (설정, 기본 꺼짐).
         // 완료 후에 돌리는 이유: 분석과 병행하면 API 동시 부하 + 결과 덮어쓰기 경합 창이 넓어진다.
         // 중단(aborted)이나 전량 실패 시엔 실행하지 않는다 — 취소한 파일에 감지 비용을 쓰지 않기 위함.
-        const stage2Promise = runStage2(fileId, fileForAnalysis, data, apiKey, stage2Model)
+        // 신원은 sourceFile로 고정 — 이 위의 persistCache(sourceFile)·감지 저장과 같은 캐시 키를 쓴다
+        const stage2Promise = runStage2(fileId, sourceFile, data, apiKey, stage2Model)
             .then((res) => {
                 // 전량 실패(success 0)면 API 자체가 아픈 상태 — 감지까지 얹지 않는다
                 if (speechAutoDetect && res && !res.aborted && (res.total === 0 || res.success > 0)) {
@@ -706,7 +712,7 @@ export const useMediaAnalysis = ({
                     type: 'success'
                 });
                 // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
-                runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage3Model);
+                runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
             } else {
                 clearRetranscribingFlag();
                 if (showToast) showToast({
@@ -915,19 +921,30 @@ export const useMediaAnalysis = ({
                 return false;
             }
             const status = latestData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
-            persistCache(targetFile, latestData, status);
+            // [중요] 저장 결과를 반드시 검사한다. 예전엔 반환값을 버리고 곧바로 '감지 완료' 성공
+            // 토스트를 띄웠는데, 토스트는 슬롯이 하나라 persistCache가 띄운 실패 경고를 덮어썼다.
+            // 게다가 용량 경고는 세션당 1회(quotaWarnedRef)라 두 번째부터는 완전 무음 →
+            // 사용자는 '완료'만 보고 대본을 옮겼다가, 돌아와서 감지 결과가 사라진 걸 발견하게 된다.
+            // (로컬 캐시가 유일한 영속 경로다. 여기 실패 = 다음 방문에 확실히 유실)
+            const saved = persistCache(targetFile, latestData, status);
             if (refreshCacheKeys) refreshCacheKeys();
-            // 클라우드 반영 실패를 조용히 넘기지 않는다 — 클라우드로 연 대본은 이 저장이
-            // 유일한 영속 경로라(로컬 캐시를 만들지 않음), 실패하면 다음 방문에 감지 결과가 사라진다.
+            // 클라우드 저장은 CLOUD_ENABLED=false로 꺼져 있어 조용히 early-return 한다.
+            // (예전엔 여기 실패 시 빨간 토스트를 띄웠는데, 로컬 저장이 이미 끝난 뒤라 문구가
+            //  사실과 반대였고 '감지 완료' 성공 토스트와 동시에 떴다 → 제거. 다른 5개 클라우드
+            //  호출부와 동일하게 console.warn만 남긴다.)
             cloudSaveMeta(targetFile, latestData, status, null, duration)
-                .catch(e => {
-                    console.warn('[SpeechEnd] 클라우드 반영 실패:', e);
-                    if (showToast) showToast({
-                        message: '감지 결과를 서버에 저장하지 못했어요. 이 화면에서는 동작하지만, 다시 열면 사라질 수 있어요.',
-                        type: 'error',
-                        duration: 7000,
-                    });
+                .catch(e => console.warn('[SpeechEnd] 클라우드 반영 실패:', e));
+
+            if (!saved || !saved.ok) {
+                if (showToast) showToast({
+                    message: saved && saved.reason === 'quota'
+                        ? '⚠️ 저장 공간이 꽉 차 감지 결과를 저장하지 못했어요. 목록(휴지통·저장 기록)에서 오래된 대본을 지운 뒤 다시 시도해 주세요. — 지금 화면에서는 동작하지만, 다른 대본에 갔다 오면 사라집니다.'
+                        : `⚠️ 감지 결과를 저장하지 못했어요 (${(saved && saved.message) || '알 수 없는 오류'}). 다른 대본에 갔다 오면 사라집니다.`,
+                    type: 'error',
+                    duration: 12000,
                 });
+                return true; // 감지 자체는 성공(화면엔 반영됨) — 재시도 루프를 유발하지 않는다
+            }
             // 미감지 문장이 남았으면 '그 문장들만' 재감지하는 액션 제공 (기감지분은 안 건드림)
             const remaining = latestData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length;
             if (showToast) {
@@ -1127,7 +1144,7 @@ export const useMediaAnalysis = ({
 
             if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
             // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
-            runStage2(fileId, fileForAnalysis, cleanData, apiKey, stage3Model);
+            runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
         } catch (err) {
             clearRetranscribingFlag();
             if (err.name === 'AbortError') return;

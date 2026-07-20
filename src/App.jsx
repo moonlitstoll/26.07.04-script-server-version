@@ -638,6 +638,21 @@ const App = () => {
 
   const removeFile = (id, e) => {
     e.stopPropagation();
+    // 대사 구간 감지 중인 항목을 닫으면, 감지가 끝났을 때 결과를 써넣을 항목이 사라져
+    // 로컬 저장(persistCache)까지 통째로 건너뛴다 → 메모리·캐시 양쪽에서 전량 소실.
+    // 감지는 isAnalyzing을 세우지 않아 다른 경고에 안 걸리므로 여기서 따로 확인한다.
+    if (speechDetectBusy === id) {
+      showConfirm({
+        message: "대사 구간을 감지하는 중입니다. 지금 닫으면 감지 결과가 저장되지 않고 사라집니다 (오디오 전송 비용도 헛됩니다). 계속할까요?",
+        danger: true,
+        onConfirm: () => doRemoveFile(id),
+      });
+      return;
+    }
+    doRemoveFile(id);
+  };
+
+  const doRemoveFile = (id) => {
     if (activeFileId === id && stage2AbortRef.current) {
       stage2AbortRef.current.abort();
     }
@@ -655,7 +670,14 @@ const App = () => {
   // 홈으로: 분석 중이면 실수로 작업을 날리지 않도록 확인
   const handleHome = () => {
     const doHome = () => { setFiles([]); setActiveFileId(null); resetPlayerState(); };
-    if (files.some(f => f.isAnalyzing)) {
+    // 감지 중에도 경고한다 — 감지는 isAnalyzing을 세우지 않아 예전엔 경고 없이 조용히 날아갔다
+    if (speechDetectBusy) {
+      showConfirm({
+        message: "대사 구간을 감지하는 중입니다. 지금 나가면 감지 결과가 저장되지 않고 사라집니다 (오디오 전송 비용도 헛됩니다). 계속할까요?",
+        danger: true,
+        onConfirm: doHome,
+      });
+    } else if (files.some(f => f.isAnalyzing)) {
       showConfirm({
         message: "분석이 진행 중입니다. 홈으로 나가면 현재 화면의 작업이 사라집니다. 계속할까요? (완료된 대본은 히스토리에 저장됩니다)",
         onConfirm: doHome,

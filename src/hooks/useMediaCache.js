@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
-import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
+import { getMediaDuration, sanitizeData, graftSpeechEnds } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
 import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta, CLOUD_ENABLED } from '../services/cloudSync';
 
@@ -365,7 +365,12 @@ export const useMediaCache = ({
             if (fileForDuration) {
                 try { cacheDuration = await getMediaDuration(fileForDuration); } catch (e) { console.warn("Failed to get media duration:", e); }
             }
-            const data = sanitizeData(rawData, cacheDuration);
+            // 캐시 스냅샷에 없고 화면에만 있던 감지 결과(speechEnd)를 여기서 미리 이식한다.
+            // 아래 setFiles 안에서 한 번 더(더 최신 상태로) 이식하지만, 이 data는 미완료 대본의
+            // Stage 2 재개(하단 runStage2)에도 그대로 넘어가므로 여기서 안 채우면 Stage 2가
+            // speechEnd 없는 배열을 스냅샷으로 삼아 다시 덮어쓴다. graft는 '채우기만' 하므로
+            // 두 번 적용해도 안전(멱등).
+            const data = graftSpeechEnds(sanitizeData(rawData, cacheDuration), matchingFile?.data);
 
             // [중복 항목 방지] 같은 파일이 이미 열려 있으면 새 항목을 추가하지 않고 그 항목을 갱신한다.
             // 예전에는 열 때마다 항목이 쌓였고 그것들이 '같은 blob URL 문자열'을 공유했다 →
@@ -381,21 +386,34 @@ export const useMediaCache = ({
                 isFromCache: true
             };
 
-            if (setFiles) setFiles(prev => (
-                prev.some(f => f.id === id)
-                    // 분석 진행 중인 항목이면 데이터는 건드리지 않고 재생 주소만 되살린다
-                    // (runStage2가 들고 있는 최신 진행분을 캐시 스냅샷으로 덮어쓰지 않기 위함)
-                    ? prev.map(f => (f.id === id ? (f.isAnalyzing ? { ...f, url: mediaUrl } : { ...f, ...newFileEntry }) : f))
-                    : [...prev, newFileEntry]
-            ));
+            // Stage 2 재개에 넘길 배열. 아래 업데이터가 '최신 상태(prev)' 기준으로 이식한 결과를
+            // 여기에 받아 쓴다 — 바깥 클로저(matchingFile)는 loadCache의 await 구간(IndexedDB 조회·
+            // 길이 계산) 사이에 감지가 끝났으면 구버전이라, 그걸 그대로 Stage 2에 넘기면
+            // Stage 2가 speechEnd 없는 스냅샷을 기준으로 다시 덮어쓸 수 있다.
+            let dataForStage2 = data;
+            if (setFiles) setFiles(prev => {
+                const existing = prev.find(f => f.id === id);
+                if (!existing) return [...prev, newFileEntry];
+                // 분석 진행 중인 항목이면 데이터는 건드리지 않고 재생 주소만 되살린다
+                // (runStage2가 들고 있는 최신 진행분을 캐시 스냅샷으로 덮어쓰지 않기 위함)
+                if (existing.isAnalyzing) return prev.map(f => (f.id === id ? { ...f, url: mediaUrl } : f));
+                // [감지 결과 구제] 그 외에는 스냅샷으로 교체하되, 스냅샷에 없고 화면에만 있던
+                // speechEnd를 이식한다. 감지는 isAnalyzing을 세우지 않아 위 가드에 안 걸리므로,
+                // 저장 실패/저장 전 전환 시 여기서 감지 결과가 통째로 사라지던 경로였다.
+                // (prev를 쓰는 이유: 바깥 files 클로저보다 항상 최신)
+                const guarded = { ...newFileEntry, data: graftSpeechEnds(newFileEntry.data, existing.data) };
+                dataForStage2 = guarded.data;
+                return prev.map(f => (f.id === id ? { ...f, ...guarded } : f));
+            });
             if (setActiveFileId) setActiveFileId(id);
             if (setShowSettings) setShowSettings(false);
             if (setShowCacheHistory) setShowCacheHistory(false);
 
-            const hasPending = data.some(d => !d.isAnalyzed);
+            await new Promise(r => setTimeout(r, 0)); // 위 업데이터가 dataForStage2를 채울 틈을 준다
+            const hasPending = dataForStage2.some(d => !d.isAnalyzed);
             if (hasPending && apiKey && newFileEntry.file?.name && runStage2) {
-                console.log(`[Cache Load] ${data.filter(d => !d.isAnalyzed).length} pending items detected. Resuming Stage 2...`);
-                runStage2(id, newFileEntry.file, data, apiKey, stage2Model);
+                console.log(`[Cache Load] ${dataForStage2.filter(d => !d.isAnalyzed).length} pending items detected. Resuming Stage 2...`);
+                runStage2(id, newFileEntry.file, dataForStage2, apiKey, stage2Model);
             }
             if (setIsSwitchingFile) setIsSwitchingFile(false);
         } catch (e) {

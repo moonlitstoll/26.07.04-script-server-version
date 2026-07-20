@@ -26,6 +26,53 @@ export const getMediaDuration = (file) => {
 };
 
 /**
+ * [대사 끝 감지 결과 구제] 캐시 스냅샷(snapshot)에 없고 메모리(memory)에만 있는
+ * speechEnd/speechEndSkipped를 이식한다.
+ *
+ * 왜 필요한가: 완료된 대본을 다시 여는 유일한 경로가 loadCache인데, 그건 항목의 data를
+ * localStorage 스냅샷으로 통째 교체한다. 감지는 isAnalyzing을 세우지 않아 loadCache의
+ * '분석 중 보호' 가드에 걸리지 않으므로, 저장이 실패했거나 저장 전에 전환하면 화면에 떠
+ * 있던 감지 결과가 이 교체 한 번에 소멸한다(되돌릴 방법 없음).
+ *
+ * 안전 규칙 — 채우기만 하고 덮어쓰지 않는다:
+ *  - 스냅샷에 이미 speechEnd가 있으면 그대로 둔다 (저장된 값이 항상 우선)
+ *  - seconds와 text가 **둘 다** 같을 때만 이식 (재전사로 문장이 바뀌었으면 옛 값은 무효)
+ *  - 값 검증은 하지 않는다 — 이미 detect 단계에서 검증을 통과해 메모리에 들어온 값이다
+ */
+export const graftSpeechEnds = (snapshot, memory) => {
+    if (!Array.isArray(snapshot) || !Array.isArray(memory) || memory.length === 0) return snapshot;
+    const bank = new Map(); // `${seconds}|${text}` -> { speechEnd, speechEndSkipped }
+    for (const m of memory) {
+        if (!m || typeof m.seconds !== 'number') continue;
+        const hasEnd = typeof m.speechEnd === 'number' && Number.isFinite(m.speechEnd);
+        if (!hasEnd && !m.speechEndSkipped) continue;
+        bank.set(`${m.seconds}|${m.text || ''}`, {
+            speechEnd: hasEnd ? m.speechEnd : undefined,
+            speechEndSkipped: !!m.speechEndSkipped,
+        });
+    }
+    if (bank.size === 0) return snapshot;
+
+    let grafted = 0;
+    const out = snapshot.map(d => {
+        if (!d || typeof d.seconds !== 'number') return d;
+        if (typeof d.speechEnd === 'number') return d; // 저장된 값 우선 — 절대 덮어쓰지 않는다
+        const hit = bank.get(`${d.seconds}|${d.text || ''}`);
+        if (!hit) return d;
+        if (typeof hit.speechEnd === 'number') {
+            grafted++;
+            const next = { ...d, speechEnd: hit.speechEnd };
+            delete next.speechEndSkipped;
+            return next;
+        }
+        if (hit.speechEndSkipped && !d.speechEndSkipped) return { ...d, speechEndSkipped: true };
+        return d;
+    });
+    if (grafted > 0) console.log(`[SpeechEnd] 캐시 스냅샷에 없던 감지 결과 ${grafted}개를 화면 상태에서 구제했습니다.`);
+    return out;
+};
+
+/**
  * Helper: Sanitize & Sort Data
  * duration: 영상 총 길이(초). 0이면 보정 스킵.
  */
