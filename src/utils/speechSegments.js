@@ -12,11 +12,18 @@ export const SPEECH_TAIL_PAD = 0.4;
 export const MAX_SENTENCE_SEC = 60;
 
 // item의 speechEnd가 신뢰할 수 있으면 그 값을, 아니면 null.
+// 유효한 최소 지속시간. 예전엔 0.2초였는데, 한 음절 감탄사가 그 경계에 정확히 걸려 버려졌다.
+// 실측: "À."(272.6초 시작)에 모델이 272.8초를 답했으나 `se <= seconds + 0.2`에 걸려 탈락 →
+// 그 문장만 끝 시각이 없어져 뒤따르는 9.7초 무음이 건너뛰어지지 않았다.
+// ("Wow." "Cay." "À." 처럼 0.3초짜리 문장은 이 대본에서 흔하다.)
+// 이 가드의 원래 목적은 '끝이 시작보다 이르거나 같은' 말이 안 되는 값을 막는 것이므로 0.05로 충분하다.
+export const MIN_SPEECH_SEC = 0.05;
+
 export const validSpeechEnd = (item) => {
     if (!item) return null;
     const se = item.speechEnd;
     if (typeof se !== 'number' || !Number.isFinite(se)) return null;
-    if (se <= item.seconds + 0.2) return null;              // 시작보다 이르거나 사실상 0길이
+    if (se <= item.seconds + MIN_SPEECH_SEC) return null;   // 시작보다 이르거나 사실상 0길이
     if (se - item.seconds > MAX_SENTENCE_SEC) return null;  // 비정상적으로 긴 지속시간
     return se;
 };

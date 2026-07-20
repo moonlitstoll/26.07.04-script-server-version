@@ -7,7 +7,7 @@ import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../s
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
-import { validSpeechEnd } from '../utils/speechSegments';
+import { validSpeechEnd, MIN_SPEECH_SEC, MAX_SENTENCE_SEC } from '../utils/speechSegments';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
@@ -70,6 +70,7 @@ export const useMediaAnalysis = ({
     speechAutoDetect, // 전사+분석 완료 후 대사 구간 감지 자동 실행 (설정, 기본 꺼짐)
     stage2AbortRef,
     stage2ActiveRef, // Map<fileId, 실행중 개수> — loadCache의 Stage 2 재시작 방지용
+    filesRef,        // 최신 files 사본(App 소유). setFiles 업데이터 실행 타이밍에 의존하지 않기 위함
     showToast,
     onTrashChange
 }) => {
@@ -830,14 +831,18 @@ export const useMediaAnalysis = ({
         }
         if (speechBusyRef.current) return false; // 중복 실행 방지 (ref — 자동 실행 경로의 stale state 회피)
 
-        let targetFile = null; let targetUrl = null; let snapshot = null;
-        setFiles(prev => {
-            const f = prev.find(p => p.id === fileId);
-            if (f) { targetFile = f.file; targetUrl = f.url; snapshot = f.data; }
-            return prev;
-        });
-        await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !Array.isArray(snapshot) || snapshot.length === 0) return false;
+        // [경합 제거] 예전엔 setFiles 업데이터 안에서 값을 꺼내고 setTimeout(0)으로 '실행됐겠지' 하고
+        // 기다렸다. React 18은 자체 스케줄러(MessageChannel)로 업데이트를 처리하므로 setTimeout(0)이
+        // 먼저 깨는 경우가 있고, 그러면 값이 비어 있는 채로 진행돼 조용히 실패했다. 최신 사본(ref)에서
+        // 동기적으로 읽는다.
+        const base0 = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base0?.file || null;
+        const targetUrl = base0?.url || null;
+        const snapshot = base0?.data || null;
+        if (!targetFile || !Array.isArray(snapshot) || snapshot.length === 0) {
+            console.warn('[SpeechEnd] 대상 파일을 찾지 못해 중단', { fileId, 목록수: (filesRef?.current || []).length });
+            return false;
+        }
 
         speechBusyRef.current = true;
         setSpeechDetectBusy(fileId);
@@ -898,19 +903,32 @@ export const useMediaAnalysis = ({
             }
             const ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
 
-            // 최신 상태에 병합. 채택 조건(환각 방어): 시작+0.2초 이후, 지속 60초 이내, 영상 길이 이내.
+            // 최신 상태에 병합. 채택 조건(환각 방어): 시작+MIN_SPEECH_SEC 이후, MAX_SENTENCE_SEC 이내, 영상 길이 이내.
             // 스냅샷과 seconds가 다른 문장(감지 중 재전사/삭제됨)은 건너뛴다.
             // [필수 가드] 이번에 '요청한' 인덱스만 병합한다.
             // onlyMissing이면 희소 인덱스([3],[17],[42]…)를 보내는데, 모델이 규칙 5의 '순서대로 출력'을
             // 0,1,2…로 재번호매김하면 ends의 키가 요청과 무관해진다. 그대로 적용하면 이미 정상 감지된
             // 앞쪽 문장들의 speechEnd가 엉뚱한 값으로 덮어쓰이고 캐시·클라우드에 영속된다.
+            // [시도했다가 폐기한 접근 — 다시 하지 말 것] 오디오 음량(RMS) 곡선으로 모델 답을
+            // 교차검증해 보았으나 실측에서 해로웠다. 이 콘텐츠는 대사가 없는 구간에도 배경음악이
+            // 대사와 비슷한 크기로 계속 깔려서, 음량만으로는 말소리와 음악을 구분할 수 없다.
+            // 결과: 한 음절 감탄사("À." 0.3초)를 뒤따르는 음악 3.6초까지 대사로 오인해 연장했고,
+            // 건너뛰는 구간이 27곳 → 6곳으로 급감했다. 조건을 좁혀도(모델 지속 1초 이하만 연장)
+            // 27 → 18로 3분의 1이 사라졌다. 음성/음악 판별(스펙트럼·변조 분석) 없이는 불가능하다.
+
             const requested = new Set(sentences.map(s => s.index));
             let applied = 0; let latestData = null;
-            setFiles(prev => prev.map(p => {
-                if (p.id !== fileId) return p;
-                const merged = p.data.map((d, i) => {
+            let secondsMismatch = 0; // 진단용 관측값
+            // [경합 제거] 병합을 업데이터 밖에서 동기적으로 끝낸다. 예전엔 업데이터 안에서
+            // applied/latestData를 채우고 setTimeout(0)으로 기다렸는데, 업데이터가 그보다
+            // 늦게 실행되면 '응답은 왔는데 0건'으로 오판해 오류 토스트를 띄우고 저장을 건너뛰었다.
+            // (그 뒤 업데이터가 실행돼 화면만 켜지므로 "오류가 떴는데 켜지고 다시 열면 사라짐"이 됐다)
+            const baseEntry = (filesRef?.current || []).find(p => p.id === fileId);
+            const seenIds = (filesRef?.current || []).map(x => x.id);
+            if (baseEntry) {
+                const merged = baseEntry.data.map((d, i) => {
                     if (!requested.has(i)) return d;
-                    if (!snapshot[i] || snapshot[i].seconds !== d.seconds) return d;
+                    if (!snapshot[i] || snapshot[i].seconds !== d.seconds) { secondsMismatch++; return d; }
                     let se = ends.get(i);
                     if (typeof se !== 'number' || !Number.isFinite(se)) {
                         // 요청했는데 값이 안 온 문장(모델이 SKIP했거나 누락) → '시도했음' 표시.
@@ -919,7 +937,9 @@ export const useMediaAnalysis = ({
                         return d.speechEndSkipped ? d : { ...d, speechEndSkipped: true };
                     }
                     if (duration > 0) se = Math.min(se, duration);
-                    if (se <= d.seconds + 0.2 || se - d.seconds > 60) {
+                    // 기준은 speechSegments와 반드시 일치시킨다 — 여기서 통과한 값이 재생 단계에서
+                    // 다시 걸러지면 '저장은 됐는데 동작 안 함'이 되고, 반대면 저장 자체가 안 된다.
+                    if (se <= d.seconds + MIN_SPEECH_SEC || se - d.seconds > MAX_SENTENCE_SEC) {
                         return d.speechEndSkipped ? d : { ...d, speechEndSkipped: true };
                     }
                     applied++;
@@ -930,11 +950,18 @@ export const useMediaAnalysis = ({
                     return next;
                 });
                 latestData = merged;
-                return { ...p, data: merged };
-            }));
-            await new Promise(r => setTimeout(r, 0));
+                // 계산이 끝난 결과만 상태에 반영한다(업데이터는 순수 — 값을 꺼내오지 않는다)
+                setFiles(prev => prev.map(p => (p.id === fileId ? { ...p, data: merged } : p)));
+            }
 
             if (applied === 0 || !latestData) {
+                // 실패 원인을 남긴다 — '응답은 왔는데 한 건도 반영 안 됨'은 원인이 여러 갈래라
+                // (대상 파일 소실 / 문장 시각 어긋남 / 값 전부 탈락) 로그 없이는 사후 추적이 불가능하다.
+                console.warn('[SpeechEnd] 병합 0건 · ' + JSON.stringify({
+                    대상파일찾음: !!latestData, fileId, 현재파일ids: seenIds,
+                    모델응답수: ends.size, 요청수: requested.size,
+                    스냅샷문장수: snapshot.length, 시각불일치: secondsMismatch,
+                }));
                 if (showToast) showToast({ message: '대사 구간을 감지하지 못했어요. 잠시 후 다시 시도해 주세요.', type: 'error' });
                 return false;
             }
@@ -974,7 +1001,10 @@ export const useMediaAnalysis = ({
                         action: { label: `빠진 ${remaining}개 재시도`, onClick: () => detectSpeechEndsForFile(fileId, { onlyMissing: true }) },
                     });
                 } else {
-                    showToast({ message: `대사 구간 감지 완료 (전체 ${latestData.length}문장)`, type: 'success' });
+                    showToast({
+                        message: `대사 구간 감지 완료 (전체 ${latestData.length}문장)`,
+                        type: 'success',
+                    });
                 }
             }
             return true;
