@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
-import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
+import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta, CLOUD_ENABLED } from '../services/cloudSync';
 
 const CACHE_PREFIX = 'gemini_analysis_'; // localStorage 분석 캐시 키 접두사
 
@@ -73,6 +73,9 @@ export const useMediaCache = ({
     // 미업로드(로컬에만 있는) 항목을 온라인일 때 클라우드로 자동 재업로드.
     // cloudList: 방금 조회한 클라우드 목록(어떤 게 이미 서버에 있는지 판단).
     const retryPendingUploads = useCallback(async (cloudList) => {
+        // [클라우드 OFF] 목록이 빈 배열이면 '전부 미업로드'로 오판해 저장된 영상 전체를
+        // IndexedDB에서 읽어들이는 풀스캔이 돈다(모바일에서 프리징 위험) → 아예 진입 금지.
+        if (!CLOUD_ENABLED) return;
         if (retryingRef.current || !navigator.onLine) return;
         // [안전장치] 목록을 일부만 받았으면(meta 읽기 실패) 아무것도 올리지 않는다.
         // 빠진 항목을 '미업로드'로 오판하면 이 기기의 옛 로컬 대본이 다른 기기가 올린

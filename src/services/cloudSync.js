@@ -3,10 +3,27 @@
 // - 로컬 저장(localStorage/IndexedDB)에 얹혀 best-effort로 동작: 실패해도 앱 기본 기능은 유지
 import { upload } from '@vercel/blob/client';
 
+// ─────────────────────────────────────────────────────────────
+// [클라우드 동기화 스위치] false = 완전히 꺼짐(서버 통신 0, 기기 로컬 저장만 사용).
+// 다시 켜려면 이 값을 true로 바꾸면 된다 — 서버 코드(api/, lib/)는 그대로 살아 있다.
+//
+// 끈 이유(2026-07): Vercel 한도로 클라우드 목록·링크가 이미 동작하지 않는 상태였고,
+// 그 경로에서 데이터 유실 버그가 반복됐다(CDN 스테일, 옛 스냅샷 덮어쓰기 등).
+//
+// 구현 주의 — 여기 한 곳(getPassphrase)만 막으면 전체가 멈춘다:
+//   uploadMedia/saveMeta/listItems/getFavorites/saveFavorites/deleteItem 이 모두
+//   맨 앞에서 `if (!passphrase) return ...` 으로 빠져나가고, App의 passphrase 상태도
+//   ''이 되어 즐겨찾기 동기화 effect와 클라우드 목록 조회가 애초에 실행되지 않는다.
+//   (함수마다 개별 가드를 넣는 방식은 getFavorites가 []를 반환하는 순간
+//    useFavorites가 그걸 '서버에 별표 없음'으로 보고 로컬 즐겨찾기를 지워버린다 — 금지)
+// ─────────────────────────────────────────────────────────────
+export const CLOUD_ENABLED = false;
+
 const PASSPHRASE_KEY = 'miniapp_cloud_passphrase';
 
 // ─── 비밀 암호 관리 ───
 export function getPassphrase() {
+    if (!CLOUD_ENABLED) return ''; // 스위치 OFF → 모든 클라우드 함수가 여기서부터 무력화
     return localStorage.getItem(PASSPHRASE_KEY) || '';
 }
 export function setPassphrase(p) {

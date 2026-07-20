@@ -73,7 +73,7 @@ import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import TrashModal from './components/TrashModal';
-import { getPassphrase, setPassphrase as persistPassphrase } from './services/cloudSync';
+import { getPassphrase, setPassphrase as persistPassphrase, CLOUD_ENABLED } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
 import { getTrash, clearTrash } from './utils/trashUtils';
 import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
@@ -681,7 +681,9 @@ const App = () => {
   );
 
   // ─── 비밀 암호 게이트 (동기화 활성화 전 최초 1회) ───
-  if (!passphrase) {
+  // 클라우드가 꺼져 있으면 암호가 필요 없으므로 게이트를 건너뛴다
+  // (CLOUD_ENABLED=false면 getPassphrase가 항상 ''을 반환해 이 조건이 영원히 참이 된다).
+  if (CLOUD_ENABLED && !passphrase) {
     return (
       <PassphraseGate onSubmit={(p) => { persistPassphrase(p); setPassphraseState(p); }} />
     );
@@ -701,7 +703,7 @@ const App = () => {
         setShowSettings={setShowSettings}
         config={config}
         updateField={updateField}
-        onLockVault={lockVault}
+        onLockVault={CLOUD_ENABLED ? lockVault : null}
         cacheKeys={cacheKeys}
         loadCache={loadCache}
         deleteLocal={deleteLocal}
@@ -1117,7 +1119,7 @@ const App = () => {
         <SettingsModal
           config={config}
           updateField={updateField}
-          onLockVault={lockVault}
+          onLockVault={CLOUD_ENABLED ? lockVault : null}
           onClose={() => setShowSettings(false)}
         />
       )}
