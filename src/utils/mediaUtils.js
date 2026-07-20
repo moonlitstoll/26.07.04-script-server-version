@@ -7,21 +7,78 @@ const byStart = (a, b) => a.startSeconds - b.startSeconds;
 
 /**
  * Helper: Get Media Duration
+ *
+ * ⚠️ 반드시 타임아웃이 있어야 한다 — 예전엔 없어서 앱 전체가 영구히 멈추는 사고가 났다.
+ * 크롬은 **백그라운드 탭에서 미디어 엘리먼트의 메타데이터 로딩을 시작하지 않는다.**
+ * 0.2초짜리 무음 파일조차 아무 이벤트가 오지 않았고(실측), 게다가 그렇게 걸린 로딩은
+ * 탭을 다시 앞으로 가져와도 **되살아나지 않는다**(실측). onloadedmetadata도 onerror도
+ * 안 오니 Promise가 영원히 안 끝나고, 호출부의 try/catch는 '거부'만 잡지 '안 끝남'은
+ * 못 잡는다 → 전사/감지/재전사/대본열기가 오류 표시도 없이 스피너만 돌며 영구 정지.
+ * (이 함수는 8곳에서 await되는 단일 고장점이었다.)
+ *
+ * 대책: 타임아웃 후 WebAudio(decodeAudioData)로 폴백한다. WebAudio는 백그라운드에서도
+ * 정상 동작함을 같은 조건에서 확인했다(6ms 성공). 폴백도 실패하면 reject —
+ * 호출부는 이미 전부 try/catch로 duration=0 처리를 하고 있다(0이면 보정/클램프만 생략).
  */
-export const getMediaDuration = (file) => {
+const durationViaWebAudio = async (file) => {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('AudioContext 미지원');
+    const ctx = new AC();
+    try {
+        const buf = await file.arrayBuffer();
+        const decoded = await ctx.decodeAudioData(buf);
+        return decoded.duration;
+    } finally {
+        try { ctx.close(); } catch { /* noop */ }
+    }
+};
+
+export const getMediaDuration = (file, { timeoutMs } = {}) => {
+    // 숨김 상태면 미디어 엘리먼트는 어차피 응답하지 않으므로 짧게 끊고 바로 폴백한다.
+    const limit = timeoutMs ?? (typeof document !== 'undefined' && document.hidden ? 1500 : 8000);
     return new Promise((resolve, reject) => {
-        const media = document.createElement(file.type.startsWith('video') ? 'video' : 'audio');
+        const media = document.createElement((file.type || '').startsWith('video') ? 'video' : 'audio');
+        let settled = false;
+        let url = null;
+        const cleanup = (delayRevoke) => {
+            media.onloadedmetadata = null;
+            media.onerror = null;
+            if (url) {
+                const u = url; url = null;
+                // 진행 중인 읽기가 실패하지 않도록 성공 시엔 회수를 늦춘다(기존 동작 유지)
+                if (delayRevoke) setTimeout(() => { try { URL.revokeObjectURL(u); } catch { /* noop */ } }, 5000);
+                else { try { URL.revokeObjectURL(u); } catch { /* noop */ } }
+            }
+        };
+        const timer = setTimeout(async () => {
+            if (settled) return;
+            console.warn(`[Duration] 미디어 엘리먼트 무응답 (${limit}ms, 탭숨김=${document.hidden}) → WebAudio로 폴백`);
+            try {
+                const d = await durationViaWebAudio(file);
+                if (settled) return;
+                settled = true; cleanup(false);
+                console.log(`[Duration] WebAudio 폴백 성공: ${d.toFixed(2)}초`);
+                resolve(d);
+            } catch (e) {
+                if (settled) return;
+                settled = true; cleanup(false);
+                reject(new Error(`미디어 길이를 읽지 못했습니다 (엘리먼트 무응답 + WebAudio 실패: ${e?.message || e})`));
+            }
+        }, limit);
+
         media.preload = 'metadata';
         media.onloadedmetadata = () => {
-            // Delay revocation to ensure no active reads fail in the background logic
-            setTimeout(() => window.URL.revokeObjectURL(media.src), 5000);
+            if (settled) return;
+            settled = true; clearTimeout(timer); cleanup(true);
             resolve(media.duration);
         };
         media.onerror = () => {
-            window.URL.revokeObjectURL(media.src);
+            if (settled) return;
+            settled = true; clearTimeout(timer); cleanup(false);
             reject(new Error("Failed to load media metadata. The file may be corrupted or unsupported."));
         };
-        media.src = URL.createObjectURL(file);
+        url = URL.createObjectURL(file);
+        media.src = url;
     });
 };
 
