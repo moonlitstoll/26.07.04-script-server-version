@@ -130,6 +130,15 @@ const App = () => {
 
   const toggleGlobalAnalysis = useCallback(() => setShowAnalysis(prev => !prev), []);
   const stage2AbortRef = useRef(null);
+  // 현재 Stage 2가 돌고 있는 파일: Map<fileId, 실행중인 개수>.
+  // 왜 필요한가: loadCache는 미분석 문장이 남아 있으면 Stage 2를 새로 시작하는데,
+  // runStage2는 첫 줄에서 기존 실행을 abort한다 → 분석 중인 대본을 목록에서 다시 탭하면
+  // 진행 중이던 요청이 죽고 마지막 저장 지점부터 다시 돈다(중복 API 비용).
+  // f.isAnalyzing으로는 판별할 수 없다 — 그 값은 '전사(Stage 1) 중'만 true이고
+  // Stage 2가 시작되기 전에 이미 false로 내려간다.
+  // 개수(Map)로 세는 이유: 같은 파일에 재분석 등이 겹쳐 돌 때 안쪽 실행이 끝나면서
+  // 바깥 실행의 표시까지 지워버리는 것을 막기 위함.
+  const stage2ActiveRef = useRef(new Map());
 
   // ─── [자가 복구] 재생 링크가 죽었을 때 저장소 원본으로 되살리기 ───
   // blob URL은 '업로드 때 고른 파일'을 가리키는 임시 링크라, 모바일에서 메모리 회수·백그라운드
@@ -373,7 +382,7 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef,
+    apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef,
     showToast,
     onTrashChange: () => setTrashNonce(n => n + 1)
   });
@@ -439,7 +448,7 @@ const App = () => {
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
-    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, showConfirm, showToast
+    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, stage2ActiveRef, showConfirm, showToast
   });
 
   // 즐겨찾기 (기기 간 동기화)

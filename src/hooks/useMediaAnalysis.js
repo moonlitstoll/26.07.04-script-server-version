@@ -69,6 +69,7 @@ export const useMediaAnalysis = ({
     realignEnabled,
     speechAutoDetect, // 전사+분석 완료 후 대사 구간 감지 자동 실행 (설정, 기본 꺼짐)
     stage2AbortRef,
+    stage2ActiveRef, // Map<fileId, 실행중 개수> — loadCache의 Stage 2 재시작 방지용
     showToast,
     onTrashChange
 }) => {
@@ -119,7 +120,24 @@ export const useMediaAnalysis = ({
     // materializeFile이 만든 메모리 적재본(new File([buf], ...))은 size가 '실제 읽은 바이트 수'로
     // 바뀌어, 온디맨드 파일(드라이브/OneDrive)에서 원본 보고 크기와 달라질 수 있다. 그걸 넘기면
     // 전사·감지는 원본 키에, 분석은 다른 키에 저장돼 캐시가 두 갈래로 쪼개진다.
-    const runStage2 = async (fileId, fileInfo, transcript, currentApiKey, currentModelId, opts = {}) => {
+    // [실행 중 표시] 호출 전후로 stage2ActiveRef를 갱신하는 얇은 래퍼.
+    // loadCache가 '이 파일 분석이 지금 돌고 있나'를 보고 재시작을 건너뛰는 데 쓴다
+    // (재시작하면 runStage2 첫 줄의 abort가 진행 중이던 요청을 죽여 중복 비용이 든다).
+    // finally로 감싸 예외·중단에도 표시가 남지 않게 한다.
+    const runStage2 = async (fileId, ...rest) => {
+        const m = stage2ActiveRef?.current;
+        if (m) m.set(fileId, (m.get(fileId) || 0) + 1);
+        try {
+            return await runStage2Inner(fileId, ...rest);
+        } finally {
+            if (m) {
+                const n = (m.get(fileId) || 1) - 1;
+                if (n > 0) m.set(fileId, n); else m.delete(fileId);
+            }
+        }
+    };
+
+    const runStage2Inner = async (fileId, fileInfo, transcript, currentApiKey, currentModelId, opts = {}) => {
         // reportPartialFail: 부분 실패 시 이 함수가 직접 토스트를 띄울지. 재분석(원본 복원 로직)에서는 false로 두고 호출부가 처리.
         const { reportPartialFail = true } = opts;
         console.log(`[Stage 2] Starting FULL BATCH Analysis for file ${fileId}...`);

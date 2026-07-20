@@ -42,6 +42,7 @@ export const useMediaCache = ({
     apiKey,
     stage2Model,
     stage2AbortRef,
+    stage2ActiveRef, // Map<fileId, 실행중 개수> — 분석 중인 대본을 다시 열 때 재시작 방지
     showConfirm,
     showToast
 }) => {
@@ -391,12 +392,16 @@ export const useMediaCache = ({
             // 길이 계산) 사이에 감지가 끝났으면 구버전이라, 그걸 그대로 Stage 2에 넘기면
             // Stage 2가 speechEnd 없는 스냅샷을 기준으로 다시 덮어쓸 수 있다.
             let dataForStage2 = data;
+            // 이 파일의 Stage 2가 지금 돌고 있는가. f.isAnalyzing으로는 알 수 없다 —
+            // 그 값은 '전사(Stage 1) 중'만 true이고 Stage 2 시작 전에 이미 false로 내려간다.
+            // 그래서 아래 '분석 중 보호' 가드가 정작 분석 구간을 못 지키고 있었다.
+            const stage2Running = !!stage2ActiveRef?.current?.get(id);
             if (setFiles) setFiles(prev => {
                 const existing = prev.find(f => f.id === id);
                 if (!existing) return [...prev, newFileEntry];
-                // 분석 진행 중인 항목이면 데이터는 건드리지 않고 재생 주소만 되살린다
+                // 전사/분석 진행 중인 항목이면 데이터는 건드리지 않고 재생 주소만 되살린다
                 // (runStage2가 들고 있는 최신 진행분을 캐시 스냅샷으로 덮어쓰지 않기 위함)
-                if (existing.isAnalyzing) return prev.map(f => (f.id === id ? { ...f, url: mediaUrl } : f));
+                if (existing.isAnalyzing || stage2Running) return prev.map(f => (f.id === id ? { ...f, url: mediaUrl } : f));
                 // [감지 결과 구제] 그 외에는 스냅샷으로 교체하되, 스냅샷에 없고 화면에만 있던
                 // speechEnd를 이식한다. 감지는 isAnalyzing을 세우지 않아 위 가드에 안 걸리므로,
                 // 저장 실패/저장 전 전환 시 여기서 감지 결과가 통째로 사라지던 경로였다.
@@ -411,7 +416,12 @@ export const useMediaCache = ({
 
             await new Promise(r => setTimeout(r, 0)); // 위 업데이터가 dataForStage2를 채울 틈을 준다
             const hasPending = dataForStage2.some(d => !d.isAnalyzed);
-            if (hasPending && apiKey && newFileEntry.file?.name && runStage2) {
+            // [재시작 방지] 이미 이 파일의 Stage 2가 돌고 있으면 새로 시작하지 않는다.
+            // 시작하면 runStage2 첫 줄의 abort가 진행 중이던 배치를 죽이고 마지막 저장 지점부터
+            // 다시 돌아, 날아간 배치(동시 2~3개 × 25문장)를 중복 분석하게 된다.
+            if (stage2Running) {
+                console.log('[Cache Load] 이 대본의 분석이 이미 진행 중 → Stage 2 재시작 건너뜀');
+            } else if (hasPending && apiKey && newFileEntry.file?.name && runStage2) {
                 console.log(`[Cache Load] ${dataForStage2.filter(d => !d.isAnalyzed).length} pending items detected. Resuming Stage 2...`);
                 runStage2(id, newFileEntry.file, dataForStage2, apiKey, stage2Model);
             }
