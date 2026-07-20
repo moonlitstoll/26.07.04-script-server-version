@@ -93,6 +93,49 @@ export const useMediaAnalysis = ({
 
     // saveCacheEntry 래퍼: 저장 실패 시 사용자에게 명시적으로 알림('조용한 실패' 제거).
     // 용량 초과면 "오래된 기록 삭제" 안내, 그 외는 일반 에러 알림. 성공 시 경고 플래그 해제.
+    /**
+     * [실체 확보 3단 폴백] 캐시에서 복원한 항목의 `f.file`은 실제 파일이 아니라
+     * `{name, type, size}` 자리표시자일 수 있다(loadCache). 그걸 그대로 오디오 처리에 넘기면
+     * `createObjectURL`이 "Overload resolution failed"로, FileReader가 "not of type 'Blob'"으로 터진다.
+     * → Blob 여부를 먼저 검사하고, 자리표시자면 IndexedDB(원본 저장소) → 재생 URL(fetch) 순으로
+     *   진짜 바이트를 확보한다. 못 구하면 null (호출부가 안내 후 중단).
+     *
+     * ⚠️ 감지·재전사·구간복구가 **모두** 이 함수를 써야 한다. 예전엔 감지에만 있어서,
+     *    캐시로 연 대본에서 '구간 복구'가 조용히 실패했다(실측 확인).
+     */
+    const resolveRealFile = async (targetFile, targetUrl, label) => {
+        const isRealBlob = (b) => typeof Blob !== 'undefined' && b instanceof Blob && b.size > 0;
+        if (!targetFile) return null;
+        if (isRealBlob(targetFile)) {
+            try {
+                return await materializeFile(targetFile, {
+                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
+                });
+            } catch (e) {
+                console.warn(`[${label}] 메모리 적재 실패 → 원본으로 진행:`, e.message);
+                return targetFile; // 원본도 Blob이므로 그대로 시도할 가치가 있다
+            }
+        }
+        try {
+            const stored = await mediaStore.getFileFlexible(targetFile.name, targetFile.size);
+            if (isRealBlob(stored)) {
+                console.log(`[${label}] IndexedDB에서 원본 확보`);
+                return new File([stored], targetFile.name || 'media', { type: stored.type || targetFile.type || 'application/octet-stream' });
+            }
+        } catch (e) { console.warn(`[${label}] IndexedDB 조회 실패:`, e); }
+        if (targetUrl) {
+            try {
+                const res = await fetch(targetUrl);
+                const blob = await res.blob();
+                if (isRealBlob(blob)) {
+                    console.log(`[${label}] 재생 URL에서 원본 확보`);
+                    return new File([blob], targetFile.name || 'media', { type: blob.type || targetFile.type || 'application/octet-stream' });
+                }
+            } catch (e) { console.warn(`[${label}] 재생 URL 읽기 실패:`, e); }
+        }
+        return null;
+    };
+
     const persistCache = (fileInfo, data, status) => {
         const res = saveCacheEntry(fileInfo, data, status);
         if (res && res.ok) {
@@ -573,15 +616,13 @@ export const useMediaAnalysis = ({
         // 기존 Stage 2 중단
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
 
-        let targetFile = null;
-        setFiles(prev => {
-            const f = prev.find(p => p.id === fileId);
-            if (f) targetFile = f.file;
-            return prev.map(p => p.id === fileId ? { ...p, error: null, data: [], isAnalyzing: true } : p);
-        });
+        // [경합 제거] 업데이터 안에서 값을 꺼내고 setTimeout(0)으로 기다리면, React 18 스케줄러가
+        // 그보다 늦게 돌 때 값이 비어 조용히 return 한다(버튼을 눌러도 아무 일이 없음).
+        const targetFile = (filesRef?.current || []).find(p => p.id === fileId)?.file || null;
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, error: null, data: [], isAnalyzing: true } : p));
 
         await new Promise(r => setTimeout(r, 0));
-        if (!targetFile) return;
+        if (!targetFile) { console.warn('[Retry] 대상 파일 없음', { fileId }); return; }
 
         try {
             // 재시도는 신규 업로드와 달리 미디어 재저장/클라우드 재동기화는 생략 (기존 동작 보존)
@@ -606,17 +647,16 @@ export const useMediaAnalysis = ({
         }
         if (!indices || indices.length === 0) return;
 
-        // 현재 파일/데이터 스냅샷 확보
-        let targetFile = null;
-        let targetUrl = null;
-        let currentData = null;
-        setFiles(prev => {
-            const f = prev.find(p => p.id === fileId);
-            if (f) { targetFile = f.file; targetUrl = f.url; currentData = f.data; }
-            return prev;
-        });
+        // 현재 파일/데이터 스냅샷 확보 (경합 제거 — 위 retryAnalysis 주석 참조)
+        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base?.file || null;
+        const targetUrl = base?.url || null;
+        const currentData = base?.data || null;
         await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) return;
+        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) {
+            console.warn('[Retranscribe] 대상 파일/데이터 없음', { fileId });
+            return;
+        }
 
         const sortedIdx = [...new Set(indices)]
             .filter(i => i >= 0 && i < currentData.length)
@@ -638,15 +678,12 @@ export const useMediaAnalysis = ({
         const { signal } = stage1AbortRef.current;
 
         try {
-            // 온디맨드/클라우드 파일 대응: 분석용으로 메모리 적재 (실패 시 원본 폴백)
-            let fileForAnalysis = targetFile;
-            try {
-                fileForAnalysis = await materializeFile(targetFile, {
-                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
-                });
-            } catch (e) {
-                console.warn('[Retranscribe] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
-                fileForAnalysis = targetFile;
+            // 온디맨드/클라우드 파일 + 캐시 복원 자리표시자 대응 (3단 폴백)
+            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'Retranscribe');
+            if (!fileForAnalysis) {
+                clearRetranscribingFlag();
+                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                return;
             }
 
             let duration = 0;
@@ -847,43 +884,10 @@ export const useMediaAnalysis = ({
         speechBusyRef.current = true;
         setSpeechDetectBusy(fileId);
         try {
-            // [실체 확보 3단 폴백] 캐시에서 복원한 파일의 f.file은 실제 파일이 아니라
-            // {name,type,size} 자리표시자일 수 있다(loadCache). 그걸 그대로 오디오 추출에
-            // 넘기면 FileReader가 "not of type 'Blob'"으로 터진다 → Blob 여부를 먼저 검사하고,
-            // 자리표시자면 IndexedDB(원본 저장소) → 재생 URL(fetch) 순으로 진짜 바이트를 확보한다.
-            const isRealBlob = (b) => typeof Blob !== 'undefined' && b instanceof Blob && b.size > 0;
-            let fileForAnalysis = null;
-            if (isRealBlob(targetFile)) {
-                fileForAnalysis = targetFile;
-                try {
-                    fileForAnalysis = await materializeFile(targetFile, {
-                        onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
-                    });
-                } catch (e) {
-                    console.warn('[SpeechEnd] 메모리 적재 실패 → 원본으로 진행:', e.message);
-                }
-            } else {
-                try {
-                    const stored = await mediaStore.getFileFlexible(targetFile.name, targetFile.size);
-                    if (isRealBlob(stored)) {
-                        fileForAnalysis = new File([stored], targetFile.name || 'media', { type: stored.type || targetFile.type || 'application/octet-stream' });
-                        console.log('[SpeechEnd] IndexedDB에서 원본 확보');
-                    }
-                } catch (e) { console.warn('[SpeechEnd] IndexedDB 조회 실패:', e); }
-                if (!fileForAnalysis && targetUrl) {
-                    try {
-                        const res = await fetch(targetUrl);
-                        const blob = await res.blob();
-                        if (isRealBlob(blob)) {
-                            fileForAnalysis = new File([blob], targetFile.name || 'media', { type: blob.type || targetFile.type || 'application/octet-stream' });
-                            console.log('[SpeechEnd] 재생 URL에서 원본 확보');
-                        }
-                    } catch (e) { console.warn('[SpeechEnd] 재생 URL 읽기 실패:', e); }
-                }
-                if (!fileForAnalysis) {
-                    if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
-                    return false;
-                }
+            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'SpeechEnd');
+            if (!fileForAnalysis) {
+                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                return false;
             }
 
             let duration = 0;
@@ -1036,16 +1040,17 @@ export const useMediaAnalysis = ({
         }
         if (anchorIndex === null || anchorIndex === undefined || anchorIndex < 0) return;
 
-        let targetFile = null;
-        let targetUrl = null;
-        let currentData = null;
-        setFiles(prev => {
-            const f = prev.find(p => p.id === fileId);
-            if (f) { targetFile = f.file; targetUrl = f.url; currentData = f.data; }
-            return prev;
-        });
+        // 경합 제거 — retryAnalysis 주석 참조 (여기서 조용히 return 하면 '복구 버튼이 먹통'이 된다)
+        const gapBase = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = gapBase?.file || null;
+        const targetUrl = gapBase?.url || null;
+        const currentData = gapBase?.data || null;
         await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) return;
+        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) {
+            console.warn('[RecoverGap] 대상 파일/데이터 없음', { fileId });
+            if (showToast) showToast({ message: '대상 대본을 찾지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.', type: 'error' });
+            return;
+        }
         if (anchorIndex >= currentData.length) return;
 
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
@@ -1063,14 +1068,13 @@ export const useMediaAnalysis = ({
         const { signal } = stage1AbortRef.current;
 
         try {
-            let fileForAnalysis = targetFile;
-            try {
-                fileForAnalysis = await materializeFile(targetFile, {
-                    onWait: (n) => { if (n === 1 && showToast) showToast({ message: '파일 불러오는 중...', type: 'success' }); }
-                });
-            } catch (e) {
-                console.warn('[Recover] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
-                fileForAnalysis = targetFile;
+            // 캐시 복원 자리표시자 대응 (3단 폴백) — 예전엔 자리표시자를 그대로 넘겨
+            // createObjectURL이 터지고 복구가 조용히 실패했다
+            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'Recover');
+            if (!fileForAnalysis) {
+                clearRetranscribingFlag();
+                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                return;
             }
 
             let duration = 0;
@@ -1264,15 +1268,12 @@ export const useMediaAnalysis = ({
      */
     const restoreSentences = async (fileId, items) => {
         if (!items || items.length === 0) return;
-        let targetFile = null;
-        let curData = null;
-        setFiles(prev => {
-            const f = prev.find(p => p.id === fileId);
-            if (f) { targetFile = f.file; curData = f.data; }
-            return prev;
-        });
+        // 경합 제거 — retryAnalysis 주석 참조
+        const resBase = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = resBase?.file || null;
+        const curData = resBase?.data || null;
         await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !Array.isArray(curData)) return;
+        if (!targetFile || !Array.isArray(curData)) { console.warn('[Restore] 대상 파일/데이터 없음', { fileId }); return; }
 
         const existing = new Set(curData.map(sentenceKey));
         const toAdd = items.filter(it => !existing.has(sentenceKey(it)));

@@ -53,6 +53,31 @@ export const trimmedLoopEnd = (speechEnd, nextStart) => {
     return null;
 };
 
+// [전사 누락 의심] 건너뛰는 무음이 이보다 길면 '대본이 대사를 빠뜨렸을 가능성'을 표시한다.
+//
+// 근거(실측): 이 앱은 대본에 없는 구간을 '대사 없음'으로 보고 건너뛰므로, **전사가 놓친 대사일수록
+// 더 확실히 안 들리게 된다**. 실사용 검증에서 긴 건너뛰기 상위 구간을 오디오로 대조한 결과:
+//   12:05(15.3초) → 12:11~12:21에 대사 10초가 대본에 통째로 없음
+//   04:42(12.8초) → 그 시각엔 소리가 없고, 실제 대사는 04:33~04:36에 있었음(타임스탬프 어긋남)
+//   04:33( 9.4초) → 대본은 0.3초짜리 "À."인데 실제 말소리는 3.9초
+//   12:44(14.4초) → 정상(사용자 확인) ← 오탐도 나온다. 그래서 '의심' 표시일 뿐 자동 수정은 하지 않는다.
+// 8초로 잡으면 14분 영상에서 6곳 정도가 걸린다(그중 1곳 오탐) — 사용자가 확인할 만한 분량.
+export const LONG_SKIP_SUSPECT_SEC = 8.0;
+
+// idx 문장 뒤에 '의심스러울 만큼 긴' 건너뛰기가 있으면 그 초를, 아니면 null.
+// 감지값이 없으면 판단 자체가 불가하므로 null(배지 없음).
+export const longSkipGap = (data, idx) => {
+    if (!Array.isArray(data) || !data[idx]) return null;
+    const se = blockSpeechEnd(data, idx);
+    if (se === null) return null;
+    const t = data[idx].seconds;
+    let j = idx + 1;
+    while (j < data.length && data[j].seconds <= t) j++;   // 형제 블록(같은 시각) 건너뜀
+    if (j >= data.length) return null;                      // 마지막 문장 뒤는 대상 아님
+    const gap = data[j].seconds - se;
+    return gap > LONG_SKIP_SUSPECT_SEC ? gap : null;
+};
+
 // 묶음 반복 중 '지금 문장(m)의 대사가 끝났고 다음 문장(nm)까지 간격이 길면' 건너뛸 목표 시각.
 // 건너뛰지 않아야 하면 null. now는 현재 재생 시각, bufferTime은 시작 쪽 여유.
 export const gapSkipTarget = (data, m, nm, now, bufferTime) => {

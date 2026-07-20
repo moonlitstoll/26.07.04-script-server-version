@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useMemo, memo } from 'react';
 import {
-    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check, AlertTriangle, RotateCcw, Volume2
+    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check, AlertTriangle, RotateCcw, Volume2, FastForward
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
@@ -30,7 +30,7 @@ const TranscriptItem = memo(({
     seekTo, jumpToSentence,
     isLooping, showAnalysis,
     selectMode = false, isSelected = false, onToggleSelect,
-    onRetryAnalysis, onCoverageRetry, onRetranscribe,
+    onRetryAnalysis, onCoverageRetry, onRetranscribe, longSkipSec, onRecoverLongSkip,
     drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false,
     inLoopGroup = false, groupLoopOn = false
 }) => {
@@ -148,6 +148,18 @@ const TranscriptItem = memo(({
                             >
                                 <AlertTriangle size={9} />
                                 {coverage.kind === 'no-chunks' ? '분석 깨짐' : coverage.missing.length > 0 ? `누락 ${coverage.missing.length}` : '뭉침'}
+                            </button>
+                        )}
+                        {/* [건너뜀 김] 이 문장 뒤로 유난히 긴 무음을 건너뛴다 = 대본이 그 구간 대사를
+                            빠뜨렸을 수 있다는 신호. 앱은 대본에 없는 구간을 '대사 없음'으로 보고
+                            건너뛰므로, 놓친 대사일수록 더 확실히 안 들리게 된다. 탭 = 그 구간만 다시 듣기 */}
+                        {!drillMode && typeof longSkipSec === 'number' && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onRecoverLongSkip && onRecoverLongSkip(idx); }}
+                                title={`이 문장 뒤로 ${longSkipSec.toFixed(1)}초를 건너뜁니다. 그 구간에 대본에 없는 대사가 있을 수 있어요 — 탭하면 다시 듣고 확인합니다`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 transition-colors"
+                            >
+                                <FastForward size={9} /> 건너뜀 {Math.round(longSkipSec)}초
                             </button>
                         )}
                         {/* [B3] 전사의심 배지 — 분석 AI가 문맥상 오전사를 신고한 문장. 탭하면 이 구간만 재전사 */}
