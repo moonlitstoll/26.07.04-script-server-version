@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
-import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget } from '../utils/speechSegments';
+import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -17,7 +17,12 @@ function safePlay(v, setIsPlaying, label) {
     });
 }
 
-export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1, speechOnly = false }) => {
+// speechTailPad: '대사만 재생'의 끝쪽 여유(설정값). bufferTime과 같은 성격의 설정이라
+//   ref가 아니라 prop으로 직접 쓰고 deps에도 넣는다(아래 싱크 effect deps 주석 참고).
+//   ⚠ 이름 주의: 이 훅 안에는 이미 `tailPad`라는 지역 변수가 두 곳(묶음/한문장 반복) 있는데
+//   그건 speechOnly와 무관하게 모든 사용자에게 적용되는 `Math.max(bufferTime, 0.35)`로 완전히
+//   다른 값이다. 섞으면 대사만 재생을 안 쓰는 사용자의 반복 끝 경계까지 바뀐다.
+export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1, speechOnly = false, speechTailPad = SPEECH_TAIL_PAD }) => {
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -255,7 +260,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                         // [대사만 재생] 묶음 끝: 마지막 문장의 대사 끝이 감지돼 있고 다음 문장까지
                         // 간격이 길면 그 지점에서 되감는다. 감지값이 없거나 간격이 짧으면 기존 경계 유지.
                         if (speechOnlyRef.current) {
-                            const t = trimmedLoopEnd(blockSpeechEnd(data, g.end), nextItem ? nextItem.seconds : null);
+                            const t = trimmedLoopEnd(blockSpeechEnd(data, g.end), nextItem ? nextItem.seconds : null, speechTailPad);
                             if (t !== null && t > start + 0.5) end = Math.min(end, t);
                         }
 
@@ -282,7 +287,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                                 let nm = m + 1;
                                 while (nm < data.length && data[nm].seconds <= data[m].seconds) nm++;
                                 if (nm <= g.end) {
-                                    const target = gapSkipTarget(data, m, nm, v.currentTime, bufferTime);
+                                    const target = gapSkipTarget(data, m, nm, v.currentTime, bufferTime, speechTailPad);
                                     if (target !== null) {
                                         lastActionTimeRef.current = Date.now();
                                         v.currentTime = target;
@@ -326,7 +331,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                     // [대사만 재생] 대사 끝이 감지돼 있고 다음 문장까지 간격이 길면(배경음악 구간)
                     // 대사 끝(+여유)에서 바로 되감는다. 감지값 없음/짧은 간격/겹침 → 기존 경계 그대로.
                     if (speechOnlyRef.current) {
-                        const t = trimmedLoopEnd(blockSpeechEnd(data, loopIdx), nextItem ? nextItem.seconds : null);
+                        const t = trimmedLoopEnd(blockSpeechEnd(data, loopIdx), nextItem ? nextItem.seconds : null, speechTailPad);
                         if (t !== null && t > start + 0.5) end = Math.min(end, t);
                     }
 
@@ -363,7 +368,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                     let nm = finalIdx + 1;
                     while (nm < data.length && data[nm].seconds <= data[finalIdx].seconds) nm++;
                     if (nm < data.length) {
-                        const target = gapSkipTarget(data, finalIdx, nm, v.currentTime, bufferTime);
+                        const target = gapSkipTarget(data, finalIdx, nm, v.currentTime, bufferTime, speechTailPad);
                         if (target !== null) {
                             lastActionTimeRef.current = Date.now();
                             v.currentTime = target;
@@ -424,7 +429,10 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         // setAnchor는 안정 참조(useCallback []) — deps에 있어도 리스너가 재부착되지 않는다.
         // loopGroupSize는 절대 deps에 넣지 말 것(ref로 읽는다): 넣으면 N을 바꿀 때마다
         // 미디어 리스너가 통째로 재부착되고 v.loop이 재설정돼 재생이 끊긴다.
-    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, videoNode, setAnchor]);
+        // speechTailPad는 반대로 deps에 넣는다 — bufferTime과 같은 '설정창에서만 바뀌는 값'이라
+        // 재부착 빈도가 극히 낮고, 빼면 슬라이더를 움직여도 옛 클로저 값으로 계속 계산된다
+        // (재생 중 자주 토글되는 loopGroupSize/speechOnly와는 성격이 다르다).
+    }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, speechTailPad, videoNode, setAnchor]);
 
     // ─────────────────────────────────────────────────────────────
     // MediaSession: 알림/잠금화면에 '이전/다음 문장' 버튼만 추가한다.

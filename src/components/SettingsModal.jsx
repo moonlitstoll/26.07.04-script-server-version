@@ -3,6 +3,7 @@ import {
     Settings, X, Check, Info, Lock, HardDrive, Trash2
 } from 'lucide-react';
 import { MODELS } from '../constants/models';
+import { SPEECH_TAIL_PAD, TAIL_PAD_MIN, TAIL_PAD_MAX } from '../utils/speechSegments';
 import { mediaStore } from '../utils/MediaStore';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
@@ -243,6 +244,39 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         </div>
                         <p className="text-[10px] text-slate-400 leading-relaxed">
                             문장 이동 또는 반복 재생 시, 문장 앞뒤로 들리는 여유 시간입니다.
+                        </p>
+                    </div>
+
+                    {/* 대사 꼬리 여유 (대사만 재생 전용) */}
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <label className="text-sm font-bold text-slate-700">대사 꼬리 여유</label>
+                                <span className="text-[10px] text-slate-400">대사만 재생에서만 적용</span>
+                            </div>
+                            <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg">{config.speechTailPad.toFixed(1)}초</span>
+                        </div>
+                        <div className="px-1">
+                            {/* min/max는 리터럴 대신 상수를 쓴다 — 상한은 임의값이 아니라
+                                '건너뛰기가 죽지 않는 최대치'라서 speechSegments가 단일 출처여야 한다. */}
+                            <input
+                                type="range"
+                                min={TAIL_PAD_MIN}
+                                max={TAIL_PAD_MAX}
+                                step="0.1"
+                                value={config.speechTailPad}
+                                onChange={(e) => updateField('speechTailPad', parseFloat(e.target.value))}
+                                className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-bold px-1">
+                                <span>많이 건너뜀 ({TAIL_PAD_MIN.toFixed(1)}s)</span>
+                                <span>{SPEECH_TAIL_PAD.toFixed(1)}s</span>
+                                <span>안전하게 ({TAIL_PAD_MAX.toFixed(1)}s)</span>
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                            대사가 끝난 뒤 이만큼 더 듣고 나서 다음 대사로 건너뜁니다.
+                            대사 끝이 잘려 들리면 올리고, 넘어가는 게 굼뜨면 내리세요.
                         </p>
                     </div>
 

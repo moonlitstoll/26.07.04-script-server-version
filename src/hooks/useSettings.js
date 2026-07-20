@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { clampLoopGroupSize } from '../utils/loopGroups';
+import { SPEECH_TAIL_PAD, clampTailPad } from '../utils/speechSegments';
 
 const DEFAULTS = {
     apiKey: '',
@@ -18,6 +19,8 @@ const DEFAULTS = {
     loopGroupSize: 1,   // 묶음 반복: 한 번에 반복할 문장 수 (1 = 기존 한 문장 반복)
     speechOnlyEnabled: false, // 대사만 재생: 재생·반복 중 대사 끝~다음 대사 사이 긴 배경음악/무음 건너뛰기
     speechAutoDetect: false,  // 전사+분석 완료 후 대사 구간 감지 자동 실행 (감지 1회 비용 추가)
+    // 대사만 재생에서 대사 끝 뒤에 더 듣는 여유(초). 기본값 출처는 speechSegments 하나뿐이다.
+    speechTailPad: SPEECH_TAIL_PAD,
 };
 
 const STORAGE_KEYS = {
@@ -37,6 +40,7 @@ const STORAGE_KEYS = {
     loopGroupSize: 'miniapp_loop_group_size',
     speechOnlyEnabled: 'miniapp_speech_only',
     speechAutoDetect: 'miniapp_speech_auto_detect',
+    speechTailPad: 'miniapp_speech_tail_pad',
 };
 
 function loadFromStorage() {
@@ -68,6 +72,12 @@ function loadFromStorage() {
             : DEFAULTS.loopGroupSize,
         speechOnlyEnabled: localStorage.getItem(STORAGE_KEYS.speechOnlyEnabled) === 'true',
         speechAutoDetect: localStorage.getItem(STORAGE_KEYS.speechAutoDetect) === 'true',
+        // bufferTime의 Number.isFinite 패턴을 그대로 쓰면 안 된다 — 그건 '유효한 0 존중'이 목적이라
+        // 범위 검사가 없다. 여기선 0이나 5 같은 값이 통과하면 재생 엔진이 조용히 망가지므로
+        // (0 = 대사 끝나자마자 잘림, 큰 값 = 건너뛰기 자체가 사라짐) 허용 범위로 강제한다.
+        speechTailPad: localStorage.getItem(STORAGE_KEYS.speechTailPad) !== null
+            ? clampTailPad(localStorage.getItem(STORAGE_KEYS.speechTailPad))
+            : DEFAULTS.speechTailPad,
     };
 }
 

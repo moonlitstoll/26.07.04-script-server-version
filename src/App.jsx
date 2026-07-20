@@ -211,7 +211,7 @@ const App = () => {
     manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
     handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo,
     loopAnchorIdx, loopTargetIdxRef
-  } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN, speechOnly: !!config.speechOnlyEnabled });
+  } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN, speechOnly: !!config.speechOnlyEnabled, speechTailPad: config.speechTailPad });
 
   // 묶음 크기 변경: 2 이상을 고르면 반복을 자동으로 켠다(안 켜면 "골랐는데 아무 일도 안 남"이 된다).
   const changeLoopGroupSize = useCallback((n) => {

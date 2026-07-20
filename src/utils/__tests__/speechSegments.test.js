@@ -6,8 +6,9 @@
 // (예전에 0.4를 하드코딩해 뒀다가, 상수를 0.8로 바꿔도 테스트가 그대로 통과한 적이 있다.)
 import { describe, it, expect } from 'vitest';
 import {
-    gapSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd,
+    gapSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd, clampTailPad,
     GAP_SKIP_MIN, SPEECH_TAIL_PAD, MIN_SPEECH_SEC, MAX_SENTENCE_SEC,
+    TAIL_PAD_MIN, TAIL_PAD_MAX,
 } from '../speechSegments';
 
 const PAD = SPEECH_TAIL_PAD;
@@ -49,10 +50,11 @@ describe('gapSkipTarget — 꼬리 보호 (대사 잘림 방지)', () => {
         expect(gapSkipTarget(real, 0, 1, SE + PAD - 0.05, BUF)).toBeNull();
     });
 
-    it('모델이 0.7초 일찍 답해도 그 대사는 잘리지 않는다', () => {
-        // PAD가 0.4였을 땐 이 시점에 이미 점프해서 0.3초가 잘렸다.
-        expect(PAD).toBeGreaterThan(0.7);
-        expect(gapSkipTarget(real, 0, 1, SE + 0.7, BUF)).toBeNull();
+    it('여유를 최대로 올리면 0.7초 일찍 답한 대사도 지켜진다', () => {
+        // 기본값(0.5)으로는 SE+0.7에 이미 점프한다. 잘려 들리는 사용자를 위한 슬라이더가
+        // 실제로 효과가 있는지 = 설정값이 경계를 밀어내는지 확인한다.
+        expect(gapSkipTarget(real, 0, 1, SE + 0.7, BUF, TAIL_PAD_MAX)).toBeNull();
+        expect(gapSkipTarget(real, 0, 1, SE + 0.7, BUF, PAD)).not.toBeNull();
     });
 
     it('경계 직전/직후가 정확히 갈린다', () => {
@@ -62,19 +64,65 @@ describe('gapSkipTarget — 꼬리 보호 (대사 잘림 방지)', () => {
 });
 
 describe('gapSkipTarget — 패딩이 건너뛰기를 없애지 않는가', () => {
-    // 점프 성립 조건은 gap > PAD + bufferTime + 0.05.
-    // gap > GAP_SKIP_MIN 이 이미 필수이므로, 설정 슬라이더 전 범위에서 성립해야 한다.
-    it('bufferTime 0.0~2.0 전 구간에서 gap 3.01초도 여전히 점프한다', () => {
+    // 점프 성립 조건은 gap > tailPad + bufferTime + 0.05.
+    // gap > GAP_SKIP_MIN 이 이미 필수이므로, 두 슬라이더의 최악 조합에서도 성립해야 한다.
+    // 이 불변식이 깨지면 '설정을 올렸더니 건너뛰기가 조용히 사라지는' 상태가 된다.
+    const MAX_BUFFER = 2.0;   // SettingsModal의 bufferTime 슬라이더 최대값
+
+    it('두 슬라이더를 모두 최대로 올려도 gap 3.01초가 여전히 점프한다', () => {
         const d = [{ seconds: 10, speechEnd: 12 }, { seconds: 15.01 }];
-        for (let bt = 0; bt <= 2.0001; bt += 0.1) {
+        for (let bt = 0; bt <= MAX_BUFFER + 1e-9; bt += 0.1) {
             const buf = Math.round(bt * 10) / 10;
-            expect(gapSkipTarget(d, 0, 1, 12 + PAD, buf), `bufferTime=${buf}`).not.toBeNull();
+            expect(gapSkipTarget(d, 0, 1, 12 + TAIL_PAD_MAX, buf, TAIL_PAD_MAX),
+                `bufferTime=${buf}, tailPad=${TAIL_PAD_MAX}`).not.toBeNull();
         }
     });
 
-    it('상수 조합이 성립 조건을 만족한다 (설정 최대치에서도)', () => {
-        const MAX_BUFFER = 2.0;   // SettingsModal 슬라이더 최대값
+    it('슬라이더 상한이 산술적 천장을 넘지 않는다', () => {
+        // TAIL_PAD_MAX를 올리려면 GAP_SKIP_MIN을 함께 올려야 한다.
+        expect(TAIL_PAD_MAX + MAX_BUFFER + 0.05).toBeLessThan(GAP_SKIP_MIN);
+    });
+
+    it('기본값도 당연히 만족한다', () => {
         expect(PAD + MAX_BUFFER + 0.05).toBeLessThan(GAP_SKIP_MIN);
+    });
+});
+
+describe('tailPad 인자 — 설정값이 실제로 먹히는가', () => {
+    // ⚠ 기본 파라미터(tailPad = SPEECH_TAIL_PAD) 때문에, 인자를 생략한 테스트만 있으면
+    // useAudioPlayer가 설정값을 안 넘겨도 전부 통과한다. 반드시 명시적으로 넘겨 검증한다.
+    it('gapSkipTarget: 인자를 넘기면 그 값이 경계가 된다', () => {
+        const custom = 0.9;
+        expect(gapSkipTarget(real, 0, 1, SE + custom - 0.05, BUF, custom)).toBeNull();
+        expect(gapSkipTarget(real, 0, 1, SE + custom, BUF, custom)).toBeCloseTo(783.4 - BUF, 9);
+    });
+
+    it('trimmedLoopEnd: 인자를 넘기면 그 값이 더해진다', () => {
+        expect(trimmedLoopEnd(10, 15, 0.9)).toBeCloseTo(10.9, 9);
+        expect(trimmedLoopEnd(10, null, 0.2)).toBeCloseTo(10.2, 9);
+    });
+
+    it('인자를 생략하면 기본 상수를 쓴다 (기존 호출 호환)', () => {
+        expect(trimmedLoopEnd(10, 15)).toBeCloseTo(10 + PAD, 9);
+        expect(gapSkipTarget(real, 0, 1, SE + PAD, BUF)).toBeCloseTo(783.4 - BUF, 9);
+    });
+
+    it('오염된 값이 들어와도 허용 범위로 강제된다', () => {
+        // localStorage가 오염되거나 옛 값이 남아도 엔진이 이상한 경계를 보면 안 된다.
+        expect(clampTailPad(999)).toBe(TAIL_PAD_MAX);
+        expect(clampTailPad(0)).toBe(TAIL_PAD_MIN);
+        expect(clampTailPad(-5)).toBe(TAIL_PAD_MIN);
+        expect(clampTailPad(NaN)).toBe(PAD);
+        expect(clampTailPad(undefined)).toBe(PAD);
+        expect(clampTailPad('abc')).toBe(PAD);
+        expect(clampTailPad('0.7')).toBeCloseTo(0.7, 9);   // 슬라이더/스토리지의 문자열
+    });
+
+    it('함수들도 오염된 인자를 그대로 쓰지 않는다', () => {
+        // 0을 그대로 쓰면 대사가 끝나자마자 잘리고, 999를 그대로 쓰면 점프가 죽는다.
+        expect(trimmedLoopEnd(10, 15, 999)).toBeCloseTo(10 + TAIL_PAD_MAX, 9);
+        expect(trimmedLoopEnd(10, 15, NaN)).toBeCloseTo(10 + PAD, 9);
+        expect(gapSkipTarget(real, 0, 1, SE + TAIL_PAD_MAX, BUF, 999)).toBeCloseTo(783.4 - BUF, 9);
     });
 });
 

@@ -10,10 +10,28 @@ export const GAP_SKIP_MIN = 3.0;
 // 이 값이 곧 '대사가 잘리지 않을 안전 여유'다 — 건너뛰기는 정확히 `대사끝 + PAD` 지점에서
 // 발동하므로, 모델이 끝 시각을 이만큼보다 이르게 답하면 그 차이만큼 대사가 잘린다.
 // (GAP_SKIP_MIN 3초는 '어디를 건너뛸지' 고르는 기준일 뿐 잘림 여유가 아니다 — 혼동 주의.)
-// 0.4 → 0.8: 실측상 잘림은 없었지만 여유가 0.4초뿐이라 모델이 1초만 일찍 답해도 잘렸다.
-// 대가는 건너뛰는 시간이 구간당 0.4초 줄어드는 것뿐이고, 건너뛰기 성립 여부는 바뀌지 않는다
-// (bufferTime 최대 2.0초에서도 gap>3초면 항상 점프 가능 — 전수 확인함).
-export const SPEECH_TAIL_PAD = 0.8;
+//
+// 이제 설정(miniapp_speech_tail_pad)으로 사용자가 조절한다. 아래는 인자를 안 넘겼을 때의 기본값.
+// 0.4 → 0.8(예방적 인상) → 0.5(설정 노출과 함께 환원): 실측 잘림 사례가 없었는데도 고정값을
+// 보수적으로 잡아둘 이유가, 사용자가 직접 듣고 올릴 수 있게 된 시점에 약해졌다.
+export const SPEECH_TAIL_PAD = 0.5;
+
+// 설정 슬라이더 허용 범위.
+// 상한 0.9의 근거(임의값 아님): 점프 성립 조건이 `간격 > tailPad + bufferTime + 0.05`이고,
+// 간격은 GAP_SKIP_MIN(3초) 초과가 이미 필수, bufferTime 슬라이더 최대는 2.0초다.
+//   0.9 + 2.0 + 0.05 = 2.95 < 3.0  → 전 범위에서 건너뛰기가 항상 성립한다.
+// 이보다 크게 잡으면 bufferTime을 높게 쓰는 사용자에게서 건너뛰기가 '조용히' 사라진다.
+// (GAP_SKIP_MIN이나 bufferTime 최대값을 바꾸면 이 상한도 함께 재계산할 것 — 테스트가 지킨다.)
+export const TAIL_PAD_MIN = 0.2;
+export const TAIL_PAD_MAX = 0.9;
+
+// 오염된 값(NaN/범위 밖)이 들어와도 허용 범위로 강제 → 경계 계산이 이상한 값을 보는 일이 없다.
+// (loopGroups의 clampLoopGroupSize와 같은 방침)
+export const clampTailPad = (n) => {
+    const v = typeof n === 'number' ? n : parseFloat(n);
+    if (!Number.isFinite(v)) return SPEECH_TAIL_PAD;
+    return Math.min(TAIL_PAD_MAX, Math.max(TAIL_PAD_MIN, v));
+};
 // 한 문장이 이보다 길게 지속된다는 감지값은 오류로 간주(환각 방어).
 export const MAX_SENTENCE_SEC = 60;
 
@@ -52,10 +70,12 @@ export const blockSpeechEnd = (data, idx) => {
 // 반복의 끝 경계를 대사 끝으로 당길 수 있으면 그 값을, 아니면 null(기존 경계 유지).
 //  - nextStart가 null(마지막 문장): 꼬리 음악/무음 제거 → 대사 끝 + 패딩
 //  - 간격이 GAP_SKIP_MIN 초과일 때만 당김: 겹침(음수 간격)·짧은 정적은 null → 기존처럼 이어 재생
-export const trimmedLoopEnd = (speechEnd, nextStart) => {
+// tailPad: 설정값(useAudioPlayer가 speechTailPad로 넘긴다). 생략 시 기본 상수.
+export const trimmedLoopEnd = (speechEnd, nextStart, tailPad = SPEECH_TAIL_PAD) => {
     if (typeof speechEnd !== 'number' || !Number.isFinite(speechEnd)) return null;
-    if (nextStart == null) return speechEnd + SPEECH_TAIL_PAD;
-    if (nextStart - speechEnd > GAP_SKIP_MIN) return speechEnd + SPEECH_TAIL_PAD;
+    const pad = clampTailPad(tailPad);
+    if (nextStart == null) return speechEnd + pad;
+    if (nextStart - speechEnd > GAP_SKIP_MIN) return speechEnd + pad;
     return null;
 };
 
@@ -68,14 +88,16 @@ export const trimmedLoopEnd = (speechEnd, nextStart) => {
 
 // 묶음 반복 중 '지금 문장(m)의 대사가 끝났고 다음 문장(nm)까지 간격이 길면' 건너뛸 목표 시각.
 // 건너뛰지 않아야 하면 null. now는 현재 재생 시각, bufferTime은 시작 쪽 여유.
-export const gapSkipTarget = (data, m, nm, now, bufferTime) => {
+// tailPad: 끝쪽 여유(설정값). 생략 시 기본 상수.
+export const gapSkipTarget = (data, m, nm, now, bufferTime, tailPad = SPEECH_TAIL_PAD) => {
     if (!Array.isArray(data) || !data[m] || !data[nm]) return null;
     const se = blockSpeechEnd(data, m);
     if (se === null) return null;
+    const pad = clampTailPad(tailPad);
     const nextStart = data[nm].seconds;
     if (nextStart - se <= GAP_SKIP_MIN) return null;          // 짧은 간격/겹침: 그대로 재생
     const target = Math.max(0, nextStart - bufferTime);
-    if (now < se + SPEECH_TAIL_PAD) return null;              // 아직 대사(+여유)가 안 끝남
+    if (now < se + pad) return null;                          // 아직 대사(+여유)가 안 끝남
     if (now >= target - 0.05) return null;                    // 이미 목표 지점 근처/이후 (재귀 점프 방지)
     return target;
 };
