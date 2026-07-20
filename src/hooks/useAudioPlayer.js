@@ -354,6 +354,25 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                     }
                 }
             } else {
+                // [대사만 재생 — 일반 재생] 반복을 켜지 않고 쭉 들을 때도 대사 끝~다음 대사 사이의
+                // 긴 배경음악/무음을 건너뛴다. 판정은 반복 모드와 똑같이 gapSkipTarget이 전담하므로
+                // 기준(3초 초과·꼬리 0.4초·재귀 점프 방어)이 두 경로에서 어긋날 일이 없다.
+                // isWithinActionGuard: 사용자가 방금 수동으로 시크했다면 끌고 가지 않는다.
+                if (speechOnlyRef.current && !v.paused && !isWithinActionGuard
+                    && finalIdx >= 0 && data[finalIdx]) {
+                    let nm = finalIdx + 1;
+                    while (nm < data.length && data[nm].seconds <= data[finalIdx].seconds) nm++;
+                    if (nm < data.length) {
+                        const target = gapSkipTarget(data, finalIdx, nm, v.currentTime, bufferTime);
+                        if (target !== null) {
+                            lastActionTimeRef.current = Date.now();
+                            v.currentTime = target;
+                            safePlay(v, setIsPlaying, 'gap skip (normal play)');
+                            return;
+                        }
+                    }
+                }
+
                 // 루프가 아닐 때만 정상 실시간 인덱스 업데이트
                 if (finalIdx !== activeIdxRef.current) {
                     activeIdxRef.current = finalIdx;

@@ -958,10 +958,10 @@ const App = () => {
                         title={speechDetectBusy === activeFileId
                           ? '대사 구간 감지 중...'
                           : !hasSpeechEnds
-                            ? '대사 구간을 감지하면, 반복할 때 대사 사이 배경음악·무음을 건너뜁니다 (오디오 1회 전송)'
+                            ? '대사 구간을 감지하면, 재생 중 대사 사이 배경음악·무음을 건너뜁니다 (오디오 1회 전송)'
                             : config.speechOnlyEnabled
                               ? '대사만 재생 켜짐 — 탭하면 끄기'
-                              : '반복 시 대사 사이 긴 배경음악·무음 건너뛰기 — 탭하면 켜기'}
+                              : '재생·반복 중 대사 사이 긴 배경음악·무음 건너뛰기 — 탭하면 켜기'}
                         className={`${CHIP} ${config.speechOnlyEnabled && hasSpeechEnds
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : hasSpeechEnds

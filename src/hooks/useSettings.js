@@ -16,7 +16,7 @@ const DEFAULTS = {
     chunkMinutes: 10,
     realignEnabled: true,
     loopGroupSize: 1,   // 묶음 반복: 한 번에 반복할 문장 수 (1 = 기존 한 문장 반복)
-    speechOnlyEnabled: false, // 대사만 재생: 반복 시 대사 끝~다음 대사 사이 긴 배경음악/무음 건너뛰기
+    speechOnlyEnabled: false, // 대사만 재생: 재생·반복 중 대사 끝~다음 대사 사이 긴 배경음악/무음 건너뛰기
     speechAutoDetect: false,  // 전사+분석 완료 후 대사 구간 감지 자동 실행 (감지 1회 비용 추가)
 };
 
