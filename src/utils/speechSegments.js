@@ -86,6 +86,31 @@ export const trimmedLoopEnd = (speechEnd, nextStart, tailPad = SPEECH_TAIL_PAD) 
 // 음량만으로는 말소리/음악을 구분할 수 없다(같은 이유로 음량 기반 교차검증도 폐기했다).
 // → 긴 건너뛰기 자체는 전사 누락의 근거가 되지 못한다. 다시 하려면 음성/음악 판별이 먼저다.
 
+// 마지막 문장 전용 되감기. '대사가 끝난 뒤 남은 엔딩 음악'이 길면 첫 문장으로 되감을 시각.
+// gapSkipTarget과 분리한 이유: 저쪽은 '간격'과 '도착지'가 둘 다 다음 문장에서 나오는데,
+// 여기선 간격은 파일 끝까지(duration - 대사끝), 도착지는 첫 문장 시작이라 서로 무관하다.
+// 억지로 합치면 두 개념이 한 함수 안에서 엉킨다.
+//
+// 되감기 자체는 원래도 일어난다 — 일반 재생에선 브라우저 기본 전체반복(v.loop)이 켜져 있어
+// 파일 끝에서 0초로 돌아간다. 이 함수는 '언제, 어디로'만 앞당길 뿐 반복 여부를 바꾸지 않는다.
+// duration: 미디어 전체 길이(v.duration). 메타데이터 전이면 NaN/0이라 그때는 null.
+export const wrapSkipTarget = (data, lastIdx, duration, now, bufferTime, tailPad = SPEECH_TAIL_PAD) => {
+    if (!Array.isArray(data) || !data[lastIdx] || !data[0]) return null;
+    if (!Number.isFinite(duration) || duration <= 0) return null;
+    if (!Number.isFinite(now)) return null;
+    const se = blockSpeechEnd(data, lastIdx);
+    if (se === null) return null;
+    if (duration - se <= GAP_SKIP_MIN) return null;           // 꼬리가 짧으면 그냥 자연스럽게 끝낸다
+    const pad = clampTailPad(tailPad);
+    if (now < se + pad) return null;                          // 아직 대사(+여유)가 안 끝남
+    const buf = Number.isFinite(bufferTime) ? bufferTime : 0;
+    const target = Math.max(0, data[0].seconds - buf);
+    // 도착지가 대사 끝보다 뒤면 '되감기'가 아니다(문장 1개짜리 파일의 오염된 데이터 등).
+    // 그대로 두면 점프 직후 다시 조건이 성립해 무한 점프가 된다.
+    if (target >= se) return null;
+    return target;
+};
+
 // 묶음 반복 중 '지금 문장(m)의 대사가 끝났고 다음 문장(nm)까지 간격이 길면' 건너뛸 목표 시각.
 // 건너뛰지 않아야 하면 null. now는 현재 재생 시각, bufferTime은 시작 쪽 여유.
 // tailPad: 끝쪽 여유(설정값). 생략 시 기본 상수.

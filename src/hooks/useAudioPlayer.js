@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
-import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
+import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, wrapSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -373,6 +373,17 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                             lastActionTimeRef.current = Date.now();
                             v.currentTime = target;
                             safePlay(v, setIsPlaying, 'gap skip (normal play)');
+                            return;
+                        }
+                    } else {
+                        // 마지막 문장: 다음 문장이 없어 위 판정이 아예 시작되지 않는다.
+                        // 그래서 대사가 끝나도 엔딩 음악을 끝까지 다 듣고서야 브라우저 기본
+                        // 전체반복이 0초로 되감았다. 여기서 첫 문장으로 바로 되감는다.
+                        const target = wrapSkipTarget(data, finalIdx, v.duration, v.currentTime, bufferTime, speechTailPad);
+                        if (target !== null) {
+                            lastActionTimeRef.current = Date.now();
+                            v.currentTime = target;
+                            safePlay(v, setIsPlaying, 'wrap skip (normal play)');
                             return;
                         }
                     }

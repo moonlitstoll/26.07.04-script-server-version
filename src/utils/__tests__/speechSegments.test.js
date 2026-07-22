@@ -6,7 +6,7 @@
 // (예전에 0.4를 하드코딩해 뒀다가, 상수를 0.8로 바꿔도 테스트가 그대로 통과한 적이 있다.)
 import { describe, it, expect } from 'vitest';
 import {
-    gapSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd, clampTailPad,
+    gapSkipTarget, wrapSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd, clampTailPad,
     GAP_SKIP_MIN, SPEECH_TAIL_PAD, MIN_SPEECH_SEC, MAX_SENTENCE_SEC,
     TAIL_PAD_MIN, TAIL_PAD_MAX,
 } from '../speechSegments';
@@ -240,5 +240,82 @@ describe('blockSpeechEnd — 같은 시각 형제 문장', () => {
     it('잘못된 입력에도 터지지 않는다', () => {
         expect(blockSpeechEnd(null, 0)).toBeNull();
         expect(blockSpeechEnd([{ seconds: 5 }], 99)).toBeNull();
+    });
+});
+
+// ── 마지막 문장 되감기 ──────────────────────────────────────────
+// 회귀 배경: 일반 재생의 건너뛰기가 `nm < data.length` 안에만 있어서 마지막 문장은
+// 판정 자체가 시작되지 않았다. 대사가 끝나도 엔딩 음악을 끝까지 다 듣고서야
+// 브라우저 기본 전체반복이 0초로 되감았다.
+describe('wrapSkipTarget — 마지막 문장 뒤 엔딩 음악', () => {
+    // 첫 문장 12.0 시작 / 마지막 문장 900.0 시작·905.0 대사끝 / 파일 길이 930.0
+    const d = [
+        { seconds: 12.0, speechEnd: 15.0 },
+        { seconds: 900.0, speechEnd: 905.0 },
+    ];
+    const DUR = 930.0;
+    const LAST_SE = 905.0;
+
+    it('대사 끝+여유 이후엔 첫 문장 시작(-버퍼)으로 되감는다', () => {
+        expect(wrapSkipTarget(d, 1, DUR, LAST_SE + PAD + 0.1, BUF))
+            .toBeCloseTo(12.0 - BUF, 9);
+    });
+
+    it('아직 대사가 안 끝났으면 되감지 않는다', () => {
+        expect(wrapSkipTarget(d, 1, DUR, LAST_SE - 0.1, BUF)).toBeNull();
+    });
+
+    it('꼬리 여유가 끝나기 직전까지는 되감지 않는다 (설정값을 그대로 따른다)', () => {
+        expect(wrapSkipTarget(d, 1, DUR, LAST_SE + PAD - 0.01, BUF)).toBeNull();
+        expect(wrapSkipTarget(d, 1, DUR, LAST_SE + PAD, BUF)).not.toBeNull();
+    });
+
+    it('설정 슬라이더 전 범위에서 동작이 일관된다', () => {
+        for (const pad of [TAIL_PAD_MIN, 0.5, TAIL_PAD_MAX]) {
+            expect(wrapSkipTarget(d, 1, DUR, LAST_SE + pad - 0.01, BUF, pad), `pad=${pad}`).toBeNull();
+            expect(wrapSkipTarget(d, 1, DUR, LAST_SE + pad, BUF, pad), `pad=${pad}`).not.toBeNull();
+        }
+    });
+
+    it('꼬리가 짧으면(3초 이하) 건드리지 않고 자연스럽게 끝낸다', () => {
+        // 대사끝 905.0, 길이 908.0 → 꼬리 3.0초 = 경계값(초과가 아니므로 미발동)
+        expect(wrapSkipTarget(d, 1, LAST_SE + GAP_SKIP_MIN, LAST_SE + PAD + 0.1, BUF)).toBeNull();
+        // 3초를 넘기는 순간부터 발동
+        expect(wrapSkipTarget(d, 1, LAST_SE + GAP_SKIP_MIN + 0.1, LAST_SE + PAD + 0.1, BUF)).not.toBeNull();
+    });
+
+    it('대사 끝이 감지 안 된 문장이면 기존 동작 그대로(null)', () => {
+        const noDetect = [{ seconds: 12.0 }, { seconds: 900.0 }];
+        expect(wrapSkipTarget(noDetect, 1, DUR, 920, BUF)).toBeNull();
+    });
+
+    it('메타데이터 전(duration 0/NaN)에는 되감지 않는다', () => {
+        expect(wrapSkipTarget(d, 1, 0, LAST_SE + PAD + 0.1, BUF)).toBeNull();
+        expect(wrapSkipTarget(d, 1, NaN, LAST_SE + PAD + 0.1, BUF)).toBeNull();
+    });
+
+    it('되감기가 아니게 되는 경우엔 발동하지 않는다 (무한 점프 방지)', () => {
+        // 정렬이 깨져 data[0]이 마지막 문장보다 뒤에 있는 데이터.
+        // 방어가 없으면 '앞으로' 점프해 버리고, 그 자리에서 조건이 다시 성립해 무한 점프가 된다.
+        // (speechEnd가 아예 무효인 데이터는 여기 오기 전에 걸러지므로 이 줄을 밟지 못한다 —
+        //  실제로 그런 입력으로 테스트했다가 변이가 안 잡혀서 이 케이스로 바꿨다.)
+        const unsorted = [{ seconds: 900.0, speechEnd: 905.0 }, { seconds: 12.0, speechEnd: 15.0 }];
+        expect(wrapSkipTarget(unsorted, 1, DUR, 15.0 + PAD + 0.1, BUF)).toBeNull();
+    });
+
+    it('첫 문장이 0초 근처면 음수로 가지 않는다', () => {
+        const early = [{ seconds: 0.1, speechEnd: 3.0 }, { seconds: 900.0, speechEnd: 905.0 }];
+        expect(wrapSkipTarget(early, 1, DUR, LAST_SE + PAD + 0.1, BUF)).toBe(0);
+    });
+
+    it('잘못된 입력에도 터지지 않는다', () => {
+        expect(wrapSkipTarget(null, 1, DUR, 920, BUF)).toBeNull();
+        expect(wrapSkipTarget(d, 99, DUR, 920, BUF)).toBeNull();
+        expect(wrapSkipTarget(d, 1, DUR, NaN, BUF)).toBeNull();
+    });
+
+    it('되감은 직후에는 다시 발동하지 않는다 (재점프 루프 방지)', () => {
+        const target = wrapSkipTarget(d, 1, DUR, LAST_SE + PAD + 0.1, BUF);
+        expect(wrapSkipTarget(d, 1, DUR, target, BUF)).toBeNull();
     });
 });
