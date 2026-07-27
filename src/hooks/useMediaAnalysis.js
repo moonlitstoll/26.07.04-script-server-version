@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
-import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds } from '../services/gemini';
+import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
@@ -861,7 +861,9 @@ export const useMediaAnalysis = ({
      * 병합은 스냅샷이 아니라 '최신 상태' 위에 한다 — 감지가 도는 몇 분 사이 Stage 2가
      * 분석을 채워 넣어도 덮어쓰지 않고, 문장별 seconds 일치 검사로 인덱스 어긋남도 방어.
      */
-    const detectSpeechEndsForFile = async (fileId, { onlyMissing = false } = {}) => {
+    // indices: 특정 문장 인덱스만 재감지(선택 재감지 A2). 넘기면 onlyMissing은 무시하고 그 문장들만
+    //   — 이미 감지됐어도(부정확·포기) 포함해 새 값으로 덮어쓴다. 오디오는 문장별 클립만 전송(비용 비례).
+    const detectSpeechEndsForFile = async (fileId, { onlyMissing = false, indices = null } = {}) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return false;
@@ -893,19 +895,39 @@ export const useMediaAnalysis = ({
             let duration = 0;
             try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
 
-            // onlyMissing: 유효한 speechEnd가 아직 없는 문장만 골라 재감지 —
-            // 이미 감지된 문장은 목록에서 빼서(덮어쓸 일 없음) 모델이 빠진 문장에만 집중하게 한다.
+            // 선택 재감지(indices): 그 인덱스만. 이미 done이어도 포함해 덮어쓴다(부정확한 걸 고치는 게 목적).
             // onlyMissing: 유효 speechEnd가 없고 '아직 포기 표시도 안 된' 문장만 재요청
-            // (speechEndSkipped = 이미 시도했는데 모델이 판단 못 한 구간 → 반복 요청해봐야 비용만 든다)
+            //   — 이미 감지된 문장은 목록에서 빼서(덮어쓸 일 없음) 모델이 빠진 문장에만 집중하게 한다.
+            //   (speechEndSkipped = 이미 시도했는데 모델이 판단 못 한 구간 → 반복 요청해봐야 비용만 든다)
+            const idxSet = Array.isArray(indices) ? new Set(indices) : (indices instanceof Set ? indices : null);
+            // [블록 정합] 같은 seconds를 공유하는 형제 문장(분할된 한 덩어리)은 blockSpeechEnd가 '최댓값'으로
+            // 묶어 쓴다. 한 형제만 고치면 다른 형제의 옛 값이 남아 블록 skip이 안 바뀔 수 있으므로,
+            // 선택된 인덱스의 같은-seconds 형제를 모두 포함해 블록 단위로 재감지한다(형제는 같은 클립 → 추출 1회).
+            let effIdxSet = idxSet;
+            if (idxSet) {
+                const selSecs = new Set([...idxSet].map(i => snapshot[i]?.seconds).filter(v => typeof v === 'number'));
+                effIdxSet = new Set(idxSet);
+                snapshot.forEach((d, i) => { if (selSecs.has(d.seconds)) effIdxSet.add(i); });
+            }
             const sentences = snapshot
                 .map((d, i) => ({ index: i, seconds: d.seconds, text: d.text, done: validSpeechEnd(d) !== null || !!d.speechEndSkipped }))
-                .filter(s => !onlyMissing || !s.done)
+                .filter(s => effIdxSet ? effIdxSet.has(s.index) : (!onlyMissing || !s.done))
                 .map(({ index, seconds, text }) => ({ index, seconds, text }));
             if (sentences.length === 0) {
-                if (showToast) showToast({ message: '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: 'success' });
-                return true;
+                if (showToast) showToast({ message: idxSet ? '선택한 문장을 찾지 못했어요.' : '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: idxSet ? 'error' : 'success' });
+                return !idxSet;
             }
-            const ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
+            // 선택 재감지는 클립만(비용 비례), 전체/누락 감지는 오디오 통째(기존).
+            let ends;
+            if (idxSet) {
+                // 각 문장의 '다음 대사 시작'(자기보다 시각이 큰 첫 문장) — 클립 끝 경계로 쓴다.
+                const allStarts = snapshot.map(d => d.seconds);
+                const nextStartOf = (sec) => { let best = null; for (const t of allStarts) if (t > sec && (best === null || t < best)) best = t; return best; };
+                const withNext = sentences.map(s => ({ ...s, nextStart: nextStartOf(s.seconds) }));
+                ends = await detectSpeechEndsByClips(fileForAnalysis, apiKey, stage1Model, withNext, { mediaSrc: targetUrl, duration });
+            } else {
+                ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
+            }
 
             // 최신 상태에 병합. 채택 조건(환각 방어): 시작+MIN_SPEECH_SEC 이후, MAX_SENTENCE_SEC 이내, 영상 길이 이내.
             // 스냅샷과 seconds가 다른 문장(감지 중 재전사/삭제됨)은 건너뛴다.
@@ -997,7 +1019,17 @@ export const useMediaAnalysis = ({
             // 미감지 문장이 남았으면 '그 문장들만' 재감지하는 액션 제공 (기감지분은 안 건드림)
             const remaining = latestData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length;
             if (showToast) {
-                if (remaining > 0) {
+                if (idxSet) {
+                    // 선택 재감지: 고른 문장만 다시 잰 것 — 전체 개수/미감지 배지 문구를 쓰지 않는다.
+                    // 판단 불가(SKIP)로 안 바뀐 문장은 '기존값 유지'임을 솔직히 알린다(확인창의 '교체' 약속 보정).
+                    const kept = sentences.length - applied;
+                    showToast({
+                        message: kept > 0
+                            ? `선택 ${sentences.length}개 중 ${applied}개 반영 · ${kept}개는 판단 불가로 기존값 유지`
+                            : `선택한 ${sentences.length}개 문장의 대사 끝을 다시 감지했어요.`,
+                        type: 'success', duration: 6000,
+                    });
+                } else if (remaining > 0) {
                     showToast({
                         message: `대사 구간 감지 완료 (${applied}/${sentences.length}문장 · 미감지 ${remaining}개)`,
                         type: 'success',

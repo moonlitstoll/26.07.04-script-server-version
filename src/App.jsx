@@ -571,6 +571,24 @@ const App = () => {
     });
   };
 
+  // 선택 문장의 '대사만'(대사 끝 시각)만 다시 감지 — 문장 글자·타임스탬프는 그대로.
+  // 들어보니 대사만이 이상한(안 넘어가는) 문장만 골라 고칠 때. 그 문장 주변 오디오만 전송(비용 비례).
+  const confirmDetectSpeech = () => {
+    if (!activeFile || selectedIdxs.size === 0) return;
+    if (speechDetectBusy) return; // 다른 감지 진행 중이면 무반응+선택소실이 되므로 차단(칩/배지 핸들러와 동일 패턴)
+    const idxs = [...selectedIdxs];
+    const fileId = activeFile.id;
+    showConfirm({
+      message: `선택한 ${idxs.length}개 문장의 '대사 끝나는 지점'만 다시 감지해 '대사만' 건너뛰기를 고칩니다. 문장 글자·번역·분석은 그대로예요. (그 구간 오디오만 전송, 감지되면 기존 값을 새로 바꿔요) 진행할까요?`,
+      confirmText: '대사만 다시',
+      danger: false,
+      onConfirm: () => {
+        detectSpeechEndsForFile(fileId, { indices: idxs });
+        exitSelectMode();
+      },
+    });
+  };
+
   // [캐시 버저닝] 낡은 분석을 최신 규칙으로 전체 재분석 (전사·타임스탬프는 보존, 분석만 다시).
   const confirmReanalyzeAll = () => {
     if (!activeFile || transcriptData.length === 0) return;
@@ -1040,6 +1058,14 @@ const App = () => {
                           className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Languages size={14} /> 분석
+                        </button>
+                        <button
+                          onClick={confirmDetectSpeech}
+                          disabled={selectedIdxs.size === 0 || speechDetectBusy === activeFileId}
+                          title="선택 문장의 '대사 끝나는 지점'만 다시 감지 — 대사만이 안 넘어가는 문장 교정 (글자·분석 그대로, 그 구간 오디오만 전송)"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <FastForward size={14} /> 대사만
                         </button>
                         <button
                           onClick={confirmRetranscribe}

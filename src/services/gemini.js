@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav, snapSegmentToSilence } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { parseStage2Response } from "./stage2Parser";
+import { clipWindowForDetection } from "../utils/speechSegments";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
@@ -1150,7 +1151,10 @@ export function parseSpeechEndResponse(text) {
  * @param {Array<{index:number, seconds:number, text:string}>} sentences
  * @returns {Promise<Map<number, number>>} index → 대사 끝 시각(초). 판단 불가 문장은 빠짐.
  */
-export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signal = null } = {}) {
+// audioBlobOverride: 넘기면 extractAudioBlob(file) 대신 이 오디오를 그대로 쓴다(전체 대신 클립).
+// 이때 sentences[].seconds는 '그 오디오 기준' 시각이어야 하고, 반환 Map도 그 기준으로 나온다.
+// (절대↔클립 변환은 호출자 몫 — detectSpeechEndsByClips가 담당. 이 함수는 타임라인에 무지하다.)
+export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signal = null, audioBlobOverride = null } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     if (!sentences || sentences.length === 0) return new Map();
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -1161,8 +1165,8 @@ export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signa
         safetySettings
     }, { apiVersion: "v1beta" });
 
-    console.log(`[SpeechEnd] model: ${modelName}, ${sentences.length}문장 감지 시작`);
-    const audioBlob = await extractAudioBlob(file);
+    console.log(`[SpeechEnd] model: ${modelName}, ${sentences.length}문장 감지 시작${audioBlobOverride ? ' (클립)' : ''}`);
+    const audioBlob = audioBlobOverride || await extractAudioBlob(file);
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
 
@@ -1236,5 +1240,79 @@ ${list}`;
         }
     }
     throw lastError || new Error('Speech-end detection failed');
+}
+
+/**
+ * [A2 · 선택 문장 대사끝 재감지 — 클립 전용]
+ * 선택 문장 각각의 '주변 짧은 구간'만 잘라 detectSpeechEnds에 넘긴다. 전체 오디오를 매번
+ * 올리는 detectSpeechEnds와 달리 업로드가 '고른 구간 길이'에 비례해 비용이 준다.
+ * 클립은 0-기준이라 문장 시작을 (절대 - winStart)로 낮춰 보내고, 받은 끝 시각에 winStart를
+ * 더해 절대 시각으로 되돌린다 → 반환은 detectSpeechEnds와 동일: Map<원본 index, 절대 끝(초)>.
+ * 클립 경계에서 대사가 끝나는 지점을 재므로, 다음 대사 근처에서 클립이 끝나 '음악까지 대사로
+ * 세는' 오답 여지가 오히려 줄어든다(전체 오디오 방식보다 유리).
+ * @param {Array<{index:number, seconds:number, text:string, nextStart:(number|null)}>} sentences
+ *   nextStart = 다음 대사 시작 절대초(없으면 null → 파일 끝/상한).
+ * @param {{signal?, mediaSrc?, duration?}} opts mediaSrc=실시간 캡처용 URL(실패 시 전체추출 폴백).
+ */
+export async function detectSpeechEndsByClips(file, apiKey, modelId, sentences, { signal = null, mediaSrc = null, duration = 0 } = {}) {
+    const out = new Map();
+    if (!sentences || sentences.length === 0) return out;
+
+    // 클립 추출 전략(구간 재전사 extractWindow와 동일): 실시간 캡처 우선, 실패 시 전체추출 후 슬라이스.
+    let wholeBlob = null; let captureBroken = false;
+    const getWhole = async () => {
+        if (wholeBlob) return wholeBlob;
+        wholeBlob = await extractAudioBlob(file);
+        if (!wholeBlob || wholeBlob.size < 1024) throw new Error(`오디오 데이터가 비어 있음 (size=${wholeBlob?.size || 0}B)`);
+        return wholeBlob;
+    };
+    const extractWindowRaw = async (winStart, winDur) => {
+        if (mediaSrc && !captureBroken) {
+            try { return await captureSegmentWav(mediaSrc, winStart, winDur); }
+            catch (e) {
+                console.warn('[SpeechEndClip] 실시간 캡처 실패, 전체추출 폴백:', e && e.message);
+                if (/차단|autoplay/.test((e && e.message) || '')) captureBroken = true;
+            }
+        }
+        return await extractSegmentWav(await getWhole(), winStart, winDur);
+    };
+    // 같은-시각 블록의 형제 문장은 창이 동일하다 → 동일 구간을 한 번만 추출(실시간 캡처는 재생시간만큼 걸림).
+    const clipCache = new Map();
+    const extractWindow = async (winStart, winDur) => {
+        const key = `${Math.round(winStart * 1000)}_${Math.round(winDur * 1000)}`;
+        if (clipCache.has(key)) return clipCache.get(key);
+        const blob = await extractWindowRaw(winStart, winDur); // 실패 시 throw 전파(캐시 안 함)
+        clipCache.set(key, blob);
+        return blob;
+    };
+
+    for (const s of sentences) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const { winStart, winDur, offset } = clipWindowForDetection(s.seconds, s.nextStart, duration);
+        if (!(winDur > 0)) continue;
+        let clip;
+        try {
+            clip = await extractWindow(winStart, winDur);
+        } catch (e) {
+            console.warn(`[SpeechEndClip] index ${s.index} 클립 추출 실패 → 건너뜀:`, e && e.message);
+            continue;
+        }
+        // 클립 기준 시각으로 낮춰 보내고(모델이 0-기준 오디오에서 문장을 찾게), 받은 값에 offset을 더해 되돌린다.
+        const clipSentence = [{ index: s.index, seconds: Math.max(0, s.seconds - offset), text: s.text }];
+        // [부분 성공 보존] 모델 호출이 (지속적 503 등으로) 던져도 이미 성공한 out을 버리지 않는다 —
+        // 그 문장만 건너뛰고 계속. 병합은 값이 없는 문장을 speechEndSkipped로 자연 처리(기존값 유지).
+        // 단, 사용자 취소(AbortError)는 전체 중단이라 그대로 전파한다.
+        let clipEnds;
+        try {
+            clipEnds = await detectSpeechEnds(file, apiKey, modelId, clipSentence, { signal, audioBlobOverride: clip });
+        } catch (e) {
+            if (e?.name === 'AbortError') throw e;
+            console.warn(`[SpeechEndClip] index ${s.index} 감지 실패 → 건너뜀:`, e && e.message);
+            continue;
+        }
+        const rel = clipEnds.get(s.index);
+        if (typeof rel === 'number' && Number.isFinite(rel)) out.set(s.index, rel + offset);
+    }
+    return out;
 }
 

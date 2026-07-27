@@ -7,8 +7,10 @@
 import { describe, it, expect } from 'vitest';
 import {
     gapSkipTarget, wrapSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd, clampTailPad,
+    clipWindowForDetection,
     GAP_SKIP_MIN, SPEECH_TAIL_PAD, MIN_SPEECH_SEC, MAX_SENTENCE_SEC,
     TAIL_PAD_MIN, TAIL_PAD_MAX,
+    CLIP_DETECT_PAD_START, CLIP_DETECT_PAD_END,
 } from '../speechSegments';
 
 const PAD = SPEECH_TAIL_PAD;
@@ -317,5 +319,82 @@ describe('wrapSkipTarget — 마지막 문장 뒤 엔딩 음악', () => {
     it('되감은 직후에는 다시 발동하지 않는다 (재점프 루프 방지)', () => {
         const target = wrapSkipTarget(d, 1, DUR, LAST_SE + PAD + 0.1, BUF);
         expect(wrapSkipTarget(d, 1, DUR, target, BUF)).toBeNull();
+    });
+});
+
+// 선택 문장만 '대사만' 재감지(A2)할 때, 그 문장 주변만 잘라 보내기 위한 창·오프셋 계산.
+// 가장 중요한 건 '오프셋 왕복' — 클립은 0-기준이라 (절대-offset)로 낮춰 보내고 (+offset)으로 되돌리는데
+// 이 산수가 틀리면 대사끝이 통째로 밀린다. 단정엔 상수(CLIP_DETECT_*)만 쓴다(하드코딩 금지).
+describe('clipWindowForDetection — 선택 재감지 클립 창 + 오프셋', () => {
+    const PS = CLIP_DETECT_PAD_START;
+    const PE = CLIP_DETECT_PAD_END;
+    // 상한 창 길이 = 앞여유 + 문장 최대 지속 + 뒤여유. 병합의 MAX_SENTENCE_SEC와 같은 출처를 참조.
+    const MAXLEN = PS + MAX_SENTENCE_SEC + PE;
+
+    it('정상: 앞 padStart / 다음 대사 뒤 padEnd로 창을 잡고 offset=winStart', () => {
+        const w = clipWindowForDetection(100, 110, 900);
+        expect(w.winStart).toBeCloseTo(100 - PS, 6);
+        expect(w.offset).toBe(w.winStart);
+        expect(w.winStart + w.winDur).toBeCloseTo(110 + PE, 6);
+    });
+
+    it('오프셋 불변식: offset===winStart 이고 창이 문장 시작~실제 끝을 담는다', () => {
+        // (E-offset)+offset===E 같은 항등식은 offset이 틀려도 통과하는 '빈 테스트'다.
+        // 실제로 코드가 의존하는 건 offset===winStart(클립 0-기준↔절대 변환의 일관성)이므로 그걸 못박는다.
+        const blockStart = 300, nextStart = 320, E = 305.4; // E=실제 대사끝
+        const w = clipWindowForDetection(blockStart, nextStart, 900);
+        expect(w.offset).toBe(w.winStart);                       // ← 변환 일관성(깨지면 대사끝이 밀린다)
+        expect(w.winStart).toBeLessThanOrEqual(blockStart);      // 문장 시작이 창 안
+        expect(w.winStart + w.winDur).toBeGreaterThan(E);        // 실제 끝도 창 안
+        const clipRelStart = blockStart - w.offset;              // 클립 기준 문장 시작
+        expect(clipRelStart).toBeGreaterThanOrEqual(0);          // 음수 아님
+        expect(clipRelStart).toBeLessThanOrEqual(PS + 1e-9);     // 앞 여유(padStart)만큼만 안쪽
+    });
+
+    it('마지막 문장(다음 대사 없음): 창 끝은 파일 끝', () => {
+        const w = clipWindowForDetection(890, null, 900);
+        expect(w.winStart).toBeCloseTo(890 - PS, 6);
+        expect(w.winStart + w.winDur).toBeCloseTo(900, 6);
+    });
+
+    it('긴 공백은 상한으로 제한 — 창이 무한정 커지지 않는다', () => {
+        const w = clipWindowForDetection(100, 300, 900); // 다음 대사가 200초 뒤
+        expect(w.winDur).toBeCloseTo(MAXLEN, 6);
+    });
+
+    it('상한이 MAX_SENTENCE_SEC와 정렬 — 병합이 받는 최대 끝(시작+MAX)이 클립 안에 들어온다', () => {
+        // 병합은 se-시작 <= MAX_SENTENCE_SEC 인 값을 저장한다. 그 최댓값(시작+MAX)이 창 밖이면
+        // 클립 방식이 유효한 긴 대사끝을 잘라버린다(회귀). 그런 일이 없어야 한다.
+        const blockStart = 100;
+        const w = clipWindowForDetection(blockStart, 300, 900);
+        const maxAcceptedEnd = blockStart + MAX_SENTENCE_SEC; // 병합이 받아들이는 가장 늦은 유효 끝
+        expect(w.winStart + w.winDur).toBeGreaterThanOrEqual(maxAcceptedEnd);
+    });
+
+    it('문장 시작이 0 근처면 winStart는 0으로 클램프(음수 방지)', () => {
+        const w = clipWindowForDetection(0.5, 5, 900);
+        expect(w.winStart).toBe(0);
+        expect(w.offset).toBe(0);
+        expect(0.5 - w.offset).toBeGreaterThanOrEqual(0);
+    });
+
+    it('창 끝은 duration을 절대 넘지 않는다(오염된 nextStart도)', () => {
+        const w = clipWindowForDetection(898, 905, 900); // nextStart>duration
+        expect(w.winStart + w.winDur).toBeLessThanOrEqual(900);
+    });
+
+    it('duration을 모르면(0) nextStart+padEnd로 잡고 상한만 적용', () => {
+        const w = clipWindowForDetection(100, 110, 0);
+        expect(w.winStart + w.winDur).toBeCloseTo(110 + PE, 6);
+    });
+
+    it('다음 대사 시작이 자기 이하(오염)면 duration까지로 폴백(+상한)', () => {
+        const w = clipWindowForDetection(100, 90, 900);
+        expect(w.winDur).toBeCloseTo(MAXLEN, 6);
+    });
+
+    it('잘못된 blockStart(NaN·음수)는 winDur 0 → 호출부에서 건너뜀', () => {
+        expect(clipWindowForDetection(NaN, 110, 900).winDur).toBe(0);
+        expect(clipWindowForDetection(-5, 110, 900).winDur).toBe(0);
     });
 });

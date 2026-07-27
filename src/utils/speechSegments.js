@@ -111,6 +111,39 @@ export const wrapSkipTarget = (data, lastIdx, duration, now, bufferTime, tailPad
     return target;
 };
 
+// ─────────────────────────────────────────────────────────────
+// [선택 문장 대사끝 재감지 — 클립 창 계산] (A2)
+// '대사만'이 이상한 문장만 골라 speechEnd를 다시 감지할 때, 오디오 전체가 아니라 그 문장
+// 주변 짧은 구간만 잘라 보내기 위한 창 계산. 순수 함수라 오프셋 왕복을 테스트로 못 박는다.
+//   - winStart: 자를 구간의 시작(초, 절대). 문장 시작 앞으로 padStart만큼 여유(문장 위치 잡기).
+//   - winEnd  : 다음 대사 시작 + padEnd (그 사이에 '대사 끝'이 있으니 거기까지 들으면 충분).
+//               다음 대사가 없으면(마지막 문장) 파일 끝. 상한은 '문장 최대 지속'(maxSentence)로 잡는다.
+//   - offset  : = winStart. 클립은 0-기준이므로 감지에 넘길 문장 시작은 (절대 - offset),
+//               모델이 답한 끝 시각은 (+ offset)으로 되돌린다.
+// [상한 = MAX_SENTENCE_SEC 정렬] 병합(useMediaAnalysis)이 받아들이는 유효 끝은 최대 '시작+MAX_SENTENCE_SEC'.
+// 상한을 winStart 기준(blockStart-padStart+60)으로 잡으면 padStart만큼 앞당겨져, 병합은 받는데 클립엔
+// 안 담기는 (블록시작+58.5, 60] 구간이 잘렸다. 그래서 상한을 blockStart 기준 + padEnd로 잡아 두 검증의
+// 출처(MAX_SENTENCE_SEC)를 하나로 맞춘다 → 유효한 대사 끝은 항상 클립 안.
+// 반환 winDur가 0이면 자를 게 없다는 뜻(호출부에서 건너뜀).
+export const CLIP_DETECT_PAD_START = 1.5;
+export const CLIP_DETECT_PAD_END = 1.5;
+export const clipWindowForDetection = (blockStart, nextStart, duration, {
+    padStart = CLIP_DETECT_PAD_START, padEnd = CLIP_DETECT_PAD_END, maxSentence = MAX_SENTENCE_SEC,
+} = {}) => {
+    if (!Number.isFinite(blockStart) || blockStart < 0) return { winStart: 0, winDur: 0, offset: 0 };
+    const hasDur = Number.isFinite(duration) && duration > 0;
+    const winStart = Math.max(0, blockStart - padStart);
+    // 끝 경계: 다음 대사 시작 + 여유 → 없으면 파일 끝 → 그것도 모르면 문장 최대 지속 + 여유.
+    let winEnd;
+    if (Number.isFinite(nextStart) && nextStart > blockStart) winEnd = nextStart + padEnd;
+    else if (hasDur && duration > blockStart) winEnd = duration;
+    else winEnd = blockStart + maxSentence + padEnd;
+    winEnd = Math.min(winEnd, blockStart + maxSentence + padEnd); // 상한(병합 MAX_SENTENCE_SEC와 동일 출처)
+    if (hasDur) winEnd = Math.min(winEnd, duration);              // 파일 끝을 넘지 않게
+    const winDur = Math.max(0, winEnd - winStart);
+    return { winStart, winDur, offset: winStart };
+};
+
 // 묶음 반복 중 '지금 문장(m)의 대사가 끝났고 다음 문장(nm)까지 간격이 길면' 건너뛸 목표 시각.
 // 건너뛰지 않아야 하면 null. now는 현재 재생 시각, bufferTime은 시작 쪽 여유.
 // tailPad: 끝쪽 여유(설정값). 생략 시 기본 상수.
