@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav, snapSegmentToSilence } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
+import { parseStage2Response } from "./stage2Parser";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
@@ -19,7 +20,6 @@ const disableThinkingConfig = (modelName) =>
 const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;
 const SCREEN_TEXT_PATTERNS = /^(Phim:|Film:|Movie:|Sub:|Subtitle:|Ngu\u1ed3n:|Source:|[[({]?(Music|Nh\u1ea1c|\uc74c\uc545|Sound|Effect|Laughter|Applause|Noise|Silence|ti\u1ebfng|background|audio|\u0111\u1ed9ng|thanh)[[)}]?)[:\s-]*$/i;
 const BRACKET_DESCRIPTION_PATTERN = /^[[({][^\]})]+[\]})]$/i;
-const ANALYSIS_PREFIX_STRIP = /^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i;
 
 // [RECITATION 회피] 분절 기호: 출력 단어 사이에 삽입했다가 파싱 시 제거해
 // "연속 일치"를 끊어 저작권/표절 필터를 우회한다. 실제 음성엔 없는 희귀 기호 권장.
@@ -1060,38 +1060,9 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         : '';
     const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}${forceSplitRule}\n\n분석할 문장 목록:\n${flow}`;
 
-    // 마커별 파싱 (동작 불변 — 성공 응답 처리 방식 그대로)
-    const parseResponse = (text) => {
-        const results = [];
-        for (const item of items) {
-            const startMarker = `--- [INDEX: ${item.index}] START ---`;
-            const endMarker = `--- [INDEX: ${item.index}] END ---`;
-
-            const startIndex = text.indexOf(startMarker);
-            const endIndex = text.indexOf(endMarker);
-
-            if (startIndex !== -1 && endIndex !== -1) {
-                const subText = text.substring(startIndex + startMarker.length, endIndex);
-                const translationMatch = subText.match(/\[번역\]\s*(.*)/);
-                const analysisLines = [...subText.matchAll(/\[분석\]\s*(.*)/g)]
-                    .map(m => m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim());
-                // [전사의심] (규칙 15, 선택 출력): 문맥상 오전사가 의심될 때만 모델이 남기는 한 줄.
-                // 없으면 빈 문자열 — 이 줄이 없는 응답/옛 캐시와 완전 호환.
-                const suspectMatch = subText.match(/\[전사의심\]\s*(.*)/);
-
-                results.push({
-                    index: item.index,
-                    translation: translationMatch ? translationMatch[1].trim() : "",
-                    analysis: analysisLines.join("\n").trim(),
-                    transcriptSuspect: suspectMatch ? suspectMatch[1].trim() : ""
-                });
-            } else {
-                console.warn(`[Stage 2] Could not find markers for index ${item.index}`);
-                results.push({ index: item.index, translation: "", analysis: "", failed: true });
-            }
-        }
-        return results;
-    };
+    // 마커별 파싱은 순수 함수 parseStage2Response(stage2Parser.js)로 분리 — 단위 테스트 대상.
+    // 끝 경계를 '자기 END'와 '바로 다음 문장 START' 중 먼저 오는 쪽으로 잘라, 모델이 END 마커를
+    // 응답 끝에 몰아 출력해도 뒤 문장 [분석]을 삼키지 않는다(문장별 분석 누적 오류 수정).
 
     // 타임아웃 + 재시도(백오프). 성공 시 파싱 결과 반환, 최종 실패 시 failed 마킹(기존과 동일).
     const attemptTimeoutMs = stage2TimeoutMs(items.length, resolvedModel);
@@ -1112,7 +1083,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
             //  cached>0 이면 암시적 캐싱(프리픽스 75% 할인) 적중 중, think>0 이면 Pro thinking 청구.
             const u = response.usageMetadata;
             if (u) console.log(`[Stage2 tokens] ${resolvedModel} in=${u.promptTokenCount} out=${u.candidatesTokenCount} cached=${u.cachedContentTokenCount ?? 0} think=${u.thoughtsTokenCount ?? 0} (${items.length}문장${forceSplit ? ', 강제분할' : ''})`);
-            return parseResponse(response.text());
+            return parseStage2Response(response.text(), items);
         } catch (error) {
             lastError = error;
             if (signal?.aborted) throw new DOMException('Aborted', 'AbortError'); // 사용자 취소 → 재시도 없음
