@@ -5,17 +5,21 @@ import { parseStage2Response } from "./stage2Parser";
 import { clipWindowForDetection } from "../utils/speechSegments";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
-import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID } from "../constants/models";
+import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID, getThinkingLevel } from "../constants/models";
 
 const resolveModel = (modelId) =>
     VALID_MODELS.find(m => m === modelId) || DEFAULT_MODEL_ID;
 
 // 2.5 계열은 thinking 토큰을 아끼려 budget 0으로 끄지만, 2.5 Pro는 'thinking 전용' 모델이라
 // budget 0을 주면 400(Budget 0 is invalid)이 난다. 따라서 Pro는 끄지 않는다(기본 thinking 사용).
-const disableThinkingConfig = (modelName) =>
-    (modelName.includes('2.5') && !modelName.includes('pro'))
+// 3.x 계열은 끌 수 없고 thinkingLevel로 가장 낮은 단계까지만 내린다(models.js의 모델별 값).
+const disableThinkingConfig = (modelName) => {
+    const level = getThinkingLevel(modelName);
+    if (level) return { thinkingConfig: { thinkingLevel: level } };
+    return (modelName.includes('2.5') && !modelName.includes('pro'))
         ? { thinkingConfig: { thinkingBudget: 0 } }
         : {};
+};
 
 // [모듈 레벨 상수] 정규식 패턴 및 유틸 — 호출마다 재컴파일/재생성 방지
 const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;

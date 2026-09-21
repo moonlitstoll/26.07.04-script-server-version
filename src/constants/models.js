@@ -8,6 +8,12 @@
 //  - shortName: 비교표에 표시되는 짧은 이름
 //  - badge: 셀렉터 뱃지 라벨 ('' 이면 없음)
 //  - stage2Concurrency: Stage 2(분석) 동시 요청 수
+//  - thinkingLevel: (3.x 전용) 생각 단계. 3.x는 2.5의 thinkingBudget:0 대신 이 값으로 가장 낮게 내린다.
+//    모델마다 허용 단계가 다르다(3.7/3.8은 'minimal' 없음 → 'low'). 없으면 모델 기본값.
+//
+// [2026-09 실측] 3.8 Flash·3.5 Flash Lite는 전사에서 여러 문장을 한 줄로 뭉쳐(최대 56~57단어)
+// '1줄 1문장' 규칙을 어겨 제외했다(Lite는 시각도 ~9초 어긋남). 목록이 전사·분석·재전사 공용이라
+// 분석만 잘하는 모델을 넣으면 전사용으로 잘못 고를 수 있다.
 //  - info: 비교표용 { s1(전사등급), s2(분석등급), rpm, rpd, desc }
 
 export const MODELS = [
@@ -36,20 +42,22 @@ export const MODELS = [
         info: { s1: 'B+', s2: 'A', rpm: '4K', rpd: '무제한', desc: '대량 배치에 최적. RPM 넉넉' },
     },
     {
-        id: 'gemini-2-flash',
-        name: 'Gemini 2 Flash',
-        shortName: '2 Flash',
-        badge: '',
-        stage2Concurrency: 3,
-        info: { s1: 'A-', s2: 'B+', rpm: '2K', rpd: '무제한', desc: '안정적 폴백용' },
-    },
-    {
         id: 'gemini-3.5-flash',
         name: 'Gemini 3.5 Flash',
         shortName: '3.5 Flash',
+        badge: '',
+        stage2Concurrency: 3,
+        thinkingLevel: 'minimal',
+        info: { s1: 'A', s2: 'A+', rpm: '1K', rpd: '10K', desc: '전사 2~3배 빠름. 숫자 병기 규칙 준수' },
+    },
+    {
+        id: 'gemini-3.6-flash',
+        name: 'Gemini 3.6 Flash',
+        shortName: '3.6 Flash',
         badge: '최신',
         stage2Concurrency: 3,
-        info: { s1: '?', s2: 'A+', rpm: '1K', rpd: '10K', desc: '최신 모델. 전사 안정성 미검증' },
+        thinkingLevel: 'minimal',
+        info: { s1: 'A', s2: 'A+', rpm: '?', rpd: '?', desc: '실측 최상. 전사 빠르고 문장 분리 정확' },
     },
 ];
 
@@ -66,4 +74,10 @@ export const DEFAULT_STAGE2_CONCURRENCY = 3;
 export function getStage2Concurrency(modelId) {
     const m = MODELS.find(x => x.id === modelId);
     return m ? m.stage2Concurrency : DEFAULT_STAGE2_CONCURRENCY;
+}
+
+// 3.x 생각 단계 (없으면 null)
+export function getThinkingLevel(modelId) {
+    const m = MODELS.find(x => x.id === modelId);
+    return m?.thinkingLevel || null;
 }

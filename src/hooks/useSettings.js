@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { clampLoopGroupSize } from '../utils/loopGroups';
 import { SPEECH_TAIL_PAD, clampTailPad } from '../utils/speechSegments';
+import { MODEL_IDS } from '../constants/models';
 
 const DEFAULTS = {
     apiKey: '',
@@ -58,12 +59,16 @@ const STORAGE_KEYS = {
 
 // export: 저장값 파싱 규칙(기본값·화이트리스트·범위)을 테스트가 직접 검증하기 위함.
 // 앱 코드에서는 useSettings 초기화에만 쓴다.
+// 목록에서 빠진 모델(예: 서비스 종료된 gemini-2-flash)이 저장돼 있으면 기본값으로.
+// 안 그러면 설정창에 아무 모델도 선택 안 된 채로 보인다(호출은 gemini.js가 기본값으로 폴백).
+const validModel = (saved, fallback) => (MODEL_IDS.includes(saved) ? saved : fallback);
+
 export function loadFromStorage() {
     return {
         apiKey: localStorage.getItem(STORAGE_KEYS.apiKey) || import.meta.env.VITE_GEMINI_API_KEY || DEFAULTS.apiKey,
-        stage1Model: localStorage.getItem(STORAGE_KEYS.stage1Model) || DEFAULTS.stage1Model,
-        stage2Model: localStorage.getItem(STORAGE_KEYS.stage2Model) || DEFAULTS.stage2Model,
-        stage3Model: localStorage.getItem(STORAGE_KEYS.stage3Model) || DEFAULTS.stage3Model,
+        stage1Model: validModel(localStorage.getItem(STORAGE_KEYS.stage1Model), DEFAULTS.stage1Model),
+        stage2Model: validModel(localStorage.getItem(STORAGE_KEYS.stage2Model), DEFAULTS.stage2Model),
+        stage3Model: validModel(localStorage.getItem(STORAGE_KEYS.stage3Model), DEFAULTS.stage3Model),
         // parseFloat(...) || DEFAULT 패턴은 저장값 0을 falsy로 삼켜 기본값으로 되돌린다.
         // Number.isFinite로 검사해 유효한 0(예: bufferTime 0 = 여유 없이 시작)을 존중한다.
         bufferTime: (() => { const n = parseFloat(localStorage.getItem(STORAGE_KEYS.bufferTime)); return Number.isFinite(n) ? n : DEFAULTS.bufferTime; })(),
