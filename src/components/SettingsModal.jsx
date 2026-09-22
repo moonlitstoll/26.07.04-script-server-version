@@ -75,15 +75,17 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     <button
                         key={m.id}
                         onClick={() => updateField(field, m.id)}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${config[field] === m.id
+                        className={`flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-xl border transition-all ${config[field] === m.id
                             ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm'
                             : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'
                             }`}
                     >
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm">{m.name}</span>
+                        {/* 휴대폰에서 이름·표시가 글자 중간에서 끊기지 않게: 각 조각은 한 줄 고정,
+                            자리가 모자라면 조각 단위로 아랫줄로 내려간다 */}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+                            <span className="text-sm whitespace-nowrap">{m.name}</span>
                             {m.badge && (
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight ${
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight whitespace-nowrap ${
                                     m.badge === '추천' ? 'bg-indigo-100 text-indigo-600' :
                                     m.badge === '최고품질' ? 'bg-emerald-100 text-emerald-600' :
                                     m.badge === '대량처리' ? 'bg-amber-100 text-amber-600' :
@@ -92,9 +94,9 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                     'bg-slate-100 text-slate-500'
                                 }`}>{m.badge}</span>
                             )}
-                            {m.notice && <span className="text-[10px] font-bold text-rose-500">{m.notice}</span>}
+                            {m.notice && <span className="text-[10px] font-bold text-rose-500 whitespace-nowrap">{m.notice}</span>}
                         </div>
-                        {config[field] === m.id && <Check size={14} className="text-indigo-600" />}
+                        {config[field] === m.id && <Check size={14} className="text-indigo-600 shrink-0" />}
                     </button>
                 ))}
             </div>
@@ -104,14 +106,14 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div className="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="bg-slate-100 p-2 rounded-xl">
                             <Settings size={20} className="text-slate-600" />
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-slate-900">Settings</h2>
-                            <p className="text-xs text-slate-500 font-medium">Gemini AI & Model Configuration</p>
+                            <p className="text-xs text-slate-500 font-medium">AI 모델 설정</p>
                         </div>
                     </div>
                     <button onClick={onClose} aria-label="설정 닫기" className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
@@ -119,7 +121,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     </button>
                 </div>
 
-                <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="p-4 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                     {/* API Key */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -195,7 +197,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     {/* Stage 1 Model */}
                     <div className="space-y-3">
                         {renderModelSelector(
-                            'Stage 1 — 음성 전사 (Transcription)',
+                            'Stage 1 — 음성 전사',
                             'text-indigo-700',
                             'stage1Model'
                         )}
@@ -204,7 +206,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     {/* Stage 2 Model */}
                     <div className="space-y-3 pt-4 border-t border-slate-50">
                         {renderModelSelector(
-                            'Stage 2 — 번역/분석 (Translation & Analysis)',
+                            'Stage 2 — 번역/분석',
                             'text-purple-700',
                             'stage2Model'
                         )}
@@ -213,7 +215,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     {/* Stage 3 Model — 재전사/재분석 전용 */}
                     <div className="space-y-3 pt-4 border-t border-slate-50">
                         {renderModelSelector(
-                            'Stage 3 — 재전사 · 재분석 (Re-do)',
+                            'Stage 3 — 재전사 · 재분석',
                             'text-rose-700',
                             'stage3Model'
                         )}
@@ -562,7 +564,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     )}
                 </div>
 
-                <div className="p-6 bg-slate-50 flex gap-3">
+                <div className="p-4 sm:p-6 bg-slate-50 flex gap-3">
                     <button
                         onClick={handleCancel}
                         className="flex-1 py-3 text-slate-600 font-bold hover:bg-white rounded-2xl transition-all"
@@ -573,7 +575,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         onClick={onClose}
                         className="flex-[2] py-3 text-white font-bold rounded-2xl transition-all shadow-lg bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
                     >
-                        현재 AI 설정값을 기본값으로 저장
+                        저장
                     </button>
                 </div>
             </div>

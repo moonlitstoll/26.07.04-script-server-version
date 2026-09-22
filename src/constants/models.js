@@ -36,7 +36,7 @@ export const MODELS = [
         shortName: '2.5 Pro',
         badge: '최고품질',
         // 2026-09 실측(10분 영상 환산): 2.5 Flash 약 210원 vs 2.5 Pro 약 1,670원. 생각 기능을 끌 수 없어 토큰도 1.6배.
-        notice: '비쌈 · 2.5 Flash의 약 8배',
+        notice: '비쌈 · 8배', // 휴대폰 한 줄에 들어가게 짧게(기준: 2.5 Flash)
         stage2Concurrency: 2,
         info: { s1: 'S', s2: 'S', rpm: '150', rpd: '1K', desc: '최고 품질. 긴 영상엔 한도 주의' },
     },
