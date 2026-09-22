@@ -5,8 +5,10 @@ import { MODEL_IDS } from '../constants/models';
 
 const DEFAULTS = {
     apiKey: '',
-    stage1Model: 'gemini-2.5-flash',
-    stage2Model: 'gemini-2.5-flash',
+    // 전사(+대사 감지). 2026-09 실측: 3.6이 가장 정확·2배↑ 빠르고, 소리 입력 단계는 2.5 Flash보다 싸다.
+    // ⚠️ 3.6은 2027-01-01부터 가격 2배 → 그때는 2.5 Flash가 더 싸다. 되돌릴지 재검토할 것.
+    stage1Model: 'gemini-3.6-flash',
+    stage2Model: 'gemini-2.5-flash', // 분석은 글 출력이 많아 출력 단가가 낮은 2.5 Flash가 3.6의 약 60% 요금
     stage3Model: 'gemini-3.6-flash', // 재전사/재분석 전용. 예전 기본값 2.5 Pro는 실측 요금이 약 6배라 교체(2026-09)
     bufferTime: 0.3,
     temperature: 0.5,
