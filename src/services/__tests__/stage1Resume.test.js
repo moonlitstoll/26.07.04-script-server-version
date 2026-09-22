@@ -292,6 +292,21 @@ describe('실제 이어받기 루프 — 끊기지 않으면 예전과 똑같다
     });
 });
 
+describe('실제 파서 — 숫자 병기 폭주 정리 (stage1Line.js)', () => {
+    it('실측 사례: 단어마다 "(1)"이 붙어 온 줄은 괄호를 지워 저장한다', async () => {
+        const t = setup([{ steps: [{
+            text: L(421.07, 'Hôm nay(1) là(1) còn(1) thừa(1) một(1) nghìn(1.000) mình(1.000) không(1.000) mua(1.000) cơm(1.000).')
+                + L(428.28, 'Thế nên là mình quyết định rút một nghìn(1.000) ra để mua cái miếng bí này của bà mình.'),
+            finish: 'STOP',
+        }] }], { segEnd: 961.07, hardLimit: 961.07 });
+        const out = await t.run();
+        expect(out.map(m => m.text)).toEqual([
+            'Hôm nay là còn thừa một nghìn mình không mua cơm.',
+            'Thế nên là mình quyết định rút một nghìn(1.000) ra để mua cái miếng bí này của bà mình.', // 정상 병기는 그대로
+        ]);
+    });
+});
+
 describe('실제 이어받기 루프 — 끊겼을 때', () => {
     it('실측 사례: 조용히 닫힌 스트림을 2:18.6부터 이어받아 빠진 가사를 채운다', async () => {
         const t = setup([{ steps: FIRST_CUT_STEPS }, { steps: CONT_OK_STEPS }]);

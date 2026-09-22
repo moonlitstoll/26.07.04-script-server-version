@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav, snapSegmentToSilence } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { parseStage2Response } from "./stage2Parser";
-import { LINE_REGEX, lineTimeToSeconds } from "./stage1Line";
+import { LINE_REGEX, lineTimeToSeconds, stripRunawayNumberAnnotations } from "./stage1Line";
 import {
     StreamIncompleteError, isStreamComplete, isResumableStreamError, isServerBusyError,
     isRecitationBlock, isRunawayRepeat, recitationBlockedMessage,
@@ -419,6 +419,8 @@ async function transcribeStream(model, parts, {
         let content = match[3].trim();
         // [RECITATION 회피] 모델이 단어 사이에 끼운 분절 기호를 제거 → 원문 그대로 복원
         if (stripMarker) content = stripMarker(content);
+        // 숫자 병기가 모든 단어로 번진 줄("Hôm nay(1) là(1) …")은 숫자 괄호를 지운다(stage1Line.js)
+        content = stripRunawayNumberAnnotations(content);
         if (!content || content.length < 2) return null;
 
         if (SCREEN_TEXT_PATTERNS.test(content)) return null;

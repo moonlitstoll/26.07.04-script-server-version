@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LINE_REGEX, lineTimeToSeconds } from '../stage1Line';
+import { LINE_REGEX, lineTimeToSeconds, stripRunawayNumberAnnotations } from '../stage1Line';
 
 const parse = (line) => {
     const m = line.match(LINE_REGEX);
@@ -38,5 +38,29 @@ describe('Stage 1 줄 형식 인식', () => {
 
     it('시각 없는 줄은 무시', () => {
         expect(parse('Không có thời gian ở đây')).toBeNull();
+    });
+});
+
+// 실측(2026-09, 휴대폰 화면): 16분 영상 전체 대본의 문장마다 숫자 괄호가 모든 단어로 번졌다
+describe('숫자 병기 폭주 정리', () => {
+    it('실측 사례: 단어마다 붙은 "(1)"·"(1.000)"을 지운다', () => {
+        expect(stripRunawayNumberAnnotations('Hôm nay(1) là(1) còn(1) thừa(1) một(1) nghìn(1.000) mình(1.000) không(1.000) mua(1.000) cơm(1.000).'))
+            .toBe('Hôm nay là còn thừa một nghìn mình không mua cơm.');
+        expect(stripRunawayNumberAnnotations('Nhưng mà(1) bà(1) mình(1) cứ(1) gạ(1) gẫm(1) rủ(1) dê(1) mình(1) là(1) mày(1) mua(1) miếng(1) bí(1) đi(1) bà(1) bán(1) rẻ(1) cho(1).'))
+            .toBe('Nhưng mà bà mình cứ gạ gẫm rủ dê mình là mày mua miếng bí đi bà bán rẻ cho.');
+        expect(stripRunawayNumberAnnotations('Thế nên(1) là(1) mình(1) quyết(1) định(1) rút(1) một(1) nghìn(1.000) ra(1.000) để(1.000) mua(1.000) cái(1.000) miếng(1.000) bí(1.000) này(1.000) của(1.000) bà(1.000)'))
+            .toBe('Thế nên là mình quyết định rút một nghìn ra để mua cái miếng bí này của bà');
+    });
+
+    it('정상 병기는 그대로 둔다 (같은 영상을 다시 전사한 실측 줄)', () => {
+        const ok = [
+            'Đây là mười nghìn(10.000) và trong bảy(7) ngày tới mình sẽ dùng nó để sống sót qua mười bốn(14) bữa ăn.',
+            'Luật một(1) không tiêu quá mười nghìn(10.000) một(1) bữa.',
+            'Mình mua thêm một(1) quả trứng với cà chua hết bốn nghìn(4.000).',
+            'Hôm nay là còn thừa một nghìn(1.000), mình không mua cơm.',
+            'Năm(5) nghìn(1.000) một(1) túi riêng.', // 단어마다 붙은 씨앗이지만 값이 이어지지 않아 폭주는 아님
+            'Tổng điểm được năm phẩy sáu sáu(5,66) trên(/) mười(10).', // 프롬프트 예시
+        ];
+        for (const s of ok) expect(stripRunawayNumberAnnotations(s)).toBe(s);
     });
 });
