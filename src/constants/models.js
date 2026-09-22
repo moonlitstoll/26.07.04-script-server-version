@@ -7,6 +7,7 @@
 //  - name: 셀렉터에 표시되는 전체 이름
 //  - shortName: 비교표에 표시되는 짧은 이름
 //  - badge: 셀렉터 뱃지 라벨 ('' 이면 없음)
+//  - notice: (선택) 뱃지 옆 경고 문구. 고르기 전에 알아야 할 것(예: 요금)
 //  - stage2Concurrency: Stage 2(분석) 동시 요청 수
 //  - thinkingLevel: (3.x 전용) 생각 단계. 3.x는 2.5의 thinkingBudget:0 대신 이 값으로 가장 낮게 내린다.
 //    모델마다 허용 단계가 다르다(3.7/3.8은 'minimal' 없음 → 'low'). 없으면 모델 기본값.
@@ -30,6 +31,8 @@ export const MODELS = [
         name: 'Gemini 2.5 Pro',
         shortName: '2.5 Pro',
         badge: '최고품질',
+        // 2026-09 실측(2분 30초 영상): 3.6 Flash 47원 vs 2.5 Pro 299원. 생각 기능을 끌 수 없어 토큰도 1.6배.
+        notice: '비쌈 · 3.6의 약 6배',
         stage2Concurrency: 2,
         info: { s1: 'S', s2: 'S', rpm: '150', rpd: '1K', desc: '최고 품질. 긴 영상엔 한도 주의' },
     },

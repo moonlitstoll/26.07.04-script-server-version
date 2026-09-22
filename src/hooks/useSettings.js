@@ -7,7 +7,7 @@ const DEFAULTS = {
     apiKey: '',
     stage1Model: 'gemini-2.5-flash',
     stage2Model: 'gemini-2.5-flash',
-    stage3Model: 'gemini-2.5-pro', // 재전사/재분석 전용 (기본은 정밀 모델 Pro)
+    stage3Model: 'gemini-3.6-flash', // 재전사/재분석 전용. 예전 기본값 2.5 Pro는 실측 요금이 약 6배라 교체(2026-09)
     bufferTime: 0.3,
     temperature: 0.5,
     topP: 0.7,

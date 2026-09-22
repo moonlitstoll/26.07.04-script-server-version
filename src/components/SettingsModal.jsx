@@ -91,6 +91,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                     'bg-slate-100 text-slate-500'
                                 }`}>{m.badge}</span>
                             )}
+                            {m.notice && <span className="text-[10px] font-bold text-rose-500">{m.notice}</span>}
                         </div>
                         {config[field] === m.id && <Check size={14} className="text-indigo-600" />}
                     </button>
@@ -216,7 +217,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                             'stage3Model'
                         )}
                         <p className="text-[11px] text-slate-400 leading-relaxed px-1">
-                            구간 선택 후 <span className="font-bold text-slate-500">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 잘못된 부분을 정밀하게 고칠 때 고품질 모델(예: 2.5 Pro)을 권장합니다.
+                            구간 선택 후 <span className="font-bold text-slate-500">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 기본은 3.6 Flash이고, 그래도 안 고쳐지는 문장에만 2.5 Pro를 쓰면 요금을 아낄 수 있습니다.
                         </p>
                     </div>
 
