@@ -3,6 +3,11 @@ import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, c
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { parseStage2Response } from "./stage2Parser";
 import { LINE_REGEX, lineTimeToSeconds } from "./stage1Line";
+import {
+    StreamIncompleteError, isStreamComplete, isResumableStreamError, isServerBusyError,
+    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC,
+    STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
+} from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
@@ -378,8 +383,10 @@ function buildMarkerExample(mk, n) {
  *
  * @param {object} model - GenerativeModel
  * @param {Array} parts - generateContentStream 입력 ([mediaPart, prompt])
- * @param {object} opts - { segDuration, offset, hardLimit, onPartial, signal }
+ * @param {object} opts - { segDuration, offset, hardLimit, onPartial, signal, stripMarker, timeouts }
  * @returns {Promise<Array>} 절대 seconds 기준 매치 배열(미정렬)
+ * @throws {StreamIncompleteError} 스트림이 끝까지 오지 않았을 때(받은 데까지는 err.partial) —
+ *   완료 표시 없이 닫힘·스트림 안 서버 오류·연결 끊김·멈춤·출력 한도. 차단(RECITATION 등)은 기존 오류 그대로.
  */
 async function transcribeStream(model, parts, {
     segDuration = 0,
@@ -387,11 +394,10 @@ async function transcribeStream(model, parts, {
     hardLimit = 0,
     onPartial = null,
     signal = null,
-    stripMarker = null
+    stripMarker = null,
+    timeouts = {},
 } = {}) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-
-    const streamResult = await model.generateContentStream(parts);
 
     let fullText = "";
     const matches = [];
@@ -467,40 +473,88 @@ async function transcribeStream(model, parts, {
         };
     };
 
-    for await (const chunk of streamResult.stream) {
-        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    // [방어망 1] AI 종료 마커 — 90% 이상 진행 시에만 존중 (조기 종료 방지). 이른 마커는 무시하고 계속 받는다.
+    const markerEnds = () => (segDuration > 0 ? maxRelTime / segDuration : 1) >= 0.9;
 
-        const chunkText = chunk.text();
-        if (!chunkText) continue;
-        fullText += chunkText;
+    // [끊김 감시] 구글 서버가 과부하면 스트림을 도중에 닫거나 멈춘다(stage1Resume.js 머리말).
+    //  - 첫 조각은 넉넉히(Pro는 답 전에 오래 생각), 이후 조각 사이가 idle을 넘으면 '멈춤'으로 보고 끊는다.
+    //  - 사용자 중단 신호를 SDK 요청에도 연결한다 — 예전엔 조각 사이에서만 중단을 확인해,
+    //    멈춘 스트림은 '전사 중단' 버튼도 먹지 않았다.
+    const firstChunkMs = timeouts.firstChunkMs ?? STREAM_FIRST_CHUNK_TIMEOUT_MS;
+    const idleMs = timeouts.idleMs ?? STREAM_IDLE_TIMEOUT_MS;
+    const ctrl = new AbortController();
+    const unlink = linkAbort(ctrl, signal);
+    let stalled = false;
+    let watchdog = null;
+    const arm = (ms) => {
+        clearTimeout(watchdog);
+        watchdog = setTimeout(() => { stalled = true; ctrl.abort(); }, ms);
+    };
+    let finishReason = null;   // 정상 완료면 마지막 조각에 STOP이 붙는다
+    let endedByMarker = false; // 90% 이후 [END_OF_AUDIO]를 받아 우리가 먼저 끝냄
+    let inBandError = null;    // 스트림 안에 실려 온 서버 오류 조각 {"error":…}
 
-        // [방어망 1] AI 종료 마커 감지 — 90% 이상 진행 시에만 존중 (조기 종료 방지)
-        if (fullText.includes('[END_OF_AUDIO]')) {
-            const progressRatio = segDuration > 0 ? maxRelTime / segDuration : 1;
-            if (progressRatio >= 0.9) {
-                break;
-            } else {
-                fullText = fullText.replace('[END_OF_AUDIO]', '');
+    try {
+        arm(firstChunkMs);
+        const streamResult = await model.generateContentStream(parts, { signal: ctrl.signal });
+        // 집계용 promise는 쓰지 않는다 — 스트림이 끊기면 거부되어 '처리 안 된 오류' 소음만 남긴다
+        streamResult.response?.catch?.(() => {});
+
+        for await (const chunk of streamResult.stream) {
+            arm(idleMs);
+            if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+            if (chunk.error) { inBandError = chunk.error; break; }
+            const fr = chunk.candidates?.[0]?.finishReason;
+            if (fr) finishReason = fr;
+
+            const chunkText = chunk.text(); // RECITATION·SAFETY 차단이면 여기서 던진다(기존 안내 유지)
+            if (!chunkText) continue;
+            fullText += chunkText;
+
+            // [증분 파싱] 완성된 줄만 처리, 마지막 미완성 줄은 다음 chunk로 이월.
+            // 종료 마커는 '줄 단위'로 본다 — 마커와 같은 조각에 온 앞줄들도 빠짐없이 처리하고,
+            // 진행률도 그 줄들까지 반영한 값으로 판정한다(예전엔 조각째 끊어 앞줄 일부를 흘렸다).
+            const lines = fullText.split('\n');
+            fullText = lines.pop() || "";
+            for (const line of lines) {
+                if (line.includes('[END_OF_AUDIO]')) {
+                    if (markerEnds()) { endedByMarker = true; break; }
+                    continue;
+                }
+                const parsed = parseLine(line);
+                if (parsed) matches.push(parsed);
+            }
+            // 줄바꿈 없이 끝난 마커(스트림 마지막 조각)
+            if (!endedByMarker && fullText.includes('[END_OF_AUDIO]') && markerEnds()) endedByMarker = true;
+            if (endedByMarker) break;
+
+            const now = Date.now();
+            if (onPartial && matches.length > 0 && now - lastProgressTime > PROGRESS_INTERVAL) {
+                lastProgressTime = now;
+                onPartial([...matches]);
             }
         }
-
-        // [증분 파싱] 완성된 줄만 처리, 마지막 미완성 줄은 다음 chunk로 이월
-        const lines = fullText.split('\n');
-        fullText = lines.pop() || "";
-
-        for (const line of lines) {
-            const parsed = parseLine(line);
-            if (parsed) matches.push(parsed);
-        }
-
-        const now = Date.now();
-        if (onPartial && matches.length > 0 && now - lastProgressTime > PROGRESS_INTERVAL) {
-            lastProgressTime = now;
-            onPartial([...matches]);
-        }
+    } catch (err) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        if (!stalled && !isResumableStreamError(err)) throw err;
+        if (onPartial && matches.length > 0) onPartial([...matches]);
+        const reason = stalled ? 'stall' : (isServerBusyError(err) ? 'server' : 'network');
+        throw new StreamIncompleteError(reason, [...matches], stalled ? null : err);
+    } finally {
+        clearTimeout(watchdog);
+        unlink();
     }
 
-    if (fullText.trim()) {
+    if (inBandError || !isStreamComplete({ finishReason, endedByMarker })) {
+        // 끝까지 안 온 스트림 — 줄바꿈 전 마지막 조각은 잘린 글자일 수 있어 버린다
+        if (onPartial && matches.length > 0) onPartial([...matches]);
+        const cause = inBandError
+            ? Object.assign(new Error(inBandError.message || 'stream error'), { status: inBandError.code })
+            : null;
+        throw new StreamIncompleteError(inBandError ? 'server' : (finishReason || 'cut'), [...matches], cause);
+    }
+
+    if (!endedByMarker && fullText.trim() && !fullText.includes('[END_OF_AUDIO]')) {
         const parsed = parseLine(fullText);
         if (parsed) matches.push(parsed);
     }
@@ -508,6 +562,110 @@ async function transcribeStream(model, parts, {
     if (onPartial && matches.length > 0) onPartial([...matches]);
 
     return matches;
+}
+
+/**
+ * [끊김 이어받기] 전사 스트림이 도중에 끊기면(서버 과부하·멈춤·연결 끊김) 받은 데까지는 두고,
+ * 마지막으로 받은 줄의 시작부터 구간 끝까지만 다시 받아 잇는다(stage1Resume.js 참조).
+ * 끊기지 않으면 transcribeStream을 한 번 부른 것과 똑같다(요청·결과·비용 불변).
+ *
+ * @param {object} opts
+ *  - segStart/segEnd: 이 요청이 맡은 구간(절대 초). firstParts의 오디오가 이 구간이다.
+ *  - cutAudio(start, dur): 이어받을 구간 오디오(Blob)를 잘라 주는 함수(start = 절대 초)
+ *  - onIncomplete({at, reason}): 끝내 다 못 받았을 때 알림(받은 데까지는 반환한다)
+ *  - makePart/backoffMs/timeouts: 테스트 주입용(기본값이 실제 동작)
+ * 테스트가 가짜 모델로 이 '실제' 루프를 돌리기 위해 export 한다.
+ */
+export async function transcribeWithResume(model, firstParts, {
+    segStart = 0,
+    segEnd = 0,
+    hardLimit = 0,
+    onPartial = null,
+    signal = null,
+    stripMarker = null,
+    cutAudio = null,
+    makePart = null,
+    apiKey = '',
+    antiRecitation = false,
+    markerChar = DEFAULT_RECITATION_MARKER,
+    markerInterval = 2,
+    onIncomplete = null,
+    backoffMs = (attempt) => Math.min(8000, 2000 * 2 ** attempt),
+    timeouts = {},
+    label = 'Stage 1',
+} = {}) {
+    const toPart = makePart || ((blob) => blobToGeminiPart(blob, apiKey));
+    const fullDuration = segEnd > segStart ? segEnd - segStart : 0;
+
+    // 이음매 정리: 이어받은 첫 줄 머리에 '바로 앞 문장'이 붙어 오면 그 겹친 단어를 잘라낸다
+    // (구간 재전사의 경계 정리와 같은 규칙). 실측: 앞 문장 "Thôi xin hẹn năm sau." 다음에
+    // 이어받은 첫 줄이 "Thôi xin hẹn năm sau trái tim không còn buồn…"으로 왔다.
+    const stitch = (p, cont) => {
+        const prev = p.keep.length ? textOf(p.keep[p.keep.length - 1]) : '';
+        const sorted = [...(cont || [])].sort((a, b) => a.seconds - b.seconds);
+        if (prev && sorted.length > 0) {
+            const first = sorted[0];
+            const t = trimBoundaryOverlap(textOf(first), prev, 'lead');
+            if (t !== textOf(first)) sorted[0] = { ...first, o: t, text: t };
+        }
+        return spliceResume(p, sorted);
+    };
+    let parts = firstParts;
+    let offset = segStart;
+    let duration = fullDuration;
+    let plan = null; // 진행 중인 이어받기 계획(null = 원래 요청)
+
+    const giveUp = (received, err, at) => {
+        if (received.length === 0) throw err.cause || err; // 한 줄도 못 받음 → 조용한 빈 결과 대신 오류
+        if (onIncomplete) onIncomplete({ at, reason: err.reason });
+        console.warn(`[${label}] 스트림 끊김(${err.reason}) — 다 받지 못함, ${formatTime(at)} 이전 ${received.length}줄까지 사용`);
+        return received;
+    };
+
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const got = await transcribeStream(model, parts, {
+                segDuration: duration, offset, hardLimit, signal, stripMarker, timeouts,
+                onPartial: onPartial ? (p) => onPartial(plan ? [...plan.keep, ...p] : p) : null,
+            });
+            return plan ? stitch(plan, got) : got;
+        } catch (err) {
+            if (!(err instanceof StreamIncompleteError)) throw err;
+
+            const received = plan
+                ? stitch(plan, err.partial)
+                : [...err.partial].sort((a, b) => a.seconds - b.seconds);
+            const next = planResume(received, segStart, segEnd);
+            if (!next) {
+                if (segEnd > 0) return received; // 끝 1초 안쪽에서 끊김 — 남은 게 없다
+                return giveUp(received, err, received.length ? received[received.length - 1].seconds : segStart);
+            }
+            if (attempt >= RESUME_MAX_ATTEMPTS || (received.length > 0 && !cutAudio)) {
+                return giveUp(received, err, next.resumeAt);
+            }
+
+            // 서버가 과부하·한도를 알렸으면 잠깐 기다린다(멈춤·연결 끊김은 바로 다시)
+            if (isServerBusyError(err.cause)) await abortableSleep(backoffMs(attempt), signal);
+
+            if (received.length === 0) {
+                // 한 줄도 못 받았다 → 원래 요청을 그대로 다시(오디오를 다시 자를 필요 없음)
+                parts = firstParts; offset = segStart; duration = fullDuration; plan = null;
+            } else {
+                const winStart = Math.max(segStart, next.resumeAt - RESUME_PAD_SEC);
+                const winDur = segEnd - winStart;
+                try {
+                    const clip = await cutAudio(winStart, winDur);
+                    parts = [await toPart(clip), buildStage1Prompt(winDur, antiRecitation, markerChar, markerInterval, { before: next.context, after: [] })];
+                } catch (cutErr) {
+                    if (cutErr?.name === 'AbortError') throw cutErr;
+                    console.warn(`[${label}] 이어받을 구간 오디오 준비 실패:`, cutErr && cutErr.message);
+                    return giveUp(received, err, next.resumeAt);
+                }
+                offset = winStart; duration = winDur; plan = next;
+            }
+            console.warn(`[${label}] 스트림 끊김(${err.reason}) → ${formatTime(next.resumeAt)}부터 이어받기 (${attempt + 1}/${RESUME_MAX_ATTEMPTS})`);
+        }
+    }
 }
 
 // replacements(Map: index→[items])를 반영해 새 배열을 만든다.
@@ -862,6 +1020,7 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
     chunkEnabled = false,
     chunkMinutes = 10,
     realignEnabled = true,
+    onIncomplete = null, // ({at, reason}) — 스트림이 끊겨 이어받기로도 끝까지 못 받았을 때
 } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -904,16 +1063,21 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
 
                 const mediaPart = await blobToGeminiPart(chunks[i].blob, apiKey);
                 const prompt = buildStage1Prompt(chunks[i].durationSec, antiRecitation, markerChar, markerInterval);
+                const chunk = chunks[i];
 
-                const chunkMatches = await transcribeStream(model, [mediaPart, prompt], {
-                    segDuration: chunks[i].durationSec,
-                    offset: chunks[i].offsetSec,
+                const chunkMatches = await transcribeWithResume(model, [mediaPart, prompt], {
+                    segStart: chunk.offsetSec,
+                    segEnd: chunk.offsetSec + chunk.durationSec,
                     hardLimit: totalDuration,
                     onPartial: (partial) => {
                         if (onProgress) onProgress([...allMatches, ...partial]);
                     },
                     signal,
                     stripMarker,
+                    apiKey, antiRecitation, markerChar, markerInterval, onIncomplete,
+                    // 이어받을 구간은 이 청크 오디오 안에서 자른다(청크 기준 시각으로 변환)
+                    cutAudio: (start, dur) => extractSegmentWav(chunk.blob, start - chunk.offsetSec, dur),
+                    label: `Stage 1 청크 ${i + 1}/${chunks.length}`,
                 });
 
                 allMatches = [...allMatches, ...chunkMatches];
@@ -928,13 +1092,15 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
 
             if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-            allMatches = await transcribeStream(model, [mediaPart, dynamicPrompt], {
-                segDuration: totalDuration,
-                offset: 0,
+            allMatches = await transcribeWithResume(model, [mediaPart, dynamicPrompt], {
+                segStart: 0,
+                segEnd: totalDuration,
                 hardLimit: totalDuration,
                 onPartial: onProgress,
                 signal,
-                stripMarker
+                stripMarker,
+                apiKey, antiRecitation, markerChar, markerInterval, onIncomplete,
+                cutAudio: (start, dur) => extractSegmentWav(audioBlob, start, dur),
             });
         }
 
@@ -968,8 +1134,13 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
         if (errStr.includes("RECITATION")) {
             throw new Error("[오류: 저작권/표절 필터링] 오디오에 유명 노래 가사나 연설문 등 기존 데이터와 완벽히 일치하는 내용이 감지되어 구글 AI가 생성을 차단했습니다. 1. 이 오디오 특정 구간(노래 등)을 잘라내거나, 2. 다른 모델(예: 1.5 Pro)을 선택해서 시도해 보세요.");
         }
-        if (errStr.includes("reading from the stream") || errStr.includes("QUIC") || errStr.includes("Failed to parse stream")) {
-            throw new Error("[오류: 구글 서버 네트워크 불안정] AI 서버와의 스트리밍 연결이 끊어졌습니다. 네트워크 상태를 확인하고 '다시 시도' 버튼을 눌러주세요.");
+        // 여기까지 왔다면 transcribeWithResume가 이미 자동으로 다시 받아 봤는데도 한 줄도 못 받은 경우다
+        if (errStr.includes("reading from the stream") || errStr.includes("QUIC") || errStr.includes("Failed to parse stream")
+            || err instanceof StreamIncompleteError) {
+            throw new Error(`[오류: 구글 서버 연결 끊김] AI 서버와의 연결이 계속 끊겼습니다(자동으로 ${RESUME_MAX_ATTEMPTS}번 다시 받아 봄). 대개 구글 서버가 붐빌 때 생깁니다. 잠시 후 '다시 시도' 버튼을 눌러주세요.`);
+        }
+        if (/\b503\b|UNAVAILABLE|overloaded/i.test(errStr)) {
+            throw new Error(`[오류: 구글 서버 과부하] 구글 AI 서버가 지금 붐빕니다(자동으로 ${RESUME_MAX_ATTEMPTS}번 다시 보내 봄). 잠시 후 '다시 시도' 버튼을 눌러주세요.`);
         }
         throw new Error(`API Error (Stage 1): ${errStr}`);
     }

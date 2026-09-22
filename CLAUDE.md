@@ -22,7 +22,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 ### 테스트 (`src/utils/__tests__/`)
 
-순수 함수 유틸만 덮는다 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식), `stage1Resume`(스트림 끊김 판정·이어받기, 가짜 모델로 `gemini.js`의 실제 루프까지). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
 
 **테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
 
@@ -31,6 +31,8 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 - 검증 방법: 상수를 일부러 옛 값으로 되돌리고 `npm test`가 **실패하는지** 본다. 4개 변이(`SPEECH_TAIL_PAD`/`MIN_SPEECH_SEC`/`GAP_SKIP_MIN`/graft 덮어쓰기 가드)가 각각 잡히는 것을 확인해 뒀다.
 
 **Stage 1 줄 형식 인식은 `services/stage1Line.js`(순수 모듈, 테스트 有)로 분리했다** — `LINE_REGEX`가 `[HH:MM:SS.ms]`도 받는다. 프롬프트는 `MM:SS.ms`를 지시하지만 3.6 Flash가 1분 이후 `[00:01:04.47]`로 쓰는 이탈이 실측됐고(3회 중 1회), 옛 패턴은 `00:01`만 읽어 1분 이후 문장이 전부 1초→57초 근처로 몰리고 대본에 `04.47] [Speaker D] ||`가 섞였다. 테스트는 옛 패턴으로 되돌리면 실패한다(확인함).
+
+**Stage 1 스트림 끊김 이어받기는 `services/stage1Resume.js`(순수) + `gemini.js#transcribeWithResume`(실제 루프, 테스트용 export)** — `__tests__/stage1Resume.test.js`가 **가짜 모델로 실제 루프를 돌린다**(gemini.js는 node에서 import 된다 — SDK·ffmpeg import에 부작용 없음 확인). 끊김 판정을 옛 동작('끝나면 다 받음')으로 되돌리면 5건, 멈춤 감시를 끄면 2건, 이음매 정리를 빼면 1건 실패한다(확인함).
 
 **알려진 공백**: `gemini.js`의 나머지 응답 파서와 `useMediaAnalysis`의 감지 병합 로직은 함수로 분리돼 있지 않아 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
 
@@ -47,6 +49,17 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 - **Stage 2 (분석/Analysis)**: `services/gemini.js#analyzeBatchSentences` - 전사된 문장들을 25개씩 배칭하여 번역+의미 청크 분석. 동시 요청 수는 모델별 차등(Pro: 2, 기타: 3). 분석 결과 파싱 정규식은 `ANALYSIS_PREFIX_STRIP` 모듈 레벨 상수로 통합. 2.5 모델은 `thinkingBudget: 0`으로 불필요한 생각 토큰 절약. **주의: 9대 분석 규칙과 출력 형식 마커(`--- [INDEX] START/END ---`)는 반드시 user prompt에 포함해야 함. systemInstruction으로 옮기면 모델이 마커 형식을 따르지 않아 파싱 실패 발생.**
 
 프롬프트는 `services/prompts.js`에 분리되어 있으며, 9대 분석 규칙(의미 청크 통합, 한자 병기 금지, 미니멀리즘 등)이 핵심입니다. Stage 1 프롬프트에는 번역 금지 규칙과 1줄 1문장 철칙이 포함됩니다.
+
+### Stage 1 스트림 끊김 감지 + 이어받기 (2026-09)
+
+- **증상(실측)**: 노래(4:05)를 전사하면 몇 분 로딩 끝에 **오류 없이** 2:18.6 "A a"까지만 저장됐다. 끊기지 않은 실행은 3:51의 `[END_OF_AUDIO]`까지 62줄 — 폰 대본은 그 36번째 줄에서 정확히 멈춰 있었다.
+- **원인**: 구글 서버가 과부하(브라우저 기록 503)면 전사 스트림을 **도중에 끊는다**(같은 노래 3/3회, 9~19초 만에). 끊기는 방식은 ①연결 리셋(SDK가 `Error reading from the stream` — 예전엔 전사 전체 실패) ②조용히 닫힘 ③스트림 안 `{"error":…}` 조각(SDK `text()`가 `""`로 삼킴). **②③은 SDK가 '정상 종료'로 알려** 예전 코드가 절반짜리 대본을 완료로 저장했다. 노래·RECITATION 모드·모델 설정과 무관(같은 설정의 안 끊긴 실행은 22초에 끝까지).
+- **판정**: 정상 완료는 마지막 조각에 `finishReason: STOP`이 붙는다(또는 90% 이후 `[END_OF_AUDIO]`로 우리가 끊음). 이게 없으면 끊긴 것(`StreamIncompleteError`, 받은 데까지 `partial`). `MAX_TOKENS`·`OTHER`도 끊김. **RECITATION·SAFETY 차단(SDK ResponseError)과 4xx는 기존대로 오류** — 다시 보내도 같다.
+- **멈춤 감시**: 첫 조각 180초(Pro는 답 전에 오래 생각), 이후 조각 사이 60초. 사용자 중단 신호도 SDK 요청에 연결했다 — **예전엔 조각 사이에서만 중단을 확인해, 멈춘 스트림은 '전사 중단' 버튼도 먹지 않았다.**
+- **이어받기**: 마지막으로 **온전히 받은 줄(줄바꿈까지 온 줄)의 시작**부터 구간 끝까지만 잘라(앞 0.3초 여유) 다시 보낸다. 그 줄은 버리고 새로 받는다(줄 시작 = 문장 경계라 이음매가 깨끗). 끊긴 스트림의 **줄바꿈 전 마지막 조각은 잘린 글자라 버린다.** 프롬프트에 직전 두 줄을 문맥으로 넣고, 이음매에서 ①첫 줄 머리에 붙어 온 앞 문장 단어(`trimBoundaryOverlap`) ②2초 안의 같은 문장 되풀이를 제거한다(같은 말이라도 제 시각이면 보존 — 노래 후렴). 최대 3회. 한 줄도 못 받았으면 원래 요청을 그대로 재사용(오디오 재추출 없음). 서버가 503/429를 알렸을 때만 백오프.
+- **끝내 못 받으면**: 받은 데까지 반환 + `onIncomplete({at})` → `useMediaAnalysis#runStage1`이 전사 후 12초 토스트("MM:SS 이후 일부를 받지 못했어요… '복구'"). 한 줄도 못 받으면 조용한 빈 결과 대신 오류.
+- **적용 범위**: 전사(단일 패스·청크 분할)만 이어받는다. 재청취 정렬(`realignMergedBlocks`)·구간 재전사/복구(`retranscribeSegments`)는 같은 `transcribeStream`을 쓰므로 끊김이 **감지만** 되어, 재정렬은 원래 블록 유지(폴백)·재전사는 그 구간 실패로 알린다 — 예전처럼 문장이 조용히 빠지지 않는다.
+- **덤으로 고친 것**: 종료 마커를 '줄 단위'로 판정 — 예전엔 마커가 온 조각째 끊어 그 조각의 앞줄들을 흘렸다.
 
 ### 대용량 파일 지원 (File API + 청크 분할)
 
