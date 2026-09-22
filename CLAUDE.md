@@ -30,7 +30,9 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 - **단정에 상수를 그대로 쓰면 무의미해진다.** `validSpeechEnd(...10 + MIN_SPEECH_SEC)` 같은 단정은 기준을 되돌려도 같이 움직여 버그를 못 잡는다. **경계 회귀는 실측 사례를 숫자로 박아둘 것** (예: `{seconds:272.6, speechEnd:272.8}` = "À.", 04:32 구간).
 - 검증 방법: 상수를 일부러 옛 값으로 되돌리고 `npm test`가 **실패하는지** 본다. 4개 변이(`SPEECH_TAIL_PAD`/`MIN_SPEECH_SEC`/`GAP_SKIP_MIN`/graft 덮어쓰기 가드)가 각각 잡히는 것을 확인해 뒀다.
 
-**알려진 공백**: `gemini.js`의 응답 파서와 `useMediaAnalysis`의 감지 병합 로직은 함수로 분리돼 있지 않아 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
+**Stage 1 줄 형식 인식은 `services/stage1Line.js`(순수 모듈, 테스트 有)로 분리했다** — `LINE_REGEX`가 `[HH:MM:SS.ms]`도 받는다. 프롬프트는 `MM:SS.ms`를 지시하지만 3.6 Flash가 1분 이후 `[00:01:04.47]`로 쓰는 이탈이 실측됐고(3회 중 1회), 옛 패턴은 `00:01`만 읽어 1분 이후 문장이 전부 1초→57초 근처로 몰리고 대본에 `04.47] [Speaker D] ||`가 섞였다. 테스트는 옛 패턴으로 되돌리면 실패한다(확인함).
+
+**알려진 공백**: `gemini.js`의 나머지 응답 파서와 `useMediaAnalysis`의 감지 병합 로직은 함수로 분리돼 있지 않아 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
 
 배포: **Vercel이 main 브랜치 푸시를 자동 배포한다.** `git push origin main`이 곧 배포다.
 (`npm run deploy`는 안내 메시지만 출력하고 종료. `gh-pages` 브랜치는 옛 방식의 잔재 — 사용 안 함.)
@@ -181,6 +183,7 @@ Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문
 - localStorage 키는 `miniapp_` 접두사 사용 (예: `miniapp_gemini_key`, `miniapp_stage1_model`, `miniapp_anti_recitation`, `miniapp_chunk_enabled`, `miniapp_chunk_minutes`, `miniapp_loop_active`, `miniapp_playback_rate`). 학습 진행은 예외적으로 접두사 붙은 단일 키 `miniapp_learn_progress`에 `{ [fileKey]: { [stableId]: {status,seconds,miss,ts} } }` 구조로 저장. 캐시(`gemini_analysis_*`)만 접두사 없음.
 - 지원 모델: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.6-flash` (목록은 `constants/models.js` 단일 출처). `gemini-2-flash`는 2.0 Flash 서비스 종료(2026-06)로 제거 — 저장값에 남아 있으면 `useSettings`가 기본값으로 교체.
 - **3.x 모델의 생각 기능**: 2.5의 `thinkingBudget: 0` 대신 `thinkingLevel`로 가장 낮게 내린다(`models.js`의 모델별 `thinkingLevel`, 3.5/3.6은 `minimal`). 3.x는 생각을 완전히 끌 수 없다.
+- **한 번 돌린 결과로 판단하지 말 것**: 3.6 Flash는 첫 테스트에서 52문장·최대 24단어로 가장 좋았지만, 이후 4회는 34~41문장·최대 37~55단어로 문장을 뭉쳤다(같은 영상·같은 설정). 같은 모델도 실행마다 편차가 크다 — 최소 3회.
 - **새 모델 추가 전 실측 필수**: 2026-09 테스트에서 3.8 Flash·3.5 Flash Lite는 오류 없이 돌았지만 전사에서 문장을 뭉쳐(한 줄 56~57단어) '1줄 1문장'을 어겨 제외했다. 오류가 안 나는 것과 쓸 만한 것은 다르다 — 문장 수·한 줄 최대 단어 수·마지막 시각을 2.5 Flash와 비교할 것.
 - Vite 설정에서 `@ffmpeg/ffmpeg`, `@ffmpeg/util`은 optimizeDeps에서 제외 (WASM)
 

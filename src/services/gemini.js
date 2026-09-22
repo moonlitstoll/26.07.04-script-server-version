@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { extractOriginalAudio, extractAudioWav, splitAudio, extractSegmentWav, captureSegmentWav, snapSegmentToSilence } from "../utils/audioExtractor";
 import { STAGE1_PROMPT, STAGE2_BATCH_PROMPT } from "./prompts";
 import { parseStage2Response } from "./stage2Parser";
+import { LINE_REGEX, lineTimeToSeconds } from "./stage1Line";
 import { clipWindowForDetection } from "../utils/speechSegments";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
@@ -22,7 +23,6 @@ const disableThinkingConfig = (modelName) => {
 };
 
 // [모듈 레벨 상수] 정규식 패턴 및 유틸 — 호출마다 재컴파일/재생성 방지
-const LINE_REGEX = /^[\s\-*>#]*(?:\[)?(\d+:[0-9.]+)(?:\])?\s*(?:\[([^\]]+)\])?\s*(?:\|\||-\s*|\||:)?\s*(.+)/;
 const SCREEN_TEXT_PATTERNS = /^(Phim:|Film:|Movie:|Sub:|Subtitle:|Ngu\u1ed3n:|Source:|[[({]?(Music|Nh\u1ea1c|\uc74c\uc545|Sound|Effect|Laughter|Applause|Noise|Silence|ti\u1ebfng|background|audio|\u0111\u1ed9ng|thanh)[[)}]?)[:\s-]*$/i;
 const BRACKET_DESCRIPTION_PATTERN = /^[[({][^\]})]+[\]})]$/i;
 
@@ -422,16 +422,7 @@ async function transcribeStream(model, parts, {
         }
         if (!content) return null;
 
-        let relTime = 0;
-        const timeParts = rawTimeStr.replace(/[^\d:.]/g, '').split(':').reverse();
-        if (timeParts.length >= 2) {
-            const ss = parseFloat(timeParts[0]) || 0;
-            const mm = parseFloat(timeParts[1]) || 0;
-            const hh = parseFloat(timeParts[2]) || 0;
-            relTime = (hh * 3600) + (mm * 60) + ss;
-        } else {
-            relTime = parseFloat(timeParts[0]) || 0;
-        }
+        let relTime = lineTimeToSeconds(rawTimeStr);
 
         // [방어망 2] 세그먼트 길이 + 5초 초과 시 폐기 (상대 기준)
         if (segDuration > 0 && relTime > segDuration + OVERFLOW_TOLERANCE_SEC) return null;
