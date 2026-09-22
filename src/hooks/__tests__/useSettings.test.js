@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { loadFromStorage } from '../useSettings';
 import { SPEECH_TAIL_PAD, TAIL_PAD_MIN, TAIL_PAD_MAX } from '../../utils/speechSegments';
+import { MODEL_IDS } from '../../constants/models';
 
 // node 환경에는 localStorage가 없으므로 최소 스텁을 깐다.
 const store = new Map();
@@ -91,6 +92,39 @@ describe('저장값이 오염됐을 때 — 조용히 안전값으로', () => {
         expect(loadFromStorage().speechTailPad).toBe(TAIL_PAD_MIN);
         store.set('miniapp_speech_tail_pad', 'abc');
         expect(loadFromStorage().speechTailPad).toBe(SPEECH_TAIL_PAD);
+    });
+});
+
+describe('모델 선택 — 목록에서 빠진 모델이 남지 않게', () => {
+    const STAGES = [
+        ['stage1Model', 'miniapp_stage1_model'],
+        ['stage2Model', 'miniapp_stage2_model'],
+        ['stage3Model', 'miniapp_stage3_model'],
+    ];
+
+    // 기본값 자체가 목록 밖이면, 아래 '빠진 모델 → 기본값' 폴백이 목록 밖 값을 돌려준다.
+    // (2026-09: 3.6 Flash를 목록에서 빼면서 기본값이 3.6을 가리키던 상태를 같이 고쳐야 했다)
+    it('단계별 기본 모델은 모두 목록에 있다', () => {
+        const cfg = loadFromStorage();
+        for (const [field] of STAGES) expect(MODEL_IDS, field).toContain(cfg[field]);
+    });
+
+    it('서비스 종료·목록 제외된 모델이 저장돼 있으면 목록 안의 기본값으로', () => {
+        for (const removed of ['gemini-2-flash', 'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.8-flash', '']) {
+            for (const [field, key] of STAGES) {
+                store.set(key, removed);
+                expect(MODEL_IDS, `${field}=${JSON.stringify(removed)}`).toContain(loadFromStorage()[field]);
+            }
+        }
+    });
+
+    it('목록에 있는 모델을 골라 두면 그대로 유지된다', () => {
+        for (const [field, key] of STAGES) {
+            for (const id of MODEL_IDS) {
+                store.set(key, id);
+                expect(loadFromStorage()[field]).toBe(id);
+            }
+        }
     });
 });
 

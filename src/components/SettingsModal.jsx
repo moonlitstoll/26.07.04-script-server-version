@@ -88,6 +88,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                     m.badge === '최고품질' ? 'bg-emerald-100 text-emerald-600' :
                                     m.badge === '대량처리' ? 'bg-amber-100 text-amber-600' :
                                     m.badge === '최신' ? 'bg-purple-100 text-purple-600' :
+                                    m.badge === '저렴' ? 'bg-sky-100 text-sky-600' :
                                     'bg-slate-100 text-slate-500'
                                 }`}>{m.badge}</span>
                             )}
@@ -217,7 +218,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                             'stage3Model'
                         )}
                         <p className="text-[11px] text-slate-400 leading-relaxed px-1">
-                            구간 선택 후 <span className="font-bold text-slate-500">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 기본은 3.6 Flash이고, 그래도 안 고쳐지는 문장에만 2.5 Pro를 쓰면 요금을 아낄 수 있습니다.
+                            구간 선택 후 <span className="font-bold text-slate-500">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 기본은 2.5 Flash이고, 그래도 안 고쳐지는 문장에만 2.5 Pro를 쓰면 요금을 아낄 수 있습니다.
                         </p>
                     </div>
 

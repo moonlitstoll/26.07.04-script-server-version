@@ -12,9 +12,13 @@
 //  - thinkingLevel: (3.x 전용) 생각 단계. 3.x는 2.5의 thinkingBudget:0 대신 이 값으로 가장 낮게 내린다.
 //    모델마다 허용 단계가 다르다(3.7/3.8은 'minimal' 없음 → 'low'). 없으면 모델 기본값.
 //
-// [2026-09 실측] 3.8 Flash·3.5 Flash Lite는 전사에서 여러 문장을 한 줄로 뭉쳐(최대 56~57단어)
-// '1줄 1문장' 규칙을 어겨 제외했다(Lite는 시각도 ~9초 어긋남). 목록이 전사·분석·재전사 공용이라
-// 분석만 잘하는 모델을 넣으면 전사용으로 잘못 고를 수 있다.
+// [2026-09 실측, 2분 30초 베트남어 영상] 목록이 전사·분석·재전사 공용이라, 분석만 잘하는 모델을
+// 넣으면 전사용으로 잘못 고를 수 있다. 그래서 전사에서 문제가 난 모델은 뺐다.
+//  - 3.8 Flash·3.5 Flash Lite: 여러 문장을 한 줄로 뭉침(최대 56~57단어). Lite는 시각도 ~9초 어긋남.
+//  - 3.6 Flash: 5회 중 4회 뭉침(최대 37~55단어), 온도 1.0에선 3회 중 1회 오디오에 없는 말 8줄을 지어냄.
+//    1분 이후 [HH:MM:SS.ms]로 쓰는 형식 이탈도 있었다(stage1Line.js가 이제 읽는다).
+//  - 3.5 Flash: 어느 단계에서도 2.5 Flash보다 나은 점이 없는데 요금은 약 3배.
+//  - 남긴 3.1 Flash Lite: 전사 5회 모두 안정, 문장 시작 오차 보통 0.1초(2.5 Flash 0.1~0.2초).
 //  - info: 비교표용 { s1(전사등급), s2(분석등급), rpm, rpd, desc }
 
 export const MODELS = [
@@ -31,8 +35,8 @@ export const MODELS = [
         name: 'Gemini 2.5 Pro',
         shortName: '2.5 Pro',
         badge: '최고품질',
-        // 2026-09 실측(2분 30초 영상): 3.6 Flash 47원 vs 2.5 Pro 299원. 생각 기능을 끌 수 없어 토큰도 1.6배.
-        notice: '비쌈 · 3.6의 약 6배',
+        // 2026-09 실측(10분 영상 환산): 2.5 Flash 약 210원 vs 2.5 Pro 약 1,670원. 생각 기능을 끌 수 없어 토큰도 1.6배.
+        notice: '비쌈 · 2.5 Flash의 약 8배',
         stage2Concurrency: 2,
         info: { s1: 'S', s2: 'S', rpm: '150', rpd: '1K', desc: '최고 품질. 긴 영상엔 한도 주의' },
     },
@@ -45,22 +49,13 @@ export const MODELS = [
         info: { s1: 'B+', s2: 'A', rpm: '4K', rpd: '무제한', desc: '대량 배치에 최적. RPM 넉넉' },
     },
     {
-        id: 'gemini-3.5-flash',
-        name: 'Gemini 3.5 Flash',
-        shortName: '3.5 Flash',
-        badge: '',
+        id: 'gemini-3.1-flash-lite',
+        name: 'Gemini 3.1 Flash Lite',
+        shortName: '3.1 Flash Lite',
+        badge: '저렴',
         stage2Concurrency: 3,
-        thinkingLevel: 'minimal',
-        info: { s1: 'A', s2: 'A+', rpm: '1K', rpd: '10K', desc: '전사 2~3배 빠름. 숫자 병기 규칙 준수' },
-    },
-    {
-        id: 'gemini-3.6-flash',
-        name: 'Gemini 3.6 Flash',
-        shortName: '3.6 Flash',
-        badge: '최신',
-        stage2Concurrency: 3,
-        thinkingLevel: 'minimal',
-        info: { s1: 'A', s2: 'A+', rpm: '?', rpd: '?', desc: '실측 최상. 전사 빠르고 문장 분리 정확' },
+        thinkingLevel: 'minimal', // 실측: minimal에서 생각 토큰 0, 400 오류 없음
+        info: { s1: 'A', s2: 'A', rpm: '?', rpd: '?', desc: '시작 시각 가장 정확. 전사 요금 2.5 Flash의 약 절반' },
     },
 ];
 

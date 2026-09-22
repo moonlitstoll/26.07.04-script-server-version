@@ -181,9 +181,11 @@ Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문
 
 - 모든 설정은 `useSettings` 훅에서 `config` 객체로 통합 관리
 - localStorage 키는 `miniapp_` 접두사 사용 (예: `miniapp_gemini_key`, `miniapp_stage1_model`, `miniapp_anti_recitation`, `miniapp_chunk_enabled`, `miniapp_chunk_minutes`, `miniapp_loop_active`, `miniapp_playback_rate`). 학습 진행은 예외적으로 접두사 붙은 단일 키 `miniapp_learn_progress`에 `{ [fileKey]: { [stableId]: {status,seconds,miss,ts} } }` 구조로 저장. 캐시(`gemini_analysis_*`)만 접두사 없음.
-- 지원 모델: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.6-flash` (목록은 `constants/models.js` 단일 출처). `gemini-2-flash`는 2.0 Flash 서비스 종료(2026-06)로 제거 — 저장값에 남아 있으면 `useSettings`가 기본값으로 교체.
-- **3.x 모델의 생각 기능**: 2.5의 `thinkingBudget: 0` 대신 `thinkingLevel`로 가장 낮게 내린다(`models.js`의 모델별 `thinkingLevel`, 3.5/3.6은 `minimal`). 3.x는 생각을 완전히 끌 수 없다.
-- **한 번 돌린 결과로 판단하지 말 것**: 3.6 Flash는 첫 테스트에서 52문장·최대 24단어로 가장 좋았지만, 이후 4회는 34~41문장·최대 37~55단어로 문장을 뭉쳤다(같은 영상·같은 설정). 같은 모델도 실행마다 편차가 크다 — 최소 3회.
+- 지원 모델: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite` (목록은 `constants/models.js` 단일 출처). 기본값은 전사·분석·재전사 모두 `gemini-2.5-flash`. 목록에서 뺀 모델(`gemini-2-flash` 서비스 종료, `gemini-3.5-flash`·`gemini-3.6-flash` 실측 탈락)이 저장값에 남아 있으면 `useSettings`의 `validModel`이 기본값으로 교체한다 — **기본값 자체가 목록 안에 있어야 이 폴백이 성립한다**(테스트가 단정).
+- **3.x 모델의 생각 기능**: 2.5의 `thinkingBudget: 0` 대신 `thinkingLevel`로 가장 낮게 내린다(`models.js`의 모델별 `thinkingLevel`, 3.1 Flash Lite는 `minimal` — 생각 토큰 0 확인). 3.x는 생각을 완전히 끌 수 없다.
+- **한 번 돌린 결과로 판단하지 말 것**: 3.6 Flash는 첫 테스트에서 52문장·최대 24단어로 가장 좋았지만, 이후 4회는 34~41문장·최대 37~55단어로 문장을 뭉쳤다(같은 영상·같은 설정). 한 번 결과만 보고 전사 기본값으로 올렸다가 되돌렸다. 같은 모델도 실행마다 편차가 크다 — 최소 3회.
+- **3.x에 온도 1.0(구글 권장)을 줘도 해결되지 않았다**: 3.6 Flash를 1.0으로 3회 돌리자 1회는 오디오에 없는 인사말 8줄을 지어냈다(시각도 최대 20초 어긋남). '3.x는 자동으로 온도 1.0' 방식은 채택하지 않았다.
+- **시각 정확도 기준값**: `gemini-3.5-transcribe`(전사 전용, `v1beta/interactions` 엔드포인트, 파일 API 업로드 필수, 프롬프트 불가)의 단어별 시각을 정답으로 문장 시작 오차를 잰다. 2.5 Flash 보통 0.1~0.2초, 3.1 Flash Lite 0.1초, 3.6 Flash 0.3~0.4초. Transcribe 자체는 프롬프트를 못 받아 전사 규칙(1줄 1문장·숫자 병기·RECITATION 회피)을 적용할 수 없어 앱에 붙이지 않았다.
 - **새 모델 추가 전 실측 필수**: 2026-09 테스트에서 3.8 Flash·3.5 Flash Lite는 오류 없이 돌았지만 전사에서 문장을 뭉쳐(한 줄 56~57단어) '1줄 1문장'을 어겨 제외했다. 오류가 안 나는 것과 쓸 만한 것은 다르다 — 문장 수·한 줄 최대 단어 수·마지막 시각을 2.5 Flash와 비교할 것.
 - Vite 설정에서 `@ffmpeg/ffmpeg`, `@ffmpeg/util`은 optimizeDeps에서 제외 (WASM)
 
