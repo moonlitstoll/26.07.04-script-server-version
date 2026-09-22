@@ -8,7 +8,7 @@ import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd, MIN_SPEECH_SEC, MAX_SENTENCE_SEC } from '../utils/speechSegments';
-import { formatClock } from '../utils/timeUtils';
+import { incompleteNotice } from '../services/stage1Resume';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
@@ -412,11 +412,12 @@ export const useMediaAnalysis = ({
         }
         console.log(`[Stage 1] Real duration for ${file.name}: ${fileDuration}s (Temp: ${temperature}, TopP: ${topP})`);
 
-        // 서버가 스트림을 끊어 자동 이어받기로도 끝까지 못 받은 지점(가장 이른 곳). 전사가 끝난 뒤 한 번 알린다 —
-        // 예전엔 이 경우가 '정상 완료'로 조용히 저장돼, 노래 뒷부분이 빠진 걸 사용자가 직접 발견해야 했다.
-        let incompleteAt = null;
+        // 스트림이 끊겨(서버·반복 루프·저작권 차단) 자동 이어받기로도 끝까지 못 받은 지점(가장 이른 곳)과 사유.
+        // 전사가 끝난 뒤 한 번 알린다 — 예전엔 이 경우가 '정상 완료'로 조용히 저장돼,
+        // 노래 뒷부분이 빠진 걸 사용자가 직접 발견해야 했다.
+        let incomplete = null;
         const rawData = await extractTranscript(file, apiKey, stage1Model, {
-            onIncomplete: ({ at }) => { if (incompleteAt === null || at < incompleteAt) incompleteAt = at; },
+            onIncomplete: (info) => { if (!incomplete || info.at < incomplete.at) incomplete = info; },
             totalDuration: fileDuration,
             onProgress: (incrementalData) => {
                 setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: incrementalData } : p));
@@ -437,12 +438,8 @@ export const useMediaAnalysis = ({
         const data = sanitizeData(rawData, fileDuration);
         if (data.length === 0) throw new Error("Stage 1 extraction returned no valid text data.");
 
-        if (incompleteAt !== null && showToast) {
-            showToast({
-                message: `구글 서버가 불안정해 ${formatClock(incompleteAt)} 이후 일부를 받지 못했어요. 그 부근 문장을 선택하고 '복구'를 눌러 채워주세요.`,
-                type: 'error',
-                duration: 12000,
-            });
+        if (incomplete && showToast) {
+            showToast({ message: incompleteNotice(incomplete), type: 'error', duration: 12000 });
         }
 
         return data;

@@ -5,7 +5,8 @@ import { parseStage2Response } from "./stage2Parser";
 import { LINE_REGEX, lineTimeToSeconds } from "./stage1Line";
 import {
     StreamIncompleteError, isStreamComplete, isResumableStreamError, isServerBusyError,
-    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC,
+    isRecitationBlock, isRunawayRepeat, recitationBlockedMessage,
+    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC, LOOP_DUP_LINES,
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
@@ -386,7 +387,8 @@ function buildMarkerExample(mk, n) {
  * @param {object} opts - { segDuration, offset, hardLimit, onPartial, signal, stripMarker, timeouts }
  * @returns {Promise<Array>} 절대 seconds 기준 매치 배열(미정렬)
  * @throws {StreamIncompleteError} 스트림이 끝까지 오지 않았을 때(받은 데까지는 err.partial) —
- *   완료 표시 없이 닫힘·스트림 안 서버 오류·연결 끊김·멈춤·출력 한도. 차단(RECITATION 등)은 기존 오류 그대로.
+ *   완료 표시 없이 닫힘·스트림 안 서버 오류·연결 끊김·멈춤·출력 한도·반복 루프(우리가 끊음)·저작권 차단.
+ *   그 밖의 차단(SAFETY 등)과 요청 오류는 기존 오류 그대로.
  */
 async function transcribeStream(model, parts, {
     segDuration = 0,
@@ -403,6 +405,7 @@ async function transcribeStream(model, parts, {
     const matches = [];
     let prevNorm = null; // 직전 줄 정규화 텍스트 (연속 중복 검사용)
     let prevDupTime = -1; // 직전 줄의 상대 시각
+    let dupRun = 0; // 연달아 버려진 '같은 줄' 수 (반복 루프 감지용)
     let lastValidTime = -1; // 상대 시간 기준 역행 방지
     let maxRelTime = 0;
     let lastProgressTime = 0;
@@ -454,7 +457,8 @@ async function transcribeStream(model, parts, {
         const isConsecutiveDup = prevNorm === normalizedContent && (relTime - prevDupTime) <= DEDUP_WINDOW_SEC;
         prevNorm = normalizedContent;
         prevDupTime = relTime;
-        if (isConsecutiveDup) return null;
+        if (isConsecutiveDup) { dupRun++; return null; }
+        dupRun = 0;
 
         const outMm = Math.floor(absTime / 60).toString().padStart(2, '0');
         const outSs = (absTime % 60).toFixed(2).padStart(5, '0');
@@ -493,6 +497,7 @@ async function transcribeStream(model, parts, {
     let finishReason = null;   // 정상 완료면 마지막 조각에 STOP이 붙는다
     let endedByMarker = false; // 90% 이후 [END_OF_AUDIO]를 받아 우리가 먼저 끝냄
     let inBandError = null;    // 스트림 안에 실려 온 서버 오류 조각 {"error":…}
+    let looped = false;        // 모델이 같은 말을 끝없이 되풀이해 우리가 끊음
 
     try {
         arm(firstChunkMs);
@@ -523,10 +528,16 @@ async function transcribeStream(model, parts, {
                 }
                 const parsed = parseLine(line);
                 if (parsed) matches.push(parsed);
+                if (dupRun >= LOOP_DUP_LINES) { looped = true; break; }
             }
             // 줄바꿈 없이 끝난 마커(스트림 마지막 조각)
-            if (!endedByMarker && fullText.includes('[END_OF_AUDIO]') && markerEnds()) endedByMarker = true;
+            if (!endedByMarker && !looped && fullText.includes('[END_OF_AUDIO]') && markerEnds()) endedByMarker = true;
             if (endedByMarker) break;
+            // [반복 루프] 같은 말을 끝없이 되풀이하면(한 줄이 줄바꿈 없이 계속 길어지거나, 같은 줄이 계속 나옴)
+            // 토큰이 계속 와서 멈춤 감시에 안 걸리고 출력 한도까지 간다(실측 약 250초, 약 230원).
+            // 바로 연결을 끊어 서버 생성도 멈추고, 마지막으로 온전히 받은 줄부터 이어받는다.
+            if (!looped && isRunawayRepeat(fullText)) looped = true;
+            if (looped) { ctrl.abort(); break; }
 
             const now = Date.now();
             if (onPartial && matches.length > 0 && now - lastProgressTime > PROGRESS_INTERVAL) {
@@ -536,22 +547,25 @@ async function transcribeStream(model, parts, {
         }
     } catch (err) {
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-        if (!stalled && !isResumableStreamError(err)) throw err;
+        // 저작권 차단도 받은 데까지 들고 나간다 — 예전엔 차단 전까지 받은 가사를 전부 버렸다
+        const recitation = !stalled && isRecitationBlock(err);
+        if (!stalled && !recitation && !isResumableStreamError(err)) throw err;
         if (onPartial && matches.length > 0) onPartial([...matches]);
-        const reason = stalled ? 'stall' : (isServerBusyError(err) ? 'server' : 'network');
+        const reason = stalled ? 'stall' : recitation ? 'RECITATION' : (isServerBusyError(err) ? 'server' : 'network');
         throw new StreamIncompleteError(reason, [...matches], stalled ? null : err);
     } finally {
         clearTimeout(watchdog);
         unlink();
     }
 
-    if (inBandError || !isStreamComplete({ finishReason, endedByMarker })) {
-        // 끝까지 안 온 스트림 — 줄바꿈 전 마지막 조각은 잘린 글자일 수 있어 버린다
+    if (looped || inBandError || !isStreamComplete({ finishReason, endedByMarker })) {
+        // 끝까지 안 온 스트림 — 줄바꿈 전 마지막 조각은 잘린 글자(또는 반복 루프)라 버린다
         if (onPartial && matches.length > 0) onPartial([...matches]);
         const cause = inBandError
             ? Object.assign(new Error(inBandError.message || 'stream error'), { status: inBandError.code })
             : null;
-        throw new StreamIncompleteError(inBandError ? 'server' : (finishReason || 'cut'), [...matches], cause);
+        const reason = looped ? 'loop' : inBandError ? 'server' : (finishReason || 'cut');
+        throw new StreamIncompleteError(reason, [...matches], cause);
     }
 
     if (!endedByMarker && fullText.trim() && !fullText.includes('[END_OF_AUDIO]')) {
@@ -565,8 +579,8 @@ async function transcribeStream(model, parts, {
 }
 
 /**
- * [끊김 이어받기] 전사 스트림이 도중에 끊기면(서버 과부하·멈춤·연결 끊김) 받은 데까지는 두고,
- * 마지막으로 받은 줄의 시작부터 구간 끝까지만 다시 받아 잇는다(stage1Resume.js 참조).
+ * [끊김 이어받기] 전사 스트림이 도중에 끊기면(서버 과부하·멈춤·연결 끊김·반복 루프·저작권 차단)
+ * 받은 데까지는 두고, 마지막으로 받은 줄의 시작부터 구간 끝까지만 다시 받아 잇는다(stage1Resume.js 참조).
  * 끊기지 않으면 transcribeStream을 한 번 부른 것과 똑같다(요청·결과·비용 불변).
  *
  * @param {object} opts
@@ -1131,8 +1145,12 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
         if (err.name === 'AbortError') throw err;
         console.error(`Stage 1 Error: `, err);
         const errStr = String(err.message || err);
+        // 저작권 차단으로 한 줄도 못 받은 경우(받은 줄이 있으면 transcribeWithResume가 그걸 돌려주고 안내만 한다)
         if (errStr.includes("RECITATION")) {
-            throw new Error("[오류: 저작권/표절 필터링] 오디오에 유명 노래 가사나 연설문 등 기존 데이터와 완벽히 일치하는 내용이 감지되어 구글 AI가 생성을 차단했습니다. 1. 이 오디오 특정 구간(노래 등)을 잘라내거나, 2. 다른 모델(예: 1.5 Pro)을 선택해서 시도해 보세요.");
+            throw new Error(recitationBlockedMessage({ antiRecitation, markerInterval }));
+        }
+        if (err instanceof StreamIncompleteError && err.reason === 'loop') {
+            throw new Error("[오류: AI 반복 오류] AI가 첫 문장부터 같은 말을 끝없이 되풀이해 받아쓰기를 끝내지 못했습니다. 잠시 후 '다시 시도'를 눌러 주세요.");
         }
         // 여기까지 왔다면 transcribeWithResume가 이미 자동으로 다시 받아 봤는데도 한 줄도 못 받은 경우다
         if (errStr.includes("reading from the stream") || errStr.includes("QUIC") || errStr.includes("Failed to parse stream")
