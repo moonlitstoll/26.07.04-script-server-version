@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Minus, Plus, Play, Square, AlertTriangle, Scissors, AudioLines } from 'lucide-react';
+import { Play, Square, AlertTriangle, Scissors, AudioLines } from 'lucide-react';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { usePreviewPlayer } from '../hooks/usePreviewPlayer';
 import {
@@ -7,7 +7,7 @@ import {
     rangeFromSelection, indicesInRange, clampRange, LONG_RANGE_WARN_SEC,
 } from '../utils/sentenceEdit';
 
-const STEP = 0.5;
+const STEPS = [0.5, 0.1]; // 조정 단위(큰 이동, 미세 조정)
 const PREVIEW_SEC = 3;
 
 const Shell = ({ title, icon, onClose, children, footer }) => {
@@ -39,23 +39,30 @@ const PreviewButton = ({ preview, name, label, start, end }) => {
     );
 };
 
-// 시각 하나를 ±0.5초로 맞추는 줄
-const TimeAdjuster = ({ label, value, onChange, min, max }) => (
-    <div className="flex items-center gap-2">
-        <span className="w-9 shrink-0 text-xs font-bold text-slate-500">{label}</span>
-        <button type="button" onClick={() => onChange(Math.max(min, value - STEP))} disabled={value - STEP < min - 1e-9}
-            aria-label={`${label} 0.5초 앞으로`}
-            className="w-9 h-9 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 disabled:opacity-30">
-            <Minus size={16} />
+// 시각 하나를 맞추는 줄: 큰 이동은 ±0.5초, 마무리는 ±0.1초. 범위 끝에서는 남은 만큼만 움직인다.
+const StepButton = ({ label, delta, value, onChange, min, max }) => {
+    const atEdge = delta < 0 ? value <= min + 1e-9 : value >= max - 1e-9;
+    const next = Math.round(Math.min(max, Math.max(min, value + delta)) * 100) / 100;
+    return (
+        <button type="button" onClick={() => onChange(next)} disabled={atEdge}
+            aria-label={`${label} ${Math.abs(delta)}초 ${delta < 0 ? '앞으로' : '뒤로'}`}
+            className="w-9 h-9 shrink-0 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-600 tabular-nums disabled:opacity-30">
+            {delta < 0 ? '−' : '+'}{Math.abs(delta)}
         </button>
-        <span className="flex-1 text-center font-mono text-lg font-bold text-slate-800 tabular-nums">{formatStamp(value)}</span>
-        <button type="button" onClick={() => onChange(Math.min(max, value + STEP))} disabled={value + STEP > max + 1e-9}
-            aria-label={`${label} 0.5초 뒤로`}
-            className="w-9 h-9 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-600 disabled:opacity-30">
-            <Plus size={16} />
-        </button>
-    </div>
-);
+    );
+};
+
+const TimeAdjuster = ({ label, value, onChange, min, max }) => {
+    const p = { label, value, onChange, min, max };
+    return (
+        <div className="flex items-center gap-1">
+            <span className="w-8 shrink-0 text-xs font-bold text-slate-500">{label}</span>
+            {STEPS.map(d => <StepButton key={-d} delta={-d} {...p} />)}
+            <span className="flex-1 min-w-0 text-center font-mono text-base font-bold text-slate-800 tabular-nums">{formatStamp(value)}</span>
+            {[...STEPS].reverse().map(d => <StepButton key={d} delta={d} {...p} />)}
+        </div>
+    );
+};
 
 const ModeOption = ({ checked, onClick, title, desc }) => (
     <button type="button" onClick={onClick}
