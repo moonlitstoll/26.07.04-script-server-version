@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2, Scissors
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 import { validSpeechEnd } from './utils/speechSegments';
@@ -74,6 +74,7 @@ import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import TrashModal from './components/TrashModal';
+import { RetranscribeDialog, SplitDialog } from './components/SentenceEditDialogs';
 import { getPassphrase, setPassphrase as persistPassphrase, CLOUD_ENABLED } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
 import { mediaStore } from './utils/MediaStore';
@@ -400,7 +401,7 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
@@ -497,21 +498,24 @@ const App = () => {
     if (selectedIdxs.size > 0) setSelectedIdxs(new Set());
   }
 
-  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 설정의 Stage 1/2 모델 사용.
+  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 설정의 Stage 3 모델 사용.
+  // 확인창에서 '문장별로 다시'(기존, 기본값)와 '한 구간으로 다시'(시각 조정·미리 듣기) 중 고른다.
+  // editDialog: null | { kind: 'retranscribe', fileId, idxs:Set } | { kind: 'split', fileId, idx }
+  const [editDialog, setEditDialog] = useState(null);
   const confirmRetranscribe = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
-    const idxs = [...selectedIdxs];
-    const fileId = activeFile.id;
-    showConfirm({
-      message: `선택한 ${idxs.length}개 문장의 해당 구간 오디오만 다시 듣고 전사합니다. (전사 후 분석도 새로) 나머지 문장·타임라인은 그대로 유지됩니다. 진행할까요?`,
-      confirmText: '전사 다시',
-      danger: false,
-      onConfirm: () => {
-        retranscribeSentences(fileId, idxs);
-        exitSelectMode();
-      },
-    });
+    setEditDialog({ kind: 'retranscribe', fileId: activeFile.id, idxs: new Set(selectedIdxs) });
   };
+  // 문장 나누기(일부 삭제) — 문장 1개를 골랐을 때만
+  const confirmSplit = () => {
+    if (!activeFile || selectedIdxs.size !== 1) return;
+    setEditDialog({ kind: 'split', fileId: activeFile.id, idx: [...selectedIdxs][0] });
+  };
+  // 미리 듣기 전에 본 플레이어를 멈춘다(소리 겹침 방지)
+  const pauseMainPlayer = useCallback(() => {
+    const v = videoRef.current;
+    if (v && !v.paused) togglePlay();
+  }, [videoRef, togglePlay]);
 
   // 휴지통(삭제 문장) — 현재 파일 기준 (원시값 의존으로 컴파일러 경고 회피)
   const trashName = activeFile?.file?.name || '';
@@ -1055,6 +1059,15 @@ const App = () => {
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
+                        {selectedIdxs.size === 1 && (
+                          <button
+                            onClick={confirmSplit}
+                            title="문장을 단어 사이에서 나눠 앞/뒷부분만 지우거나 두 문장으로 만들기"
+                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 transition-colors"
+                          >
+                            <Scissors size={14} /> 나누기
+                          </button>
+                        )}
                         <button
                           onClick={confirmRecover}
                           disabled={selectedIdxs.size !== 1}
@@ -1263,6 +1276,32 @@ const App = () => {
           isFavorite={isFavorite}
           toggleFavorite={toggleFavorite}
           onClose={() => setShowCacheHistory(false)}
+        />
+      )}
+
+      {editDialog?.kind === 'retranscribe' && activeFile?.id === editDialog.fileId && (
+        <RetranscribeDialog
+          data={activeFile.data}
+          selectedIdxs={editDialog.idxs}
+          duration={duration}
+          mediaUrl={mediaUrl}
+          playbackRate={playbackRate}
+          onPausePlayer={pauseMainPlayer}
+          onSentenceMode={() => { retranscribeSentences(editDialog.fileId, [...editDialog.idxs]); setEditDialog(null); exitSelectMode(); }}
+          onRangeMode={(start, end) => { retranscribeRange(editDialog.fileId, start, end); setEditDialog(null); exitSelectMode(); }}
+          onClose={() => setEditDialog(null)}
+        />
+      )}
+      {editDialog?.kind === 'split' && activeFile?.id === editDialog.fileId && activeFile.data[editDialog.idx] && (
+        <SplitDialog
+          data={activeFile.data}
+          idx={editDialog.idx}
+          duration={duration}
+          mediaUrl={mediaUrl}
+          playbackRate={playbackRate}
+          onPausePlayer={pauseMainPlayer}
+          onApply={(opts) => { splitSentence(editDialog.fileId, editDialog.idx, opts); setEditDialog(null); exitSelectMode(); }}
+          onClose={() => setEditDialog(null)}
         />
       )}
 

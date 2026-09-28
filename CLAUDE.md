@@ -22,7 +22,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 ### 테스트 (`src/utils/__tests__/`)
 
-순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
 
 **테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
 
@@ -98,6 +98,19 @@ Stage 2가 만든 **의미 청크**(`item.analysis`의 `**원어 청크**: 뜻` 
 - **드릴 UI**: `components/ClozeDrill.jsx` — 빈칸 탭→공개(채점 없음, 공개된 청크 다시 탭하면 재가리기 토글), 전부 공개되면 알았음/몰랐음 자가표시. `TranscriptItem`이 `drillMode`일 때 원문/분석 대신 `ClozeDrill`을 렌더하므로 정답지(분석)가 자동으로 숨겨짐. round/difficulty 변경 시 `key`로 remount해 공개/표시 상태 초기화.
 - **오답 복습**: '몰랐음'=오답. 문장 앞 ❗배지 + '오답만 보기' 토글(오답 문장만 렌더 + 반복 강제 ON + 하단 이전/다음이 오답만 순회·순환). `App.jsx`의 `goNext`/`goPrev`가 `mistakeOnly`면 `wrongIndices`(**원래 인덱스**)만 순회하고, 키보드 ←/→와 MediaSession도 동일 함수를 경유(3경로 동기화). '새 문제'는 `clearFile`로 이 영상 오답 기록도 초기화.
 - **주의 — 리뷰로 확정·수정된 4대 함정**: ①걸러진 목록에서 원래 인덱스 보존(`return null`), ②오답0/정복 화면 탈출 경로('오답만 보기' 버튼은 `mistakeOnly`인 동안 유지 + 정복 화면 '돌아가기' 버튼 + 파일 전환 시 리셋), ③키보드/버튼/MediaSession 동일 네비게이션, ④점프 시 반복 타겟 재조준(`jumpToSentence`가 `loopTargetIdxRef` 갱신).
+
+### 문장 편집 — 구간 재전사 · 문장 나누기 (2026-09)
+
+기존 '전사'(문장별 재전사)와 '삭제'는 그대로 두고 더한 기능이다. 계산은 전부 `utils/sentenceEdit.js`(순수, 테스트 有), 실행은 `useMediaAnalysis#retranscribeRange`/`#splitSentence`, 화면은 `components/SentenceEditDialogs.jsx`.
+
+- **구간 재전사**: 선택 모드 '전사' → 확인창에서 '문장별로 다시'(기존, 기본값) / '한 구간으로 다시' 선택. 구간 = 선택한 첫 문장 시작 ~ 마지막 문장이 끝나는 곳(떨어진 문장을 골라도 사이 포함, `rangeFromSelection`). 시작·끝 ±0.5초 조정 + 미리 듣기(시작 3초/끝 3초/전체). **교체 규칙 = 시작 시각이 [start,end) 안인 문장만**(`indicesInRange`) — 구간 밖에서 시작해 걸친 문장은 안 건드린다. 3분 초과는 경고만. 옛 문장은 휴지통, 새 문장은 Stage 3 모델로 자동 분석, 6초 실행취소. 새 결과가 없으면 옛 문장 유지.
+  - **⚠️ 이웃 조각 거르기는 `isLeakedFrom`(글자만 남겨 이웃 안에 통째로 들어 있을 때만)** — 기존 복구 모드의 `dropSimilarTo`(단어 70% 겹침)와 `isBoundaryLeakFragment`(≤3단어·60%)를 쓰면 안 된다. 실측: "Màu gì, màu gì, đây?"가 앞 문장 "…sẽ là màu gì nào?"와 단어 80% 겹쳐 **진짜 새 문장인데 사라졌다**. `retranscribeSegments`는 창에 `dropLeakedFrom`이 있으면 두 방식을 끄고 이것만 쓴다(기존 복구는 그대로).
+- **문장 나누기**: 문장 **1개** 선택 시에만 툴바에 '나누기'. 뒷부분이 시작될 단어를 탭 → 앞부분 삭제 / 뒷부분 삭제 / 둘 다 남기기. 뒷부분 시작 시각은 **공백 뺀 글자 수 비율**로 어림(`estimateSplitTime`, 끝은 대사 끝 시각 > 다음 문장 시작 > 영상 끝) 후 ±0.5초·미리 듣기로 맞춘다. 남은 문장은 자동 재분석(Stage 3), 지운 조각은 휴지통(미분석 상태), 6초 실행취소는 원래 문장·원래 분석을 그대로 되돌린다.
+  - **저장 형식 함정**: `sanitizeData`는 시각 문자열 `s`/`timestamp`가 `seconds`보다, `o`가 `text`보다, `a`가 `analysis`보다 우선이고 analysis가 남아 있으면 isAnalyzed를 다시 true로 만든다 → `applySplit`은 짝을 함께 바꾸고 analysis/a를 비운다(테스트가 sanitizeData까지 통과시켜 단정).
+  - 끝이 잘린 문장(뒷부분 삭제·나누기의 앞 문장)은 `speechEnd`를 비우고 **`speechEndGraftRef`에서도 그 키를 지운다** — 안 지우면 runStage2가 옛 감지값을 다시 이식한다.
+- **실행취소(`makeEditUndo`)는 재분석을 먼저 abort한 뒤 되돌린다** — 안 멈추면 끝난 배치가 자기 스냅샷으로 되돌린 데이터를 다시 덮어쓴다. 멈춘 재분석에 다른 미분석 문장이 있었으면 이어서 돌린다.
+- **휴지통 복구 시 미분석 문장은 즉시 분석**(`restoreSentences`) — 나누기로 잘라낸 조각은 분석 없이 보관되므로 안 하면 스피너만 돈다.
+- **미리 듣기는 본 플레이어가 아니라 별도 `<audio>`(`hooks/usePreviewPlayer.js`)** — 본 플레이어로 재생하면 문장 반복·대사만 건너뛰기 엔진이 위치를 옮겨 경계 확인이 안 된다. 시작 전 본 플레이어를 멈춘다. (브라우저 검증 주의: 탭이 hidden이면 크롬이 미디어를 아예 안 불러와 소리 확인 불가 — 호출 위치·시간만 확인됨)
 
 ### 대본 정확도 자기 검증 (커버리지 검사 + 전사의심)
 

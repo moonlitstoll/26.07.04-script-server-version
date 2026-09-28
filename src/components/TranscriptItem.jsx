@@ -205,7 +205,7 @@ const TranscriptItem = memo(({
                 <div
                     onClick={() => jumpToSentence(idx)}
                     className={`
-            text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-1 px-1 font-bold
+            text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-0.5 px-1 font-bold
             ${isActive ? 'text-black' : 'text-slate-900'}
           `}
                 >
@@ -218,7 +218,7 @@ const TranscriptItem = memo(({
                 </div>
 
                 {/* Detailed Analysis Section */}
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-1 pt-1 border-t border-slate-100' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
+                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
 
                     {/* Stage 2 실패 상태: 분석이 끝났는데도 실패로 남은 문장 → 다시 시도 */}
                     {!item.isAnalyzed && item.analysisFailed ? (
@@ -252,7 +252,7 @@ const TranscriptItem = memo(({
 
                     {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약) */}
                     {showAnalysis && item.translation && (
-                        <div className="rounded-xl px-2.5 py-1.5 border transition-colors duration-300 mb-1.5 bg-indigo-50/80 border-indigo-100">
+                        <div className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 border-indigo-100">
                             <p className="text-slate-700 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
                                 {item.translation?.replace(/\\n/g, '\n')}
                             </p>
@@ -262,7 +262,7 @@ const TranscriptItem = memo(({
                     {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게.
                         풀이는 기본 접힘("(…)")이라 휴대폰에서 문장 하나가 한 화면에 들어온다. 줄을 탭하면 그 줄만 펼침/접힘. */}
                     {item.analysis && typeof item.analysis === 'string' && (
-                        <div className="px-1 space-y-1.5 text-slate-800 text-[16px] leading-[1.55]">
+                        <div className="px-1 space-y-0.5 text-slate-800 text-[16px] leading-[1.5]">
                             {stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
                                 .split('\n').filter(l => l.trim()).map((line, li) => {
                                     const [main, breakdown, tail] = splitBreakdown(line);

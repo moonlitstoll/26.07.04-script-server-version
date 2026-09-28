@@ -10,6 +10,7 @@ import {
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
+import { isLeakedFrom } from "../utils/sentenceEdit";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID, getThinkingLevel } from "../constants/models";
@@ -940,6 +941,10 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
                         return !bts.some(bt => Math.abs(sec - bt) <= 0.35);
                     });
                 }
+                // [구간 재전사] 이웃 문장 안에 통째로 들어 있는 조각만 버린다(sentenceEdit.isLeakedFrom).
+                //  아래 유사도 방식은 단어가 많이 겹치는 진짜 새 문장까지 버려서(실측) 구간 재전사엔 쓰지 않는다.
+                const leakFrom = Array.isArray(w.dropLeakedFrom) ? w.dropLeakedFrom.filter(Boolean) : [];
+                if (leakFrom.length) kept = kept.filter(s => !leakFrom.some(b => isLeakedFrom(textOf(s), b)));
                 // 유지되는 경계 문장(앵커/이웃)과 겹치는 재전사본은 제거 → 유지 문장과 중복 방지
                 const drops = Array.isArray(w.dropSimilarTo) ? w.dropSimilarTo.filter(Boolean) : [];
                 if (drops.length) {
@@ -984,10 +989,13 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
             }
             // 4-2) 경계 파편 안전망: 프롬프트가 놓친, 첫/마지막 줄의 짧은 조각(≤3단어)이
             //      이웃 문장 단어와 크게 겹치면(≥60%) 새어나온 파편으로 보고 통째 제거.
-            if (clean.length > 0 && isBoundaryLeakFragment(clean[0].text ?? clean[0].o, w.prevText)) {
+            //      구간 재전사(dropLeakedFrom)는 위 '통째 포함' 판정으로 대신한다 — "Lục, xanh." 같은
+            //      짧은 진짜 문장이 이웃과 단어가 겹친다는 이유로 사라지지 않게.
+            const leakGuard = !Array.isArray(w.dropLeakedFrom);
+            if (leakGuard && clean.length > 0 && isBoundaryLeakFragment(clean[0].text ?? clean[0].o, w.prevText)) {
                 clean = clean.slice(1);
             }
-            if (clean.length > 0 && isBoundaryLeakFragment(clean[clean.length - 1].text ?? clean[clean.length - 1].o, w.nextText)) {
+            if (leakGuard && clean.length > 0 && isBoundaryLeakFragment(clean[clean.length - 1].text ?? clean[clean.length - 1].o, w.nextText)) {
                 clean = clean.slice(0, -1);
             }
             // 흩어진 초단문 파편은 인접끼리 병합(선택 구간 재전사에서도 파편 정리)

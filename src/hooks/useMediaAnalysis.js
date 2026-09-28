@@ -9,6 +9,7 @@ import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd, MIN_SPEECH_SEC, MAX_SENTENCE_SEC } from '../utils/speechSegments';
 import { incompleteNotice } from '../services/stage1Resume';
+import { applySplit, replaceRange, rangeNeighbors, indicesInRange } from '../utils/sentenceEdit';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
@@ -1333,6 +1334,159 @@ export const useMediaAnalysis = ({
             if (onTrashChange) onTrashChange();
         }
         if (showToast) showToast({ message: `${toAdd.length}개 문장 복구됨`, type: 'success' });
+        // 분석 없이 보관된 문장(나누기로 잘라낸 조각 등)은 복구 즉시 분석한다 — 안 하면 스피너만 돈다
+        if (apiKey && toAdd.some(it => !it.isAnalyzed)) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+    };
+
+    // 편집(나누기·구간 재전사) 결과를 화면·캐시·클라우드에 반영
+    const persistEdit = (targetFile, data) => {
+        const status = data.length === 0 ? 'extracted' : (data.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
+        persistCache(targetFile, data, status);
+        if (refreshCacheKeys) refreshCacheKeys();
+        cloudSaveMeta(targetFile, data, status, null, 0).catch(e => console.warn('[Cloud] 반영 실패:', e));
+    };
+
+    // 편집 실행취소: 진행 중인 재분석을 멈추고 편집 전 데이터로 되돌린 뒤, 휴지통에 넣은 것도 뺀다.
+    // (재분석을 먼저 멈추지 않으면 끝난 배치가 되돌린 데이터를 자기 스냅샷으로 다시 덮어쓴다)
+    const makeEditUndo = (fileId, targetFile, prevData, trashed, message) => () => {
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: prevData } : p));
+        persistEdit(targetFile, prevData);
+        if (targetFile.name && trashed.length) {
+            removeFromTrash(targetFile.name, targetFile.size, trashed);
+            if (onTrashChange) onTrashChange();
+        }
+        if (showToast) showToast({ message, type: 'success' });
+        // 멈춘 재분석에 다른 문장(편집과 무관한 미분석분)이 있었으면 이어서
+        if (apiKey && prevData.some(d => !d.isAnalyzed && !d.analysisFailed)) runStage2(fileId, targetFile, prevData, apiKey, stage2Model);
+    };
+
+    /**
+     * [문장 나누기] 한 문장을 단어 사이에서 나눠 앞/뒤를 지우거나 두 문장으로 만든다(utils/sentenceEdit).
+     * 남은 문장은 다시 분석하고, 지운 조각은 휴지통에 보관한다. 6초 실행취소는 원래 문장·분석을 그대로 되돌린다.
+     */
+    const splitSentence = (fileId, idx, { wordIndex, mode, splitSeconds }) => {
+        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base?.file || null;
+        const prevData = base?.data || null;
+        if (!targetFile || !Array.isArray(prevData) || !prevData[idx]) return;
+
+        let result;
+        try {
+            result = applySplit(prevData, idx, { wordIndex, mode, splitSeconds });
+        } catch (e) {
+            if (showToast) showToast({ message: e.message, type: 'error' });
+            return;
+        }
+        // 끝이 잘려 대사 끝 시각을 비운 문장에 옛 감지값이 다시 붙지 않게(runStage2의 이식) 동기 사본에서도 뺀다
+        const graft = speechEndGraftRef.current;
+        if (targetFile.name) {
+            for (const i of result.changed) {
+                const d = result.data[i];
+                if (typeof d.speechEnd !== 'number') graft.delete(`${targetFile.name}_${targetFile.size}|${d.seconds}`);
+            }
+        }
+        const clean = sanitizeData(result.data, 0);
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: clean } : p));
+        if (targetFile.name && result.trashed.length) {
+            addToTrash(targetFile.name, targetFile.size, result.trashed);
+            if (onTrashChange) onTrashChange();
+        }
+        persistEdit(targetFile, clean);
+
+        const label = mode === 'dropHead' ? '앞부분을 지웠어요' : mode === 'dropTail' ? '뒷부분을 지웠어요' : '두 문장으로 나눴어요';
+        if (showToast) showToast({
+            message: `${label}. 다시 분석 중...`,
+            type: 'success',
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, result.trashed, '나누기를 취소했습니다.') },
+            duration: 6000,
+        });
+        if (apiKey) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+    };
+
+    /**
+     * [구간 재전사] 지정한 시각 구간 [start, end)를 한 번에 다시 듣고, 시작 시각이 그 안인 문장을 전부 새 결과로 바꾼다.
+     * 구간 밖에서 시작해 걸친 문장은 그대로 두고, 새 결과에 딸려 온 그 문장 조각은 지운다(retranscribeSegments 복구 모드).
+     * 바뀐 옛 문장은 휴지통에 보관, 새 문장은 자동 분석. 새 결과가 없으면 옛 문장을 그대로 둔다.
+     */
+    const retranscribeRange = async (fileId, start, end) => {
+        if (!apiKey) {
+            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+            return;
+        }
+        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base?.file || null;
+        const targetUrl = base?.url || null;
+        const currentData = base?.data || null;
+        if (!targetFile || !Array.isArray(currentData) || !(end > start)) return;
+
+        if (stage2AbortRef.current) stage2AbortRef.current.abort();
+        const replacedIdx = new Set(indicesInRange(currentData, start, end));
+        const clearRetranscribingFlag = makeClearRetranscribingFlag(setFiles, fileId);
+        setFiles(prev => prev.map(p => p.id === fileId
+            ? { ...p, data: p.data.map((d, i) => replacedIdx.has(i) ? { ...d, isRetranscribing: true } : d) }
+            : p));
+
+        if (stage1AbortRef.current) stage1AbortRef.current.abort();
+        stage1AbortRef.current = new AbortController();
+        const { signal } = stage1AbortRef.current;
+
+        try {
+            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'RangeRetranscribe');
+            if (!fileForAnalysis) {
+                clearRetranscribingFlag();
+                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                return;
+            }
+            let duration = 0;
+            try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
+
+            const { prev, next } = rangeNeighbors(currentData, start, end);
+            const prevText = prev >= 0 ? (currentData[prev].text || '') : '';
+            const nextText = next >= 0 ? (currentData[next].text || '') : '';
+            const [perWindow] = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, [{
+                start, end,
+                recover: true, // 구간 안 문장을 유사도로 거르지 않고 전량 채택
+                prevText, nextText,
+                // 구간 앞에서 시작해 걸친 문장·바로 뒤 문장에서 새어 나온 조각은 버린다(구간 밖 문장은 건드리지 않음).
+                // 기존 복구의 dropSimilarTo(단어 70% 겹침)는 진짜 새 문장까지 버려서 쓰지 않는다(실측).
+                dropLeakedFrom: [prevText, nextText].filter(Boolean),
+                contextBefore: prev >= 0 ? collectTexts(currentData, prev - 1, prev) : [],
+                contextAfter: next >= 0 ? collectTexts(currentData, next, next + 1) : [],
+            }], {
+                totalDuration: duration, temperature, topP, signal, antiRecitation, markerChar, markerInterval,
+                mediaSrc: targetUrl,
+            });
+
+            const fresh = perWindow?.sentences;
+            if (!fresh || fresh.length === 0) {
+                clearRetranscribingFlag();
+                if (showToast) showToast({ message: `구간 재전사 실패 — 원래 문장을 그대로 뒀어요. (${perWindow?.error || '결과 없음'})`, type: 'error', duration: 8000 });
+                return;
+            }
+
+            const { data: merged, removed } = replaceRange(currentData, start, end, fresh);
+            const clean = sanitizeData(merged, duration);
+            setFiles(prev2 => prev2.map(p => p.id === fileId ? { ...p, data: clean } : p));
+            if (targetFile.name && removed.length) {
+                addToTrash(targetFile.name, targetFile.size, removed);
+                if (onTrashChange) onTrashChange();
+            }
+            persistEdit(targetFile, clean);
+            if (showToast) showToast({
+                message: `구간 재전사 완료: ${removed.length}개 → ${fresh.length}개 문장. 분석 진행 중...`,
+                type: 'success',
+                action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, currentData, removed, '구간 재전사를 취소했습니다.') },
+                duration: 6000,
+            });
+            runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+        } catch (err) {
+            clearRetranscribingFlag();
+            if (err.name === 'AbortError') return;
+            console.error('[RangeRetranscribe] 실패', err);
+            if (showToast) showToast({ message: '구간 재전사 실패: ' + err.message, type: 'error' });
+        }
     };
 
     // 진행 중인 Stage1 전사를 사용자가 취소.
@@ -1356,5 +1510,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
 };
