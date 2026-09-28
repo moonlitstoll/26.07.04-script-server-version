@@ -29,6 +29,7 @@ const DEFAULTS = {
     // 시작한다(대본이 사라지거나 파괴적 모드로 진입). 그래서 여기 넣지 않았다 — 의도적 제외다.
     difficulty: 'easy',   // 가리기 난이도. 학습자의 실력 수준이라 안정적 선호값이다.
     showAnalysis: true,   // 번역/분석 표시. 끈 채로 열려도 원문은 보이므로 혼란이 없다.
+    showBreakdown: false, // 분석의 괄호 속 요소 풀이 펼침. 기본은 접힘 — 휴대폰에서 문장 하나가 한 화면에 들어오게(2026-09).
     drillRound: 0,        // 빈칸 섞기 시드. 화면에 드러나지 않지만, 리셋되면 '새 문제'를
                           // 다시 눌러야 하고 그 버튼이 오답 기록까지 지운다(강제 교환).
 };
@@ -56,6 +57,7 @@ const STORAGE_KEYS = {
     speechTailPad: 'miniapp_speech_tail_pad',
     difficulty: 'miniapp_drill_difficulty',
     showAnalysis: 'miniapp_show_analysis',
+    showBreakdown: 'miniapp_show_breakdown',
     drillRound: 'miniapp_drill_round',
 };
 
@@ -108,6 +110,7 @@ export function loadFromStorage() {
         showAnalysis: localStorage.getItem(STORAGE_KEYS.showAnalysis) !== null
             ? localStorage.getItem(STORAGE_KEYS.showAnalysis) === 'true'
             : DEFAULTS.showAnalysis,
+        showBreakdown: localStorage.getItem(STORAGE_KEYS.showBreakdown) === 'true',
         drillRound: (() => {
             const n = parseInt(localStorage.getItem(STORAGE_KEYS.drillRound), 10);
             return Number.isFinite(n) && n >= 0 ? n : DEFAULTS.drillRound;

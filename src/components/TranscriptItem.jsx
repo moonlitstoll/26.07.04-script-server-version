@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, useMemo, memo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useMemo, useState, memo } from 'react';
 import {
     Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2
 } from 'lucide-react';
@@ -36,7 +36,7 @@ const dedupeSentenceInAnalysis = (analysis, sentence) => {
 const TranscriptItem = memo(({
     item, idx, isActive, isGlobalLooping, manualScrollNonce,
     seekTo, jumpToSentence,
-    isLooping, showAnalysis,
+    isLooping, showAnalysis, showBreakdown = false,
     selectMode = false, isSelected = false, onToggleSelect,
     onRetryAnalysis, onCoverageRetry, onRetranscribe,
     drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false,
@@ -47,6 +47,20 @@ const TranscriptItem = memo(({
     // [정확도 검증 배지] 비용 0의 코드 검사 — 분석 커버리지(규칙 9/13 위반) + 전사의심(규칙 15).
     // item 객체가 바뀔 때만 재계산 (memo 카드라 재생 틱마다 돌지 않음).
     const coverage = useMemo(() => checkAnalysisCoverage(item), [item]);
+
+    // 괄호 풀이 줄별 펼침: 툴바 '풀이'(showBreakdown)가 전체 기본값, 줄을 탭하면 그 줄만 반대로 뒤집는다.
+    const [flippedLines, setFlippedLines] = useState(() => new Set());
+    const flipLine = (li) => setFlippedLines(prev => {
+        const next = new Set(prev);
+        if (next.has(li)) next.delete(li); else next.add(li);
+        return next;
+    });
+    // 툴바로 전체를 바꾸면 줄별 예외는 초기화(모든 줄이 새 기본값을 따르게)
+    const [prevShowBreakdown, setPrevShowBreakdown] = useState(showBreakdown);
+    if (prevShowBreakdown !== showBreakdown) {
+        setPrevShowBreakdown(showBreakdown);
+        setFlippedLines(new Set());
+    }
 
     // 1. Focus Lock: Conditional Anchoring
     const prevActiveRef = useRef(isActive);
@@ -245,16 +259,25 @@ const TranscriptItem = memo(({
                         </div>
                     )}
 
-                    {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게 */}
+                    {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게.
+                        풀이는 기본 접힘("(…)")이라 휴대폰에서 문장 하나가 한 화면에 들어온다. 줄을 탭하면 그 줄만 펼침/접힘. */}
                     {item.analysis && typeof item.analysis === 'string' && (
                         <div className="px-1 space-y-1.5 text-slate-800 text-[16px] leading-[1.55]">
                             {stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
                                 .split('\n').filter(l => l.trim()).map((line, li) => {
                                     const [main, breakdown, tail] = splitBreakdown(line);
+                                    const open = showBreakdown !== flippedLines.has(li);
                                     return (
-                                        <p key={li} className="font-medium">
+                                        <p
+                                            key={li}
+                                            onClick={breakdown ? () => flipLine(li) : undefined}
+                                            title={breakdown ? (open ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
+                                            className={`font-medium ${breakdown ? 'cursor-pointer' : ''}`}
+                                        >
                                             {renderBold(main, `m${li}`)}
-                                            {breakdown && <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>}
+                                            {breakdown && (open
+                                                ? <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>
+                                                : <span className="text-slate-400 font-normal">(…)</span>)}
                                             {tail}
                                         </p>
                                     );

@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2, BookOpen
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 import { validSpeechEnd } from './utils/speechSegments';
@@ -135,6 +135,8 @@ const App = () => {
   // 함수형 업데이트를 쓰는 이유: 현재 값을 클로저로 잡으면 deps에 showAnalysis를 넣어야 하고,
   // 그러면 이 콜백 참조가 토글마다 바뀌어 memo된 TranscriptItem이 전부 리렌더된다.
   const toggleGlobalAnalysis = useCallback(() => updateField('showAnalysis', prev => !prev), [updateField]);
+  // 분석의 괄호 속 단어 풀이 전체 펼침/접힘(기본 접힘). 카드에서 줄을 탭하면 그 줄만 뒤집힌다.
+  const showBreakdown = config.showBreakdown;
   const stage2AbortRef = useRef(null);
   // 현재 Stage 2가 돌고 있는 파일: Map<fileId, 실행중인 개수>.
   // 왜 필요한가: loadCache는 미분석 문장이 남아 있으면 Stage 2를 새로 시작하는데,
@@ -911,6 +913,17 @@ const App = () => {
                       >
                         <EyeOff className={CHIP_ICON} /> 가리기
                       </button>
+
+                      {/* 📖 분석의 괄호 속 단어 풀이 전체 펼침/접힘 (가리기 중엔 분석이 안 보이므로 숨김) */}
+                      {!drillMode && (
+                        <button
+                          onClick={() => updateField('showBreakdown', v => !v)}
+                          title={showBreakdown ? '단어 풀이 전체 접기 (줄을 탭하면 그 줄만 펼침)' : '단어 풀이 전체 펼치기 (줄을 탭하면 그 줄만 펼침)'}
+                          className={`${CHIP} ${showBreakdown ? 'bg-emerald-600 text-white border-emerald-600' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'}`}
+                        >
+                          <BookOpen className={CHIP_ICON} /> 풀이
+                        </button>
+                      )}
                       {drillMode && (
                         <>
                           <div className="shrink-0 inline-flex rounded-lg border border-slate-200 overflow-hidden">
@@ -1157,6 +1170,7 @@ const App = () => {
                               isLooping={isActive && isGlobalLoopActive}
                               isGlobalLooping={isGlobalLoopActive}
                               showAnalysis={showAnalysis}
+                              showBreakdown={showBreakdown}
                               toggleGlobalAnalysis={toggleGlobalAnalysis}
                               selectMode={selectMode}
                               isSelected={selectedIdxs.has(idx)}

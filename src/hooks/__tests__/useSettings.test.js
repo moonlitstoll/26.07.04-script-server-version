@@ -54,6 +54,14 @@ describe('저장값이 있을 때 — 그대로 복원', () => {
         expect(loadFromStorage().showAnalysis).toBe(true);
     });
 
+    it('괄호 풀이는 접힌 채 시작하고, 펼쳐 둔 채 종료하면 펼친 채로 열린다', () => {
+        expect(loadFromStorage().showBreakdown).toBe(false);
+        store.set('miniapp_show_breakdown', 'true');
+        expect(loadFromStorage().showBreakdown).toBe(true);
+        store.set('miniapp_show_breakdown', 'false');
+        expect(loadFromStorage().showBreakdown).toBe(false);
+    });
+
     it('빈칸 회차가 유지된다 ("새 문제"를 다시 눌러 오답을 버리지 않아도 되게)', () => {
         store.set('miniapp_drill_round', '7');
         expect(loadFromStorage().drillRound).toBe(7);
