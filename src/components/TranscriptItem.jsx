@@ -1,9 +1,17 @@
 import { useRef, useEffect, useLayoutEffect, useMemo, memo } from 'react';
 import {
-    Play, Repeat, Clock, Languages, BookOpen, Loader2, Check, AlertTriangle, RotateCcw, Volume2
+    Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
+import { splitBreakdown } from '../utils/analysisParser';
+
+// **굵게** 표시 → 초록 굵은 청크
+const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') && part.length > 4
+        ? <strong key={`${keyPrefix}-${i}`} className="text-emerald-800 font-extrabold">{part.slice(2, -2)}</strong>
+        : part
+);
 
 // [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
 // 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
@@ -109,11 +117,11 @@ const TranscriptItem = memo(({
             )}
 
             <div>
-                {/* Header: Timestamp & Looping Indicator */}
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2">
+                {/* Header: Timestamp & Looping Indicator — 휴대폰에서 세로 공간을 덜 쓰게 낮게 */}
+                <div className="flex flex-wrap items-center justify-between gap-1.5 mb-0.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                         {isWrong && (
-                            <span title="이 문장을 몰랐어요 (오답)" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-600 border border-amber-300 text-[11px] font-black">
+                            <span title="이 문장을 몰랐어요 (오답)" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-600 border border-amber-300 text-[10px] font-black">
                                 !
                             </span>
                         )}
@@ -123,7 +131,7 @@ const TranscriptItem = memo(({
                             // 옛 묶음이 계속 반복되거나 누르자마자 묶음 처음으로 되감긴다.
                             onClick={() => (groupLoopOn ? jumpToSentence(idx) : seekTo(item.seconds))}
                             className={`
-                  flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-wide transition-all
+                  flex items-center gap-1 px-1.5 py-0 leading-4 rounded-full text-[10px] font-bold font-mono tracking-wide transition-all
                   ${isActive ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}
                 `}
                         >
@@ -131,7 +139,7 @@ const TranscriptItem = memo(({
                         </button>
 
                         {item.speaker && (
-                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter border ${isActive
+                            <span className={`px-1.5 py-0 leading-4 rounded-lg text-[9px] font-black uppercase tracking-tighter border ${isActive
                                 ? 'bg-purple-600 text-white border-purple-700 shadow-sm'
                                 : 'bg-slate-800 text-slate-200 border-slate-900 opacity-80'
                                 }`}>
@@ -144,7 +152,7 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onCoverageRetry && onCoverageRetry(idx); }}
                                 title={coverageTitle(coverage)}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 transition-colors"
+                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 transition-colors"
                             >
                                 <AlertTriangle size={9} />
                                 {coverage.kind === 'no-chunks' ? '분석 깨짐' : coverage.missing.length > 0 ? `누락 ${coverage.missing.length}` : '뭉침'}
@@ -155,7 +163,7 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onRetranscribe && onRetranscribe(idx); }}
                                 title={`전사(받아쓰기) 오류 의심: ${item.transcriptSuspect} — 탭하면 이 구간만 다시 전사`}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 transition-colors"
+                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 transition-colors"
                             >
                                 <Volume2 size={9} /> 전사의심
                             </button>
@@ -163,8 +171,8 @@ const TranscriptItem = memo(({
                     </div>
 
                     {isLooping && (
-                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-tight animate-pulse border z-10 ${isActive ? 'bg-purple-50/50 text-purple-600 border-purple-100' : 'bg-amber-50/50 text-amber-600 border-amber-100'}`}>
-                            <Repeat size={8} className="stroke-[3]" /> LOOPING
+                        <div title="반복 중" aria-label="반복 중" className={`flex items-center px-1 py-0.5 rounded-md animate-pulse border z-10 ${isActive ? 'bg-purple-50/50 text-purple-600 border-purple-100' : 'bg-amber-50/50 text-amber-600 border-amber-100'}`}>
+                            <Repeat size={10} className="stroke-[3]" />
                         </div>
                     )}
                 </div>
@@ -228,36 +236,29 @@ const TranscriptItem = memo(({
                         </div>
                     ) : null}
 
-                    {/* Translation */}
+                    {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약) */}
                     {showAnalysis && item.translation && (
-                        <div className="rounded-xl px-3 py-1.5 border transition-colors duration-300 mb-1.5 bg-indigo-50/80 border-indigo-100">
-                            <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-[11px] uppercase tracking-wider mb-0.5">
-                                <Languages size={12} /> Translation
-                            </div>
-                            <p className="text-slate-700 text-[15px] leading-snug whitespace-pre-line font-medium">
+                        <div className="rounded-xl px-2.5 py-1.5 border transition-colors duration-300 mb-1.5 bg-indigo-50/80 border-indigo-100">
+                            <p className="text-slate-700 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
                                 {item.translation?.replace(/\\n/g, '\n')}
                             </p>
                         </div>
                     )}
 
-                    {/* Light JSON Analysis Content */}
-                    {item.analysis && (
-                        <div>
-                            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[11px] uppercase tracking-wider mb-1 px-1">
-                                <BookOpen size={12} /> Detailed Analysis
-                            </div>
-                            <div className="p-2.5 bg-white border border-emerald-100 rounded-xl">
-                                <p className="text-slate-800 text-[14px] sm:text-[15px] leading-[1.5] whitespace-pre-line font-medium">
-                                    {typeof item.analysis === 'string'
-                                        ? stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n').split(/(\*\*.*?\*\*)/).map((part, i) =>
-                                            part.startsWith('**') && part.endsWith('**')
-                                                ? <strong key={i} className="text-emerald-800 font-extrabold">{part.slice(2, -2)}</strong>
-                                                : part
-                                        )
-                                        : null
-                                    }
-                                </p>
-                            </div>
+                    {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게 */}
+                    {item.analysis && typeof item.analysis === 'string' && (
+                        <div className="px-1 space-y-1.5 text-slate-800 text-[16px] leading-[1.55]">
+                            {stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
+                                .split('\n').filter(l => l.trim()).map((line, li) => {
+                                    const [main, breakdown, tail] = splitBreakdown(line);
+                                    return (
+                                        <p key={li} className="font-medium">
+                                            {renderBold(main, `m${li}`)}
+                                            {breakdown && <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>}
+                                            {tail}
+                                        </p>
+                                    );
+                                })}
                         </div>
                     )}
                 </div>
