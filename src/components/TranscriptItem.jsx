@@ -90,7 +90,7 @@ const TranscriptItem = memo(({
         if (isActive && itemRef.current) {
             itemRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
         }
-    }, [showAnalysis, isActive]);
+    }, [showAnalysis, showBreakdown, isActive]);
 
     return (
         <div

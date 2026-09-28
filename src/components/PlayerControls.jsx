@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import {
-    Play, Pause, Eye, EyeOff, Repeat, AlertCircle,
+    Play, Pause, Eye, EyeOff, BookOpen, Repeat, AlertCircle,
     SkipBack, SkipForward
 } from 'lucide-react';
 import { formatClock } from '../utils/timeUtils';
@@ -36,7 +36,7 @@ const PREVIEW_MAX_W = 'calc(40vw - 24px)';
 const PlayerControls = ({
     attachVideo, mediaUrl, isPlaying, currentTime, duration,
     playbackRate, isGlobalLoopActive, loopGroupSize = 1, currentSentenceIdx,
-    showAnalysis, showSpeedMenu,
+    showAnalysis, showBreakdown = false, onCycleAnalysis, showSpeedMenu,
     togglePlay, seekTo, handlePrev, handleNext,
     handleRateChange, toggleLoop,
     setShowAnalysis, setShowSpeedMenu,
@@ -215,12 +215,14 @@ const PlayerControls = ({
                                 )}
                             </div>
 
+                            {/* 번역/분석 3단계 순환: 👁 접힘 → 📖 풀이 펼침 → 🚫 숨김 (아이콘이 지금 상태를 보여준다) */}
                             <button
-                                onClick={() => setShowAnalysis(!showAnalysis)}
-                                aria-label={showAnalysis ? '번역/분석 숨기기' : '번역/분석 보기'}
-                                className={`flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${showAnalysis ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-400 border-slate-200'}`}
+                                onClick={() => (onCycleAnalysis ? onCycleAnalysis() : setShowAnalysis(!showAnalysis))}
+                                title={!showAnalysis ? '번역/분석 숨김 — 탭하면 다시 보기' : showBreakdown ? '단어 풀이 펼침 — 탭하면 번역/분석 숨기기' : '단어 풀이 접힘 — 탭하면 풀이 펼치기'}
+                                aria-label={!showAnalysis ? '번역/분석 보기' : showBreakdown ? '번역/분석 숨기기' : '단어 풀이 펼치기'}
+                                className={`flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${!showAnalysis ? 'bg-white text-slate-400 border-slate-200' : showBreakdown ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}
                             >
-                                {showAnalysis ? <Eye className={ICON_SM} /> : <EyeOff className={ICON_SM} />}
+                                {!showAnalysis ? <EyeOff className={ICON_SM} /> : showBreakdown ? <BookOpen className={ICON_SM} /> : <Eye className={ICON_SM} />}
                             </button>
                         </div>
 

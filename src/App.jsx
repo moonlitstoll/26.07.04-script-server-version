@@ -1,10 +1,11 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2, BookOpen
+  AlertCircle, RotateCcw, Wand2, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Shuffle, Repeat, FastForward, Loader2
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 import { validSpeechEnd } from './utils/speechSegments';
+import { nextAnalysisView } from './utils/analysisView';
 import { useEscapeToClose } from './hooks/useEscapeToClose';
 
 // 상단 툴바 칩 공통 크기 — 하단 플레이어 바와 같은 min(Nvw, 최대px) 방식.
@@ -132,11 +133,19 @@ const App = () => {
     });
   }, [showConfirm]);
 
-  // 함수형 업데이트를 쓰는 이유: 현재 값을 클로저로 잡으면 deps에 showAnalysis를 넣어야 하고,
-  // 그러면 이 콜백 참조가 토글마다 바뀌어 memo된 TranscriptItem이 전부 리렌더된다.
-  const toggleGlobalAnalysis = useCallback(() => updateField('showAnalysis', prev => !prev), [updateField]);
   // 분석의 괄호 속 단어 풀이 전체 펼침/접힘(기본 접힘). 카드에서 줄을 탭하면 그 줄만 뒤집힌다.
   const showBreakdown = config.showBreakdown;
+  // 하단 눈 버튼·키보드 B: 접힘 → 펼침 → 숨김 → 접힘 3단계 순환(utils/analysisView).
+  // 두 설정을 함께 읽어야 해서 최신값을 ref로 본다 — 값을 deps에 넣으면 콜백 참조가 바뀌어
+  // memo된 TranscriptItem이 재생 틱마다 리렌더된다(토글 콜백의 안정 참조 규칙과 같은 이유).
+  const analysisViewRef = useRef({ showAnalysis, showBreakdown });
+  useEffect(() => { analysisViewRef.current = { showAnalysis, showBreakdown }; }, [showAnalysis, showBreakdown]);
+  const toggleGlobalAnalysis = useCallback(() => {
+    const next = nextAnalysisView(analysisViewRef.current);
+    analysisViewRef.current = next; // 연타해도 한 단계씩 넘어가게
+    updateField('showBreakdown', next.showBreakdown);
+    updateField('showAnalysis', next.showAnalysis);
+  }, [updateField]);
   const stage2AbortRef = useRef(null);
   // 현재 Stage 2가 돌고 있는 파일: Map<fileId, 실행중인 개수>.
   // 왜 필요한가: loadCache는 미분석 문장이 남아 있으면 Stage 2를 새로 시작하는데,
@@ -914,16 +923,6 @@ const App = () => {
                         <EyeOff className={CHIP_ICON} /> 가리기
                       </button>
 
-                      {/* 📖 분석의 괄호 속 단어 풀이 전체 펼침/접힘 (가리기 중엔 분석이 안 보이므로 숨김) */}
-                      {!drillMode && (
-                        <button
-                          onClick={() => updateField('showBreakdown', v => !v)}
-                          title={showBreakdown ? '단어 풀이 전체 접기 (줄을 탭하면 그 줄만 펼침)' : '단어 풀이 전체 펼치기 (줄을 탭하면 그 줄만 펼침)'}
-                          className={`${CHIP} ${showBreakdown ? 'bg-emerald-600 text-white border-emerald-600' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'}`}
-                        >
-                          <BookOpen className={CHIP_ICON} /> 풀이
-                        </button>
-                      )}
                       {drillMode && (
                         <>
                           <div className="shrink-0 inline-flex rounded-lg border border-slate-200 overflow-hidden">
@@ -1207,6 +1206,8 @@ const App = () => {
               loopGroupSize={effLoopN}
               currentSentenceIdx={activeSentenceIdx}
               showAnalysis={showAnalysis}
+              showBreakdown={showBreakdown}
+              onCycleAnalysis={toggleGlobalAnalysis}
               showSpeedMenu={showSpeedMenu}
               togglePlay={togglePlay}
               seekTo={seekTo}
