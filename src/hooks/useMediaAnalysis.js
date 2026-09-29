@@ -3,6 +3,7 @@ import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
+import { saveStatusOf } from '../utils/cacheStatus';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
@@ -354,8 +355,7 @@ export const useMediaAnalysis = ({
             await Promise.all(Array.from({ length: Math.min(CONCURRENCY, splitBatches.length) }, () => runSplitWorker()));
         }
         if (didRetry && !signal.aborted) {
-            const allDone2 = workingData.every(d => d.isAnalyzed);
-            persistCache(fileInfo, workingData, allDone2 ? 'completed' : 'analyzing');
+            persistCache(fileInfo, workingData, saveStatusOf(workingData));
         }
 
         // 이 실행이 최신일 때만 진행배너 정리 (옛 실행이 새 배너를 지우지 않게)
@@ -370,7 +370,7 @@ export const useMediaAnalysis = ({
         if (!signal.aborted && failedIndices.length > 0) {
             failedIndices.forEach(idx => { workingData[idx] = { ...workingData[idx], analysisFailed: true }; });
             updateGlobalState(workingData);
-            persistCache(fileInfo, workingData, workingData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
+            persistCache(fileInfo, workingData, saveStatusOf(workingData));
         }
 
         if (!signal.aborted && totalSuccessCount === 0 && pendingIndices.length > 0) {
@@ -388,8 +388,7 @@ export const useMediaAnalysis = ({
 
         // 클라우드에 최종 분석 결과 반영 (best-effort, mediaUrl은 서버가 기존 값 보존)
         if (!signal.aborted && totalSuccessCount > 0) {
-            const allDone = workingData.every(d => d.isAnalyzed);
-            cloudSaveMeta(fileInfo, workingData, allDone ? 'completed' : 'analyzing', null, 0)
+            cloudSaveMeta(fileInfo, workingData, saveStatusOf(workingData), null, 0)
                 .catch(e => console.warn('[Cloud] 분석 결과 저장 실패:', e));
         }
 
@@ -771,8 +770,7 @@ export const useMediaAnalysis = ({
             const cleanData = sanitizeData(newData, duration);
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
 
-            const allDone = cleanData.every(d => d.isAnalyzed);
-            persistCache(targetFile, cleanData, allDone ? 'completed' : 'analyzing');
+            persistCache(targetFile, cleanData, saveStatusOf(cleanData));
             if (refreshCacheKeys) refreshCacheKeys();
 
             if (replacedCount > 0) {
@@ -848,7 +846,7 @@ export const useMediaAnalysis = ({
             }) : null;
             if (restoredData) {
                 setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: restoredData } : p));
-                const status = restoredData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
+                const status = saveStatusOf(restoredData);
                 persistCache(targetFile, restoredData, status);
                 if (refreshCacheKeys) refreshCacheKeys();
             }
@@ -962,7 +960,7 @@ export const useMediaAnalysis = ({
                 if (showToast) showToast({ message: '대사 구간을 감지하지 못했어요. 잠시 후 다시 시도해 주세요.', type: 'error' });
                 return false;
             }
-            const status = latestData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
+            const status = saveStatusOf(latestData);
             // [중요] 저장 결과를 반드시 검사한다. 예전엔 반환값을 버리고 곧바로 '감지 완료' 성공
             // 토스트를 띄웠는데, 토스트는 슬롯이 하나라 persistCache가 띄운 실패 경고를 덮어썼다.
             // 게다가 용량 경고는 세션당 1회(quotaWarnedRef)라 두 번째부터는 완전 무음 →
@@ -1193,8 +1191,7 @@ export const useMediaAnalysis = ({
             const cleanData = sanitizeData([...currentData, ...fresh], duration);
             setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
 
-            const allDone = cleanData.every(d => d.isAnalyzed);
-            persistCache(targetFile, cleanData, allDone ? 'completed' : 'analyzing');
+            persistCache(targetFile, cleanData, saveStatusOf(cleanData));
             if (refreshCacheKeys) refreshCacheKeys();
 
             if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
@@ -1267,7 +1264,7 @@ export const useMediaAnalysis = ({
         const clean = sanitizeData(merged, 0); // 시각 기준 재정렬 → 원위치 복원
         setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: clean } : p));
 
-        const status = clean.every(d => d.isAnalyzed) ? 'completed' : (clean.length ? 'analyzing' : 'extracted');
+        const status = saveStatusOf(clean);
         persistCache(targetFile, clean, status);
         if (refreshCacheKeys) refreshCacheKeys();
         cloudSaveMeta(targetFile, clean, status, null, 0).catch(e => console.warn('[Cloud] 복구 반영 실패:', e));
@@ -1283,7 +1280,7 @@ export const useMediaAnalysis = ({
 
     // 편집(나누기·구간 재전사) 결과를 화면·캐시·클라우드에 반영
     const persistEdit = (targetFile, data) => {
-        const status = data.length === 0 ? 'extracted' : (data.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
+        const status = saveStatusOf(data);
         persistCache(targetFile, data, status);
         if (refreshCacheKeys) refreshCacheKeys();
         cloudSaveMeta(targetFile, data, status, null, 0).catch(e => console.warn('[Cloud] 반영 실패:', e));

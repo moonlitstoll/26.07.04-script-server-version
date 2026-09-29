@@ -22,7 +22,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 ### 테스트 (`src/utils/__tests__/`)
 
-순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `cacheStatus`(저장 상태 `saveStatusOf` — 문장 0개 = extracted). `src/services/__tests__/`에는 `stage1Line`·`stage1Resume`·`stage2Parser`와 `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기), `stage1Parsers`(전사 줄 파서 규칙 — 클로저라 옮기지 않고 가짜 모델로 실제 루프를 돌려 검증, 대사 끝 응답 해석, 청크 겹침 중복 제거). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
 
 **테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
 
@@ -36,7 +36,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 **Stage 1 스트림 끊김 이어받기는 `services/stage1Resume.js`(순수) + `gemini.js#transcribeWithResume`(실제 루프, 테스트용 export)** — `__tests__/stage1Resume.test.js`가 **가짜 모델로 실제 루프를 돌린다**(gemini.js는 node에서 import 된다 — SDK·ffmpeg import에 부작용 없음 확인). 끊김 판정을 옛 동작('끝나면 다 받음')으로 되돌리면 5건, 멈춤 감시를 끄면 2건, 이음매 정리를 빼면 1건 실패한다(확인함). 반복 루프·저작권 차단도 같은 식으로 확인했다: 한 줄 루프 감지를 끄면 2건, 같은 줄 감지 1건, 루프 때 연결을 안 끊으면 2건, 단어 종류 조건을 빼면(길이만) 2건, 50줄→10줄이면 1건, 저작권 차단을 옛 동작(전부 버림)으로 되돌리면 4건, 버렸던 줄 시각 복원을 끄면 2건, 안내 문구 사유 구분을 끄면 1건 실패. 반복 루프 테스트는 **실측 131,131자 흐름을 그대로 재현**하고 '그 3% 안에서 끊었는지'를 잰다(결과 대본만 보면 옛 코드도 출력 한도 뒤 이어받아 같은 대본이 나와 통과해 버린다).
 
-**알려진 공백**: `gemini.js`의 나머지 응답 파서(`transcribeStream`의 줄 파서 클로저, `parseSpeechEndResponse`, `trimBoundaryOverlap` 등 단독 테스트)는 아직 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
+**응답 파서 테스트 공백은 2026-09에 메웠다.** 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다. 줄 파서(`transcribeStream` 안 `parseLine`)는 스트림 상태(직전 줄·역행 기준)를 쥔 클로저라 **옮기지 않고** `transcribeWithResume`에 STOP으로 끝나는 가짜 모델을 물려 실제 루프로 검증한다(`stage1Parsers.test.js`) — 변이 14개(역행 보정·반복 창 8초·연속 중복·초과 여유 5초·화면 글자/괄호 설명 거르기·한 글자 줄·이른 종료 마커·청크 오프셋·H:MM:SS·쉼표 소수점·포함 판정 최소 길이·중복 창 20초·완전 일치)가 각각 실패함을 확인. '완전 일치'는 처음에 **안 잡혔다** — 긴 테스트 문장은 '포함' 판정이 먼저 걸러서, 12자 미만 짧은 말("Vâng.")로 보완했다.
 - **2026-09에 메운 것**: 감지 병합(`utils/speechEndMerge.js`, 예전 `detectSpeechEndsForFile` 인라인)과 재전사 문장 고르기(`gemini.js#selectWindowSentences`, 예전 `retranscribeSegments` 인라인) — 코드는 그대로 옮기기만 했다(옮긴 블록을 원본과 diff해 주석 한 줄 위치 외 동일 확인). 변이 12개(요청 인덱스 가드·시각 일치 검사·영상 길이 자르기·포기 표시 해제·형제 확장·MIN_SPEECH_SEC 옛 값·통째 포함 거르기·구간 재전사의 짧은 파편 규칙 제외·근접 가드 0.35·끝 경계 여유·교체 모드 이웃 거르기·앞 꼬리 트림)가 각각 1건씩 실패하는 것을 확인했다. 첫 작성 때 '요청 인덱스 가드'는 **안 잡혔다** — 테스트의 엉뚱한 값(99초)이 60초 상한에 먼저 걸려서였다. 가드 테스트엔 다른 기준을 통과하는 그럴듯한 값을 쓸 것.
 
 배포: **Vercel이 main 브랜치 푸시를 자동 배포한다.** `git push origin main`이 곧 배포다.

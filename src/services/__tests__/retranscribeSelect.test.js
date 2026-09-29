@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectWindowSentences } from '../../services/gemini';
+import { selectWindowSentences } from '../gemini';
 
 // 실측 화면(2026-09, "1 Tiếng Ăn 1 Lần tại Circle K" 6:21~6:30)
 const A = 'Ở đây thì mình có một cái vòng quay màu sắc, quay ra màu gì thì mình ăn màu đấy thôi.';

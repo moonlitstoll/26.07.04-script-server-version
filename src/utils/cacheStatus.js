@@ -29,6 +29,14 @@ export function getCacheStatus(cacheKey) {
     return { statusText, badgeColor, progressText };
 }
 
+// 저장할 때 붙이는 상태 — 문장이 없으면 'extracted', 전부 분석됐으면 'completed', 아니면 'analyzing'.
+// 위 목록 표시(getCacheStatus)와 같은 기준(문장 0개는 완료가 아님). 예전엔 호출부 9곳이 제각각 계산해
+// 0개일 때 결과가 서로 달랐다(휴지통 복구는 [].every가 true라 'completed').
+export function saveStatusOf(data) {
+    if (!Array.isArray(data) || data.length === 0) return 'extracted';
+    return data.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
+}
+
 export function getCacheDisplayName(cacheKey) {
     return cacheKey.replace('gemini_analysis_', '').replace(/_\d+$/, '');
 }
