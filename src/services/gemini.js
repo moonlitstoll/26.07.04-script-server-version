@@ -10,7 +10,7 @@ import {
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
-import { isLeakedFrom } from "../utils/sentenceEdit";
+import { isLeakedFrom, formatStamp } from "../utils/sentenceEdit";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
 import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID, getThinkingLevel } from "../constants/models";
@@ -773,11 +773,26 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
  * @param {{blockStart:number, blockEnd:number, winStart:number, winEnd:number}} b - 대상 구간과 실제로 담은 창(초)
  * @returns {{ clean: Array, splitCount: number }}
  */
-export function selectWindowSentences(all, w, { blockStart, blockEnd, winStart, winEnd }) {
+export function selectWindowSentences(all, w, { blockStart, blockEnd, winStart, winEnd, clipStart = null }) {
     // 1) 담은 창 밖으로 크게 벗어난 잡음만 러프하게 제거
     const inWindow = all.filter(m => m.seconds >= winStart - 0.5 && m.seconds <= winEnd + 0.5);
     // 2) 한 줄 다문장 분리(기존 파이프라인과 동일: 짧으면 병합)
-    const split = [...splitMergedSentences(inWindow.length > 0 ? inWindow : all)];
+    let split = [...splitMergedSentences(inWindow.length > 0 ? inWindow : all)];
+
+    // 2-1) [구간 재전사 전용] 조각 0초로 찍힌 첫 줄 구제.
+    //  모델은 조각의 첫 줄을 늘 조각 0초로 적는다. 무음 스냅이 조각 머리를 구간 시작보다 앞(무음)에서 자르면
+    //  첫 문장이 구간 시작보다 이르게 계산돼 아래 시각 필터(시작-0.3초)에 '앞 문장 꼬리'로 버려졌다.
+    //  실측(2026-09-29, 3/3): 구간 71.8초, 조각 시작 71.19초, 모델 `[00:00.00] Loay hoay…` → 71.19초 → 버림.
+    //  그 줄은 구간 시작 시각으로 옮겨 살린다. 앞 문장과 거의 같으면(새어 나온 조각) 옮기지 않아 예전처럼 버려진다
+    //  (통째로 든 조각은 아래 dropLeakedFrom이 한 번 더 거른다). 복구 모드는 창이 이웃 문장 시작부터라 해당 없음.
+    if (w.recover && Array.isArray(w.dropLeakedFrom) && Number.isFinite(clipStart)) {
+        const early = (s) => (s.seconds ?? 0) < blockStart - 0.3 && Math.abs((s.seconds ?? 0) - clipStart) <= 0.05;
+        const likePrev = (t) => !!w.prevText && Math.max(sentenceSim(t, w.prevText), sentenceSim(w.prevText, t)) >= 0.7;
+        const stamp = formatStamp(blockStart);
+        split = split.map(s => (early(s) && !likePrev(textOf(s))
+            ? { ...s, seconds: blockStart, startSeconds: blockStart, s: stamp, timestamp: stamp }
+            : s));
+    }
 
     // 3) 채택 문장 선별 — 모드별 분기
     let kept;
@@ -1011,7 +1026,7 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
             });
             // 받은 줄에서 이 구간 문장만 고르기(모드별 규칙) — selectWindowSentences(순수, 테스트 有)
             const all = segMatches || [];
-            const { clean, splitCount } = selectWindowSentences(all, w, { blockStart, blockEnd, winStart, winEnd });
+            const { clean, splitCount } = selectWindowSentences(all, w, { blockStart, blockEnd, winStart, winEnd, clipStart: segOffset });
 
             console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length}, split ${splitCount})`);
             return {

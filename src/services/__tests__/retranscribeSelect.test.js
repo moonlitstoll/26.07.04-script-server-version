@@ -32,6 +32,38 @@ describe('구간 재전사 — 이웃 조각 거르기', () => {
     });
 });
 
+describe('구간 재전사 — 조각 0초로 찍힌 첫 줄', () => {
+    // 실측(2026-09-29, 같은 클립 3/3): 구간 71.8~81.8초(문장 24·25), 무음 스냅으로 조각이 71.19초부터 잘림.
+    // 모델 원문: [00:00.00] Loay hoay… / [00:03.90] Thế thôi… / [00:10.70] Hề mắc vãi luôn.
+    const PREV = 'Các bạn làm ơn hãy comment chú bảo vệ tuyệt vời để gửi tặng đến chú nhá.';
+    const NEXT = 'Hề mắc vãi luôn.';
+    const LOAY = 'Loay hoay một hồi đặt điện thoại quay clip chiu chiu mà không được.';
+    const THE = 'Thế thôi thì mình đành chiếu cảnh điện ảnh boy Hàn Quốc vuốt tóc lấy túi nước chanh màu xanh giá mỏng manh hai mươi tám nghìn(28.000).';
+    const b = { blockStart: 71.8, blockEnd: 81.8, winStart: 69.8, winEnd: 84.8, clipStart: 71.19 };
+    const w = { recover: true, prevText: PREV, nextText: NEXT, dropLeakedFrom: [PREV, NEXT] };
+
+    it('첫 문장을 버리지 않고 구간 시작 시각으로 옮긴다(예전엔 71.19 < 71.5라 버려져 2문장 → 1문장)', () => {
+        const r = selectWindowSentences([L(71.19, LOAY), L(75.09, THE), L(81.89, NEXT)], w, b);
+        expect(texts(r)).toEqual([LOAY, THE]);
+        expect(r.clean[0].seconds).toBe(71.8);
+        expect(r.clean[0].timestamp).toBe('01:11.80'); // 저장 정리(sanitizeData)는 시각 문자열을 우선한다
+    });
+
+    it('0초로 찍혔어도 앞 문장이 새어 나온 것이면 예전처럼 버린다', () => {
+        const r = selectWindowSentences([L(71.19, 'hãy comment chú bảo vệ tuyệt vời để gửi tặng đến chú nhá.'), L(75.09, THE)], w, b);
+        expect(texts(r)).toEqual([THE]);
+        // 통째 포함은 아니지만 앞 문장을 살짝 바꿔 다시 말한 것(단어 대부분 겹침)도 옮기지 않는다
+        const reworded = selectWindowSentences([L(71.19, 'Các bạn hãy comment chú bảo vệ tuyệt vời nhé.'), L(75.09, THE)], w, b);
+        expect(texts(reworded)).toEqual([THE]);
+    });
+
+    it('조각 0초가 아닌 이른 줄, 그리고 복구 모드는 그대로 둔다', () => {
+        expect(texts(selectWindowSentences([L(71.4, LOAY), L(75.09, THE)], w, b))).toEqual([THE]);
+        const recoverOnly = { recover: true, prevText: PREV, nextText: NEXT };
+        expect(texts(selectWindowSentences([L(71.19, LOAY), L(75.09, THE)], recoverOnly, b))).toEqual([THE]);
+    });
+});
+
 describe('복구 모드 — 시각 규칙', () => {
     it('구간 안(시작-0.3 ~ 끝-0.05)만 받고, 남아 있는 이웃 시작과 0.35초 이내면 파편으로 버린다', () => {
         const lines = [
