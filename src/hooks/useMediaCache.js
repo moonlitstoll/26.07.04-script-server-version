@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData, graftSpeechEnds } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
+import { touchRecent, forgetRecent } from '../utils/recentOpen';
 import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta, CLOUD_ENABLED } from '../services/cloudSync';
 
 const CACHE_PREFIX = 'gemini_analysis_'; // localStorage 분석 캐시 키 접두사
@@ -200,6 +201,7 @@ export const useMediaCache = ({
             }
         }
         if (name != null && size != null) {
+            forgetRecent(`${name}_${size}`);
             setLocalVideoIds(prev => { const n = new Set(prev); n.delete(`${name}_${size}`); return n; });
         }
     };
@@ -269,6 +271,9 @@ export const useMediaCache = ({
     };
 
     const loadCache = async (key) => {
+        // 목록 정렬: 마지막으로 연 영상이 맨 위. 탭한 순간에 적는다 — 미디어 불러오기를 기다린 뒤에 적으면
+        // 그사이 목록으로 돌아왔을 때 순서가 안 바뀐다.
+        touchRecent(key.replace(CACHE_PREFIX, ''));
         if (resetPlayerState) resetPlayerState();
         if (setIsSwitchingFile) setIsSwitchingFile(true);
 
@@ -405,6 +410,7 @@ export const useMediaCache = ({
 
     // 클라우드 항목 로드 (다른 기기서 추출한 대본을 불러와 재생)
     const loadCloud = async (item) => {
+        touchRecent(`${item.name}_${item.size}`); // 목록 정렬(loadCache 주석 참조)
         if (resetPlayerState) resetPlayerState();
         if (setIsSwitchingFile) setIsSwitchingFile(true);
         try {

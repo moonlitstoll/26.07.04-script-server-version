@@ -3,6 +3,7 @@ import {
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { getCacheDisplayName } from '../utils/cacheStatus';
+import { readRecent, sortByRecent } from '../utils/recentOpen';
 
 const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
 const favIdFromItem = (item) => `${item.name}_${item.size}`;
@@ -16,16 +17,17 @@ const EmptyState = ({
     isFavorite = () => false, toggleFavorite = () => {},
     cloudItems = [], cloudStatus = null, loadCloud
 }) => {
-    // 즐겨찾기 우선 정렬: 별표한 항목을 맨 위로
-    const favKeys = cacheKeys.filter(k => isFavorite(favIdFromKey(k)));
-    const restKeys = cacheKeys.filter(k => !isFavorite(favIdFromKey(k)));
+    // 즐겨찾기 우선 정렬: 별표한 항목을 맨 위로. 각 묶음 안에서는 마지막으로 열었거나 별을 누른 영상이 맨 위.
+    const recent = readRecent();
+    const favKeys = sortByRecent(cacheKeys.filter(k => isFavorite(favIdFromKey(k))), favIdFromKey, recent);
+    const restKeys = sortByRecent(cacheKeys.filter(k => !isFavorite(favIdFromKey(k))), favIdFromKey, recent);
 
     // 클라우드 항목 중 로컬에 없는 것(로컬에 있으면 로컬 행으로 표시됨)을 즐겨찾기/일반으로 분리.
     // → 홈 화면도 목록(History)과 동일하게 클라우드 전용 항목까지 모두 노출.
     const localIdSet = new Set(cacheKeys.map(favIdFromKey));
     const cloudOnlyItems = (cloudItems || []).filter(it => !localIdSet.has(favIdFromItem(it)));
-    const favCloudItems = cloudOnlyItems.filter(it => isFavorite(favIdFromItem(it)));
-    const restCloudItems = cloudOnlyItems.filter(it => !isFavorite(favIdFromItem(it)));
+    const favCloudItems = sortByRecent(cloudOnlyItems.filter(it => isFavorite(favIdFromItem(it))), favIdFromItem, recent);
+    const restCloudItems = sortByRecent(cloudOnlyItems.filter(it => !isFavorite(favIdFromItem(it))), favIdFromItem, recent);
     const hasAnyItems = cacheKeys.length > 0 || cloudOnlyItems.length > 0;
     // id → 클라우드 항목 (로컬 행에서 서버 삭제 버튼 표시 여부 판단)
     const cloudById = new Map((cloudItems || []).map(it => [favIdFromItem(it), it]));

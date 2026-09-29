@@ -3,6 +3,7 @@ import {
     X, Upload, Search, FileVideo, BookOpen, Check, Clock, Star, HardDrive, Cloud
 } from 'lucide-react';
 import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
+import { readRecent, sortByRecent } from '../utils/recentOpen';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 // 즐겨찾기/통합 식별자: "{name}_{size}" (로컬 캐시 키/클라우드 항목 공통)
@@ -50,8 +51,15 @@ const CacheHistoryModal = ({
         return arr;
     }, [cacheKeys, cloudItems, searchQuery]);
 
-    const favRecords = useMemo(() => records.filter(r => isFavorite(r.id)), [records, isFavorite]);
-    const restRecords = useMemo(() => records.filter(r => !isFavorite(r.id)), [records, isFavorite]);
+    // 각 묶음 안에서는 마지막으로 열었거나 별을 누른 영상이 맨 위(기록 없으면 위의 기본 순서).
+    // 별을 누르면 isFavorite가 바뀌어 다시 계산된다.
+    const [favRecords, restRecords] = useMemo(() => {
+        const recent = readRecent();
+        return [
+            sortByRecent(records.filter(r => isFavorite(r.id)), r => r.id, recent),
+            sortByRecent(records.filter(r => !isFavorite(r.id)), r => r.id, recent),
+        ];
+    }, [records, isFavorite]);
 
     const renderStar = (id) => {
         const fav = isFavorite(id);

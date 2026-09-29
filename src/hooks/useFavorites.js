@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getFavorites, saveFavorites } from '../services/cloudSync';
+import { touchRecent } from '../utils/recentOpen';
 
 // 즐겨찾기: 로컬(localStorage)에 즉시 반영 + 서버에 best-effort 동기화 → 모든 기기 공유.
 // 식별자(id)는 "{name}_{size}" 규칙 (로컬 캐시/클라우드 항목 공통).
@@ -69,7 +70,9 @@ export const useFavorites = (passphrase) => {
     const toggleFavorite = useCallback((id) => {
         if (!id) return;
         setFavorites((prev) => {
-            const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+            const adding = !prev.includes(id);
+            const next = adding ? [...prev, id] : prev.filter((x) => x !== id);
+            if (adding) touchRecent(id); // 방금 별을 누른 영상도 즐겨찾기 맨 위로
             writeLocal(next);
             pushToServer(next);
             return next;

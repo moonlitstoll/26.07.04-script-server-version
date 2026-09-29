@@ -4,6 +4,7 @@ import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips } from '../services/gemini';
 import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
 import { saveStatusOf } from '../utils/cacheStatus';
+import { touchRecent } from '../utils/recentOpen';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
@@ -575,6 +576,8 @@ export const useMediaAnalysis = ({
         }));
 
         setFiles(prev => [...prev, ...newFiles]);
+        // 목록 정렬: 방금 올린(연) 영상이 맨 위. 여러 개면 첫 파일이 가장 위(화면에 먼저 뜨는 파일)
+        newFiles.slice().reverse().forEach((f, i) => touchRecent(`${f.file.name}_${f.file.size}`, Date.now() + i));
 
         if (newFiles.length > 0) {
             setActiveFileId(newFiles[0].id);
