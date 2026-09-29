@@ -470,7 +470,7 @@ const App = () => {
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
-    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, stage2ActiveRef, showConfirm, showToast
+    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, stage2ActiveRef, filesRef, showConfirm, showToast
   });
 
   // 즐겨찾기 (기기 간 동기화)

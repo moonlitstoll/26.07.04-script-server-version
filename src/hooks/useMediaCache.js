@@ -43,6 +43,7 @@ export const useMediaCache = ({
     stage2Model,
     stage2AbortRef,
     stage2ActiveRef, // Map<fileId, 실행중 개수> — 분석 중인 대본을 다시 열 때 재시작 방지
+    filesRef,        // 최신 files 사본(App 소유). setFiles 업데이터 실행 타이밍에 의존하지 않기 위함
     showConfirm,
     showToast
 }) => {
@@ -180,21 +181,21 @@ export const useMediaCache = ({
         }
         // \ud65c\uc131 \ud30c\uc77c\uc774\uba74 Stage 2 \uc911\ub2e8 \ubc0f \ud30c\uc77c \uc81c\uac70
         if (name) {
-            const matchingFile = files.find(f =>
+            // 이 함수는 IndexedDB 삭제를 await한 뒤라 바깥 files 클로저가 낡았을 수 있다 → 최신 사본에서 찾는다
+            const latest = filesRef?.current || files;
+            const matchingFile = latest.find(f =>
                 f.file?.name === name && (size == null || f.file?.size === size)
             );
             if (matchingFile) {
                 if (stage2AbortRef && stage2AbortRef.current) stage2AbortRef.current.abort();
                 if (setFiles) {
-                    setFiles(prev => {
-                        const fileToRemove = prev.find(f => f.id === matchingFile.id);
-                        if (fileToRemove && fileToRemove.url) URL.revokeObjectURL(fileToRemove.url);
-                        const newFiles = prev.filter(f => f.id !== matchingFile.id);
-                        if (setActiveFileId && matchingFile.id === files[0]?.id) {
-                            setActiveFileId(newFiles.length > 0 ? newFiles[0].id : null);
-                        }
-                        return newFiles;
-                    });
+                    // 지금 보던 영상을 지웠을 때만 다른 열린 영상(없으면 홈)으로 넘어간다.
+                    // 예전엔 '보던 영상'이 아니라 목록 첫 영상과 비교해, 여러 개를 열었을 때 두 번째 이후를
+                    // 지우면 화면이 지워진 영상을 계속 가리키고, 첫 영상을 지우면 보던 화면이 바뀌었다.
+                    const nextId = latest.find(f => f.id !== matchingFile.id)?.id ?? null;
+                    if (matchingFile.url) URL.revokeObjectURL(matchingFile.url);
+                    setFiles(prev => prev.filter(f => f.id !== matchingFile.id));
+                    if (setActiveFileId) setActiveFileId(cur => (cur === matchingFile.id ? nextId : cur));
                 }
             }
         }
@@ -355,15 +356,18 @@ export const useMediaCache = ({
                 isFromCache: true
             };
 
-            // Stage 2 재개에 넘길 배열. 아래 업데이터가 '최신 상태(prev)' 기준으로 이식한 결과를
-            // 여기에 받아 쓴다 — 바깥 클로저(matchingFile)는 loadCache의 await 구간(IndexedDB 조회·
-            // 길이 계산) 사이에 감지가 끝났으면 구버전이라, 그걸 그대로 Stage 2에 넘기면
-            // Stage 2가 speechEnd 없는 스냅샷을 기준으로 다시 덮어쓸 수 있다.
-            let dataForStage2 = data;
             // 이 파일의 Stage 2가 지금 돌고 있는가. f.isAnalyzing으로는 알 수 없다 —
             // 그 값은 '전사(Stage 1) 중'만 true이고 Stage 2 시작 전에 이미 false로 내려간다.
             // 그래서 아래 '분석 중 보호' 가드가 정작 분석 구간을 못 지키고 있었다.
             const stage2Running = !!stage2ActiveRef?.current?.get(id);
+            // Stage 2 재개에 넘길 배열 — 최신 사본(filesRef) 기준으로 이식한다. 바깥 클로저(matchingFile)는
+            // loadCache의 await 구간(IndexedDB 조회·길이 계산) 사이에 감지가 끝났으면 구버전이라, 그걸 그대로
+            // Stage 2에 넘기면 Stage 2가 speechEnd 없는 스냅샷을 기준으로 다시 덮어쓸 수 있다.
+            // (예전엔 아래 업데이터 안에서 값을 꺼내고 setTimeout(0)을 기다렸다 — 업데이터가 늦게 돌면 놓쳤다)
+            const latestEntry = (filesRef?.current || files).find(f => f.id === id);
+            const dataForStage2 = latestEntry && !latestEntry.isAnalyzing && !stage2Running
+                ? graftSpeechEnds(data, latestEntry.data)
+                : data;
             if (setFiles) setFiles(prev => {
                 const existing = prev.find(f => f.id === id);
                 if (!existing) return [...prev, newFileEntry];
@@ -375,14 +379,12 @@ export const useMediaCache = ({
                 // 저장 실패/저장 전 전환 시 여기서 감지 결과가 통째로 사라지던 경로였다.
                 // (prev를 쓰는 이유: 바깥 files 클로저보다 항상 최신)
                 const guarded = { ...newFileEntry, data: graftSpeechEnds(newFileEntry.data, existing.data) };
-                dataForStage2 = guarded.data;
                 return prev.map(f => (f.id === id ? { ...f, ...guarded } : f));
             });
             if (setActiveFileId) setActiveFileId(id);
             if (setShowSettings) setShowSettings(false);
             if (setShowCacheHistory) setShowCacheHistory(false);
 
-            await new Promise(r => setTimeout(r, 0)); // 위 업데이터가 dataForStage2를 채울 틈을 준다
             const hasPending = dataForStage2.some(d => !d.isAnalyzed);
             // [재시작 방지] 이미 이 파일의 Stage 2가 돌고 있으면 새로 시작하지 않는다.
             // 시작하면 runStage2 첫 줄의 abort가 진행 중이던 배치를 죽이고 마지막 저장 지점부터

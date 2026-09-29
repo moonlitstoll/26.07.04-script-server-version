@@ -393,7 +393,8 @@ export const useMediaAnalysis = ({
         }
 
         console.log(`[Stage 2] Finished. Analyzed: ${totalSuccessCount}/${pendingIndices.length}`);
-        return { total: pendingIndices.length, success: totalSuccessCount, failedIndices, aborted: signal.aborted };
+        // data = 이 실행이 마지막으로 화면·캐시에 쓴 대본(호출부가 filesRef를 읽으면 마지막 커밋 전 값일 수 있다)
+        return { total: pendingIndices.length, success: totalSuccessCount, failedIndices, aborted: signal.aborted, data: workingData };
     };
 
     /**
@@ -811,24 +812,21 @@ export const useMediaAnalysis = ({
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
 
         const idxSet = new Set(indices);
-        let targetFile = null;
-        let resetData = null;
+        // 경합 제거 — 최신 사본(filesRef)에서 동기적으로 계산하고 상태엔 결과만 반영한다.
+        // (예전엔 setFiles 업데이터 안에서 값을 꺼낸 뒤 setTimeout(0)을 기다렸는데, 업데이터가 늦게 돌면 조용히 아무것도 안 했다)
+        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base?.file || null;
+        if (!targetFile || !Array.isArray(base?.data)) return;
         const snapshot = new Map(); // idx -> 원본 분석 (재분석 실패 시 복원용)
-        setFiles(prev => prev.map(p => {
-            if (p.id !== fileId) return p;
-            targetFile = p.file;
-            // 선택 문장만 미분석 상태로 리셋 (전사 텍스트·타임스탬프는 유지)
-            resetData = p.data.map((d, i) => {
-                if (!idxSet.has(i)) return d;
-                // 원본이 분석돼 있었으면 복원용으로 보관 (전사의심 플래그도 함께 — 실패 복원 시 배지 유지)
-                if (d.isAnalyzed) snapshot.set(i, { translation: d.translation, analysis: d.analysis, a: d.a, transcriptSuspect: d.transcriptSuspect || '', isAnalyzed: true });
-                // analysisFailed 해제 → 재시도 동안은 실패 UI가 아니라 로딩 스피너로 표시
-                return { ...d, translation: '', analysis: '', a: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false };
-            });
-            return { ...p, data: resetData };
-        }));
-        await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !resetData) return;
+        // 선택 문장만 미분석 상태로 리셋 (전사 텍스트·타임스탬프는 유지)
+        const resetData = base.data.map((d, i) => {
+            if (!idxSet.has(i)) return d;
+            // 원본이 분석돼 있었으면 복원용으로 보관 (전사의심 플래그도 함께 — 실패 복원 시 배지 유지)
+            if (d.isAnalyzed) snapshot.set(i, { translation: d.translation, analysis: d.analysis, a: d.a, transcriptSuspect: d.transcriptSuspect || '', isAnalyzed: true });
+            // analysisFailed 해제 → 재시도 동안은 실패 UI가 아니라 로딩 스피너로 표시
+            return { ...d, translation: '', analysis: '', a: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false };
+        });
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: resetData } : p));
 
         // [원본 소실 방지] 지워진 버전을 캐시에 저장하지 않는다 → 분석이 전부 실패하거나 도중에
         // 탭이 닫혀도 캐시엔 직전 원본 분석이 남는다. (성공분은 runStage2가 배치별로 저장)
@@ -842,16 +840,13 @@ export const useMediaAnalysis = ({
         // 여전히 미분석(실패)인 선택 문장은 원본 분석으로 되돌린다. (취소/파일전환으로 중단된 경우는 제외)
         const failed = (result && !result.aborted ? (result.failedIndices || []) : []).filter(i => snapshot.has(i));
         if (failed.length > 0) {
-            let restoredData = null;
-            setFiles(prev => prev.map(p => {
-                if (p.id !== fileId) return p;
-                restoredData = p.data.map((d, i) => {
-                    if (!snapshot.has(i) || d.isAnalyzed) return d; // 성공분은 새 결과 유지
-                    return { ...d, ...snapshot.get(i), analysisFailed: false }; // 실패분은 원본 분석으로 복원(실패 표시 해제)
-                });
-                return { ...p, data: restoredData };
-            }));
+            const latest = result.data;
+            const restoredData = Array.isArray(latest) ? latest.map((d, i) => {
+                if (!snapshot.has(i) || d.isAnalyzed) return d; // 성공분은 새 결과 유지
+                return { ...d, ...snapshot.get(i), analysisFailed: false }; // 실패분은 원본 분석으로 복원(실패 표시 해제)
+            }) : null;
             if (restoredData) {
+                setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: restoredData } : p));
                 const status = restoredData.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
                 persistCache(targetFile, restoredData, status);
                 if (refreshCacheKeys) refreshCacheKeys();
@@ -1256,53 +1251,36 @@ export const useMediaAnalysis = ({
     const deleteSentences = async (fileId, indices) => {
         if (!indices || indices.length === 0) return;
         const idxSet = new Set(indices);
-        let targetFile = null;
-        let prevData = null; // 실행취소용 삭제 전 스냅샷
-        let newData = null;
-        let deletedItems = [];
-        setFiles(prev => prev.map(p => {
-            if (p.id !== fileId) return p;
-            targetFile = p.file;
-            prevData = p.data;
-            deletedItems = p.data.filter((_, i) => idxSet.has(i));
-            newData = p.data.filter((_, i) => !idxSet.has(i));
-            return { ...p, data: newData };
-        }));
-        await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !newData) return;
+        // 경합 제거 — 최신 사본(filesRef)에서 동기적으로 계산(reanalyzeSentences 주석 참조)
+        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base?.file || null;
+        const prevData = base?.data || null; // 실행취소용 삭제 전 스냅샷
+        if (!targetFile || !Array.isArray(prevData)) return;
+        const deletedItems = prevData.filter((_, i) => idxSet.has(i));
+        const newData = prevData.filter((_, i) => !idxSet.has(i));
+
+        // 분석이 도는 중이면 먼저 멈춘다 — 분석은 시작 때 사본을 들고 있다가 묶음마다 통째로 덮어써서,
+        // 안 멈추면 지운 문장이 다음 묶음이 끝날 때 되살아나 저장까지 된다. 남은 미분석 문장은 아래에서 이어서 분석.
+        const wasAnalyzing = !!stage2ActiveRef?.current?.get(fileId);
+        if (wasAnalyzing && stage2AbortRef.current) stage2AbortRef.current.abort();
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: newData } : p));
 
         // 휴지통에 보관 (6초 실행취소가 지나도 나중에 복구 가능)
         if (targetFile.name) {
             addToTrash(targetFile.name, targetFile.size, deletedItems);
             if (onTrashChange) onTrashChange();
         }
-
-        // 로컬 캐시 + 클라우드에 상태 반영 (best-effort)
-        const persist = (data) => {
-            const status = data.length === 0 ? 'extracted' : (data.every(d => d.isAnalyzed) ? 'completed' : 'analyzing');
-            persistCache(targetFile, data, status);
-            if (refreshCacheKeys) refreshCacheKeys();
-            cloudSaveMeta(targetFile, data, status, null, 0).catch(e => console.warn('[Cloud] 반영 실패:', e));
-        };
-        persist(newData);
-
-        // 실행취소: 삭제 전 데이터로 되돌리고, 방금 넣은 휴지통 항목도 제거
-        const undo = () => {
-            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: prevData } : p));
-            persist(prevData);
-            if (targetFile.name) {
-                removeFromTrash(targetFile.name, targetFile.size, deletedItems);
-                if (onTrashChange) onTrashChange();
-            }
-            if (showToast) showToast({ message: '삭제를 취소했습니다.', type: 'success' });
-        };
+        persistEdit(targetFile, newData);
 
         if (showToast) showToast({
             message: `${idxSet.size}개 문장 삭제됨`,
             type: 'success',
-            action: { label: '실행취소', onClick: undo },
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, deletedItems, '삭제를 취소했습니다.') },
             duration: 6000, // 되돌릴 시간 여유
         });
+        if (wasAnalyzing && apiKey && newData.some(d => !d.isAnalyzed && !d.analysisFailed)) {
+            runStage2(fileId, targetFile, newData, apiKey, stage2Model);
+        }
     };
 
     /**
