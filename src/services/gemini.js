@@ -765,6 +765,103 @@ async function realignMergedBlocks(sorted, audioBlob, model, totalDuration, {
 }
 
 /**
+ * [재전사 결과 고르기] 한 구간(w)을 다시 들어 받은 줄(all, 절대 시각)에서 그 구간 문장만 남긴다. 순수(테스트 대상).
+ *  - 교체 모드(기본): 대상 원문/앞/뒤 문장과 비교해 대상과 가장 닮은 것만(이웃에서 딸려 온 문장 제거)
+ *  - 복구 모드(w.recover): 구간 안 문장을 전량 채택 + 이웃 시작 0.35초 이내 파편 제거(boundaryTimes)
+ *      + 구간 재전사(dropLeakedFrom): 이웃 안에 통째로 든 조각만 제거 / 복구(dropSimilarTo): 유사도 0.7 이상 제거
+ *  - 공통: 첫·끝 줄에 붙은 이웃 단어 트림 → 짧은 경계 파편 제거(구간 재전사 제외) → 초단문 파편 병합
+ * @param {{blockStart:number, blockEnd:number, winStart:number, winEnd:number}} b - 대상 구간과 실제로 담은 창(초)
+ * @returns {{ clean: Array, splitCount: number }}
+ */
+export function selectWindowSentences(all, w, { blockStart, blockEnd, winStart, winEnd }) {
+    // 1) 담은 창 밖으로 크게 벗어난 잡음만 러프하게 제거
+    const inWindow = all.filter(m => m.seconds >= winStart - 0.5 && m.seconds <= winEnd + 0.5);
+    // 2) 한 줄 다문장 분리(기존 파이프라인과 동일: 짧으면 병합)
+    const split = [...splitMergedSentences(inWindow.length > 0 ? inWindow : all)];
+
+    // 3) 채택 문장 선별 — 모드별 분기
+    let kept;
+    if (w.recover) {
+        // [복구 모드] 유사도 필터를 끄고 '구간(빈칸)' 안의 문장을 전량 채택.
+        // 삭제됐던 문장도 버려지지 않고 되살아나며, 각 문장은 실측 절대 시각을 그대로 유지
+        // → 사이에 있던 문장이 제자리(실측 시각)에 정확히 들어간다.
+        // (줄 시작 시각 기준이므로, 이 문장의 끝 단어가 blockEnd를 넘겨도 그 줄은 통째로 보존됨)
+        kept = split.filter(s => {
+            const sec = s.seconds ?? 0;
+            return sec >= blockStart - 0.3 && sec < blockEnd - 0.05;
+        });
+        // [근접 가드] 시작 시각이 '살아있는 이웃 문장 시작'과 0.35초 이내면 그건 이웃 파편 →
+        //   무음 스냅이 못 잡은(붙여 말하는) 경우의 뒤/앞 파편을 시각 기준으로 결정적 제거.
+        const bts = Array.isArray(w.boundaryTimes) ? w.boundaryTimes : [];
+        if (bts.length) {
+            kept = kept.filter(s => {
+                const sec = s.seconds ?? 0;
+                return !bts.some(bt => Math.abs(sec - bt) <= 0.35);
+            });
+        }
+        // [구간 재전사] 이웃 문장 안에 통째로 들어 있는 조각만 버린다(sentenceEdit.isLeakedFrom).
+        //  아래 유사도 방식은 단어가 많이 겹치는 진짜 새 문장까지 버려서(실측) 구간 재전사엔 쓰지 않는다.
+        const leakFrom = Array.isArray(w.dropLeakedFrom) ? w.dropLeakedFrom.filter(Boolean) : [];
+        if (leakFrom.length) kept = kept.filter(s => !leakFrom.some(b => isLeakedFrom(textOf(s), b)));
+        // 유지되는 경계 문장(앵커/이웃)과 겹치는 재전사본은 제거 → 유지 문장과 중복 방지
+        const drops = Array.isArray(w.dropSimilarTo) ? w.dropSimilarTo.filter(Boolean) : [];
+        if (drops.length) {
+            kept = kept.filter(s => {
+                const t = textOf(s);
+                return !drops.some(b => Math.max(sentenceSim(t, b), sentenceSim(b, t)) >= 0.7);
+            });
+        }
+    } else {
+        // [교체 모드] 딸려온 이웃 문장 제거.
+        //  각 문장을 '대상 원문 / 앞문장 / 다음문장'과 비교해, 이웃과 더 비슷하면 버리고
+        //  대상 문장과 가장 잘 맞는 것만 남긴다(짧은 클립의 부정확한 타임스탬프에 안 의존).
+        const selfText = w.selfText || '';
+        const scored = split.map(s => {
+            const t = textOf(s);
+            return {
+                s,
+                self: sentenceSim(t, selfText),
+                prev: sentenceSim(t, w.prevText || ''),
+                next: sentenceSim(t, w.nextText || ''),
+            };
+        });
+        kept = scored.filter(x => x.self >= x.prev && x.self >= x.next).map(x => x.s);
+        // 분류로 전부 걸러지면(대상 문장이 애매) 대상과 가장 비슷한 1개만 살린다.
+        if (kept.length === 0 && scored.length > 0) {
+            const best = [...scored].sort((a, b) => b.self - a.self)[0];
+            if (best && best.self > 0) kept = [best.s];
+        }
+    }
+
+    // 4) 경계 부분 겹침(마침표 없이 붙은 앞/뒤 꼬리) 단어 단위 트림 + 빈 문장 제거
+    let clean = kept;
+    if (clean.length > 0) {
+        const first = clean[0];
+        const ft = trimBoundaryOverlap(textOf(first), w.prevText, 'lead');
+        if (ft !== (first.text ?? first.o)) clean[0] = { ...first, o: ft, text: ft };
+        const li = clean.length - 1;
+        const last = clean[li];
+        const lt = trimBoundaryOverlap(textOf(last), w.nextText, 'trail');
+        if (lt !== (last.text ?? last.o)) clean[li] = { ...last, o: lt, text: lt };
+        clean = clean.filter(c => textOf(c).trim().length > 0);
+    }
+    // 4-2) 경계 파편 안전망: 프롬프트가 놓친, 첫/마지막 줄의 짧은 조각(≤3단어)이
+    //      이웃 문장 단어와 크게 겹치면(≥60%) 새어나온 파편으로 보고 통째 제거.
+    //      구간 재전사(dropLeakedFrom)는 위 '통째 포함' 판정으로 대신한다 — "Lục, xanh." 같은
+    //      짧은 진짜 문장이 이웃과 단어가 겹친다는 이유로 사라지지 않게.
+    const leakGuard = !Array.isArray(w.dropLeakedFrom);
+    if (leakGuard && clean.length > 0 && isBoundaryLeakFragment(clean[0].text ?? clean[0].o, w.prevText)) {
+        clean = clean.slice(1);
+    }
+    if (leakGuard && clean.length > 0 && isBoundaryLeakFragment(clean[clean.length - 1].text ?? clean[clean.length - 1].o, w.nextText)) {
+        clean = clean.slice(0, -1);
+    }
+    // 흩어진 초단문 파편은 인접끼리 병합(선택 구간 재전사에서도 파편 정리)
+    clean = mergeTinyFragments(clean);
+    return { clean, splitCount: split.length };
+}
+
+/**
  * [Stage 1 부분 재전사 - 구간 선택 재전사]
  * 사용자가 고른 문장들의 '시간대 오디오'만 잘라 다시 전사한다.
  * 나머지 문장의 타임스탬프는 전혀 건드리지 않으므로 타임라인이 최대한 보존된다.
@@ -912,96 +1009,11 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
                 signal,
                 stripMarker,
             });
-            // 이 문장 범위에 속하는 줄만 채택:
-            //  - 시작 < blockStart-0.2 : 앞 문장 꼬리 → 제거
-            //  - 시작 >= blockEnd-0.05 : 다음 문장(뒤 여유로 함께 잡힌 것) → 제거
-            // (줄 시작 시각 기준이므로, 이 문장의 끝 단어가 blockEnd를 넘겨도 그 줄은 통째로 보존됨)
+            // 받은 줄에서 이 구간 문장만 고르기(모드별 규칙) — selectWindowSentences(순수, 테스트 有)
             const all = segMatches || [];
-            // 1) 담은 창 밖으로 크게 벗어난 잡음만 러프하게 제거
-            const inWindow = all.filter(m => m.seconds >= winStart - 0.5 && m.seconds <= winEnd + 0.5);
-            // 2) 한 줄 다문장 분리(기존 파이프라인과 동일: 짧으면 병합)
-            const split = [...splitMergedSentences(inWindow.length > 0 ? inWindow : all)];
+            const { clean, splitCount } = selectWindowSentences(all, w, { blockStart, blockEnd, winStart, winEnd });
 
-            // 3) 채택 문장 선별 — 모드별 분기
-            let kept;
-            if (w.recover) {
-                // [복구 모드] 유사도 필터를 끄고 '구간(빈칸)' 안의 문장을 전량 채택.
-                // 삭제됐던 문장도 버려지지 않고 되살아나며, 각 문장은 실측 절대 시각을 그대로 유지
-                // → 사이에 있던 문장이 제자리(실측 시각)에 정확히 들어간다.
-                kept = split.filter(s => {
-                    const sec = s.seconds ?? 0;
-                    return sec >= blockStart - 0.3 && sec < blockEnd - 0.05;
-                });
-                // [근접 가드] 시작 시각이 '살아있는 이웃 문장 시작'과 0.35초 이내면 그건 이웃 파편 →
-                //   무음 스냅이 못 잡은(붙여 말하는) 경우의 뒤/앞 파편을 시각 기준으로 결정적 제거.
-                const bts = Array.isArray(w.boundaryTimes) ? w.boundaryTimes : [];
-                if (bts.length) {
-                    kept = kept.filter(s => {
-                        const sec = s.seconds ?? 0;
-                        return !bts.some(bt => Math.abs(sec - bt) <= 0.35);
-                    });
-                }
-                // [구간 재전사] 이웃 문장 안에 통째로 들어 있는 조각만 버린다(sentenceEdit.isLeakedFrom).
-                //  아래 유사도 방식은 단어가 많이 겹치는 진짜 새 문장까지 버려서(실측) 구간 재전사엔 쓰지 않는다.
-                const leakFrom = Array.isArray(w.dropLeakedFrom) ? w.dropLeakedFrom.filter(Boolean) : [];
-                if (leakFrom.length) kept = kept.filter(s => !leakFrom.some(b => isLeakedFrom(textOf(s), b)));
-                // 유지되는 경계 문장(앵커/이웃)과 겹치는 재전사본은 제거 → 유지 문장과 중복 방지
-                const drops = Array.isArray(w.dropSimilarTo) ? w.dropSimilarTo.filter(Boolean) : [];
-                if (drops.length) {
-                    kept = kept.filter(s => {
-                        const t = textOf(s);
-                        return !drops.some(b => Math.max(sentenceSim(t, b), sentenceSim(b, t)) >= 0.7);
-                    });
-                }
-            } else {
-                // [교체 모드] 딸려온 이웃 문장 제거.
-                //  각 문장을 '대상 원문 / 앞문장 / 다음문장'과 비교해, 이웃과 더 비슷하면 버리고
-                //  대상 문장과 가장 잘 맞는 것만 남긴다(짧은 클립의 부정확한 타임스탬프에 안 의존).
-                const selfText = w.selfText || '';
-                const scored = split.map(s => {
-                    const t = textOf(s);
-                    return {
-                        s,
-                        self: sentenceSim(t, selfText),
-                        prev: sentenceSim(t, w.prevText || ''),
-                        next: sentenceSim(t, w.nextText || ''),
-                    };
-                });
-                kept = scored.filter(x => x.self >= x.prev && x.self >= x.next).map(x => x.s);
-                // 분류로 전부 걸러지면(대상 문장이 애매) 대상과 가장 비슷한 1개만 살린다.
-                if (kept.length === 0 && scored.length > 0) {
-                    const best = [...scored].sort((a, b) => b.self - a.self)[0];
-                    if (best && best.self > 0) kept = [best.s];
-                }
-            }
-
-            // 4) 경계 부분 겹침(마침표 없이 붙은 앞/뒤 꼬리) 단어 단위 트림 + 빈 문장 제거
-            let clean = kept;
-            if (clean.length > 0) {
-                const first = clean[0];
-                const ft = trimBoundaryOverlap(textOf(first), w.prevText, 'lead');
-                if (ft !== (first.text ?? first.o)) clean[0] = { ...first, o: ft, text: ft };
-                const li = clean.length - 1;
-                const last = clean[li];
-                const lt = trimBoundaryOverlap(textOf(last), w.nextText, 'trail');
-                if (lt !== (last.text ?? last.o)) clean[li] = { ...last, o: lt, text: lt };
-                clean = clean.filter(c => textOf(c).trim().length > 0);
-            }
-            // 4-2) 경계 파편 안전망: 프롬프트가 놓친, 첫/마지막 줄의 짧은 조각(≤3단어)이
-            //      이웃 문장 단어와 크게 겹치면(≥60%) 새어나온 파편으로 보고 통째 제거.
-            //      구간 재전사(dropLeakedFrom)는 위 '통째 포함' 판정으로 대신한다 — "Lục, xanh." 같은
-            //      짧은 진짜 문장이 이웃과 단어가 겹친다는 이유로 사라지지 않게.
-            const leakGuard = !Array.isArray(w.dropLeakedFrom);
-            if (leakGuard && clean.length > 0 && isBoundaryLeakFragment(clean[0].text ?? clean[0].o, w.prevText)) {
-                clean = clean.slice(1);
-            }
-            if (leakGuard && clean.length > 0 && isBoundaryLeakFragment(clean[clean.length - 1].text ?? clean[clean.length - 1].o, w.nextText)) {
-                clean = clean.slice(0, -1);
-            }
-            // 흩어진 초단문 파편은 인접끼리 병합(선택 구간 재전사에서도 파편 정리)
-            clean = mergeTinyFragments(clean);
-
-            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length}, split ${split.length})`);
+            console.log(`[Retranscribe] 구간 @${blockStart.toFixed(1)}~${blockEnd.toFixed(1)}s (창 ${winStart.toFixed(1)}~${winEnd.toFixed(1)}) → ${clean.length}문장 (raw ${all.length}, split ${splitCount})`);
             return {
                 sentences: clean.length > 0 ? clean : null,
                 error: clean.length > 0 ? null : '이 구간에서 전사된 문장이 없음(무음/음악이거나 인식 실패)'

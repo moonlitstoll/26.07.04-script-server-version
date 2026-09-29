@@ -22,7 +22,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 ### 테스트 (`src/utils/__tests__/`)
 
-순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
 
 **테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
 
@@ -36,7 +36,8 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 **Stage 1 스트림 끊김 이어받기는 `services/stage1Resume.js`(순수) + `gemini.js#transcribeWithResume`(실제 루프, 테스트용 export)** — `__tests__/stage1Resume.test.js`가 **가짜 모델로 실제 루프를 돌린다**(gemini.js는 node에서 import 된다 — SDK·ffmpeg import에 부작용 없음 확인). 끊김 판정을 옛 동작('끝나면 다 받음')으로 되돌리면 5건, 멈춤 감시를 끄면 2건, 이음매 정리를 빼면 1건 실패한다(확인함). 반복 루프·저작권 차단도 같은 식으로 확인했다: 한 줄 루프 감지를 끄면 2건, 같은 줄 감지 1건, 루프 때 연결을 안 끊으면 2건, 단어 종류 조건을 빼면(길이만) 2건, 50줄→10줄이면 1건, 저작권 차단을 옛 동작(전부 버림)으로 되돌리면 4건, 버렸던 줄 시각 복원을 끄면 2건, 안내 문구 사유 구분을 끄면 1건 실패. 반복 루프 테스트는 **실측 131,131자 흐름을 그대로 재현**하고 '그 3% 안에서 끊었는지'를 잰다(결과 대본만 보면 옛 코드도 출력 한도 뒤 이어받아 같은 대본이 나와 통과해 버린다).
 
-**알려진 공백**: `gemini.js`의 나머지 응답 파서와 `useMediaAnalysis`의 감지 병합 로직은 함수로 분리돼 있지 않아 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
+**알려진 공백**: `gemini.js`의 나머지 응답 파서(`transcribeStream`의 줄 파서 클로저, `parseSpeechEndResponse`, `trimBoundaryOverlap` 등 단독 테스트)는 아직 테스트가 없다. 예전엔 로직을 복제해 테스트했는데, 그건 사본을 검증하는 셈이라 폐기했다.
+- **2026-09에 메운 것**: 감지 병합(`utils/speechEndMerge.js`, 예전 `detectSpeechEndsForFile` 인라인)과 재전사 문장 고르기(`gemini.js#selectWindowSentences`, 예전 `retranscribeSegments` 인라인) — 코드는 그대로 옮기기만 했다(옮긴 블록을 원본과 diff해 주석 한 줄 위치 외 동일 확인). 변이 12개(요청 인덱스 가드·시각 일치 검사·영상 길이 자르기·포기 표시 해제·형제 확장·MIN_SPEECH_SEC 옛 값·통째 포함 거르기·구간 재전사의 짧은 파편 규칙 제외·근접 가드 0.35·끝 경계 여유·교체 모드 이웃 거르기·앞 꼬리 트림)가 각각 1건씩 실패하는 것을 확인했다. 첫 작성 때 '요청 인덱스 가드'는 **안 잡혔다** — 테스트의 엉뚱한 값(99초)이 60초 상한에 먼저 걸려서였다. 가드 테스트엔 다른 기준을 통과하는 그럴듯한 값을 쓸 것.
 
 배포: **Vercel이 main 브랜치 푸시를 자동 배포한다.** `git push origin main`이 곧 배포다.
 (`npm run deploy`는 안내 메시지만 출력하고 종료. `gh-pages` 브랜치는 옛 방식의 잔재 — 사용 안 함.)
@@ -112,7 +113,7 @@ Stage 2가 만든 **의미 청크**(`item.analysis`의 `**원어 청크**: 뜻` 
 - **기존 '삭제'(`deleteSentences`)도 같은 규칙** (2026-09 수정): 예전엔 분석 중에 지우면 **다음 묶음이 끝날 때 지운 문장이 되살아나 저장까지 됐다**(runStage2가 시작 때 사본으로 통째로 덮어씀). 지금은 이 파일의 분석이 돌고 있으면(`stage2ActiveRef`) 멈추고, 남은 미분석 문장을 `stage2Model`로 이어서 돌린다. 실행취소도 `makeEditUndo`를 쓴다. 브라우저에서 Gemini 요청을 20초 붙잡는 fetch 래퍼로 재현·확인(삭제·삭제 후 실행취소 둘 다, 요청 완료 뒤 화면·캐시 문장 수 유지).
 - **`runStage2`는 결과에 `data`(마지막으로 쓴 대본)를 돌려준다** — 끝난 직후 `filesRef`는 마지막 커밋 전 값일 수 있어(App이 effect에서 갱신), 재분석 실패분 복원은 이걸 기준으로 한다.
 - **휴지통 복구 시 미분석 문장은 즉시 분석**(`restoreSentences`) — 나누기로 잘라낸 조각은 분석 없이 보관되므로 안 하면 스피너만 돈다.
-- **미리 듣기는 본 플레이어가 아니라 별도 `<audio>`(`hooks/usePreviewPlayer.js`)** — 본 플레이어로 재생하면 문장 반복·대사만 건너뛰기 엔진이 위치를 옮겨 경계 확인이 안 된다. 시작 전 본 플레이어를 멈춘다. (브라우저 검증 주의: 탭이 hidden이면 크롬이 미디어를 아예 안 불러와 소리 확인 불가 — 호출 위치·시간만 확인됨)
+- **미리 듣기는 본 플레이어가 아니라 별도 `<audio>`(`hooks/usePreviewPlayer.js`)** — 본 플레이어로 재생하면 문장 반복·대사만 건너뛰기 엔진이 위치를 옮겨 경계 확인이 안 된다. 시작 전 본 플레이어를 멈춘다. (브라우저 검증 주의: 탭이 hidden이면 크롬이 미디어를 아예 안 불러와 소리 확인 불가 — 자동 검증은 호출 위치·시간까지만. 실제 소리는 사용자가 휴대폰에서 확인함, 2026-09-29)
 
 ### 대본 정확도 자기 검증 (커버리지 검사 + 전사의심)
 

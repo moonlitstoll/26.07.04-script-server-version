@@ -7,7 +7,8 @@ import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../s
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
-import { validSpeechEnd, MIN_SPEECH_SEC, MAX_SENTENCE_SEC } from '../utils/speechSegments';
+import { validSpeechEnd } from '../utils/speechSegments';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange } from '../utils/sentenceEdit';
 
@@ -901,36 +902,16 @@ export const useMediaAnalysis = ({
             let duration = 0;
             try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
 
-            // 선택 재감지(indices): 그 인덱스만. 이미 done이어도 포함해 덮어쓴다(부정확한 걸 고치는 게 목적).
-            // onlyMissing: 유효 speechEnd가 없고 '아직 포기 표시도 안 된' 문장만 재요청
-            //   — 이미 감지된 문장은 목록에서 빼서(덮어쓸 일 없음) 모델이 빠진 문장에만 집중하게 한다.
-            //   (speechEndSkipped = 이미 시도했는데 모델이 판단 못 한 구간 → 반복 요청해봐야 비용만 든다)
-            const idxSet = Array.isArray(indices) ? new Set(indices) : (indices instanceof Set ? indices : null);
-            // [블록 정합] 같은 seconds를 공유하는 형제 문장(분할된 한 덩어리)은 blockSpeechEnd가 '최댓값'으로
-            // 묶어 쓴다. 한 형제만 고치면 다른 형제의 옛 값이 남아 블록 skip이 안 바뀔 수 있으므로,
-            // 선택된 인덱스의 같은-seconds 형제를 모두 포함해 블록 단위로 재감지한다(형제는 같은 클립 → 추출 1회).
-            let effIdxSet = idxSet;
-            if (idxSet) {
-                const selSecs = new Set([...idxSet].map(i => snapshot[i]?.seconds).filter(v => typeof v === 'number'));
-                effIdxSet = new Set(idxSet);
-                snapshot.forEach((d, i) => { if (selSecs.has(d.seconds)) effIdxSet.add(i); });
-            }
-            const sentences = snapshot
-                .map((d, i) => ({ index: i, seconds: d.seconds, text: d.text, done: validSpeechEnd(d) !== null || !!d.speechEndSkipped }))
-                .filter(s => effIdxSet ? effIdxSet.has(s.index) : (!onlyMissing || !s.done))
-                .map(({ index, seconds, text }) => ({ index, seconds, text }));
+            // 요청할 문장 고르기(선택 재감지 = 형제 포함 / onlyMissing = 미감지·미포기만) — utils/speechEndMerge
+            const { sentences, selective } = selectSpeechEndTargets(snapshot, { onlyMissing, indices });
             if (sentences.length === 0) {
-                if (showToast) showToast({ message: idxSet ? '선택한 문장을 찾지 못했어요.' : '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: idxSet ? 'error' : 'success' });
-                return !idxSet;
+                if (showToast) showToast({ message: selective ? '선택한 문장을 찾지 못했어요.' : '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: selective ? 'error' : 'success' });
+                return !selective;
             }
             // 선택 재감지는 클립만(비용 비례), 전체/누락 감지는 오디오 통째(기존).
             let ends;
-            if (idxSet) {
-                // 각 문장의 '다음 대사 시작'(자기보다 시각이 큰 첫 문장) — 클립 끝 경계로 쓴다.
-                const allStarts = snapshot.map(d => d.seconds);
-                const nextStartOf = (sec) => { let best = null; for (const t of allStarts) if (t > sec && (best === null || t < best)) best = t; return best; };
-                const withNext = sentences.map(s => ({ ...s, nextStart: nextStartOf(s.seconds) }));
-                ends = await detectSpeechEndsByClips(fileForAnalysis, apiKey, stage1Model, withNext, { mediaSrc: targetUrl, duration });
+            if (selective) {
+                ends = await detectSpeechEndsByClips(fileForAnalysis, apiKey, stage1Model, withNextStarts(snapshot, sentences), { mediaSrc: targetUrl, duration });
             } else {
                 ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
             }
@@ -958,29 +939,13 @@ export const useMediaAnalysis = ({
             const baseEntry = (filesRef?.current || []).find(p => p.id === fileId);
             const seenIds = (filesRef?.current || []).map(x => x.id);
             if (baseEntry) {
-                const merged = baseEntry.data.map((d, i) => {
-                    if (!requested.has(i)) return d;
-                    if (!snapshot[i] || snapshot[i].seconds !== d.seconds) { secondsMismatch++; return d; }
-                    let se = ends.get(i);
-                    if (typeof se !== 'number' || !Number.isFinite(se)) {
-                        // 요청했는데 값이 안 온 문장(모델이 SKIP했거나 누락) → '시도했음' 표시.
-                        // 안 하면 감지 불가 구간이 영원히 미감지로 집계돼 배지가 안 사라지고
-                        // 재감지를 누를 때마다 오디오 1회 전송 비용이 반복된다.
-                        return d.speechEndSkipped ? d : { ...d, speechEndSkipped: true };
-                    }
-                    if (duration > 0) se = Math.min(se, duration);
-                    // 기준은 speechSegments와 반드시 일치시킨다 — 여기서 통과한 값이 재생 단계에서
-                    // 다시 걸러지면 '저장은 됐는데 동작 안 함'이 되고, 반대면 저장 자체가 안 된다.
-                    if (se <= d.seconds + MIN_SPEECH_SEC || se - d.seconds > MAX_SENTENCE_SEC) {
-                        return d.speechEndSkipped ? d : { ...d, speechEndSkipped: true };
-                    }
-                    applied++;
-                    // 동기 사본(graft ref)에도 기록 — 진행 중인 Stage 2가 스냅샷으로 덮어써도 이식돼 살아남는다
-                    speechEndGraftRef.current.set(`${targetFile.name}_${targetFile.size}|${d.seconds}`, se);
-                    const next = { ...d, speechEnd: se };
-                    delete next.speechEndSkipped; // 재시도로 성공하면 포기 표시 해제
-                    return next;
-                });
+                // 병합 규칙(요청한 인덱스만 · 시각 일치 검사 · 채택 기준 · 포기 표시)은 utils/speechEndMerge
+                const r = mergeSpeechEnds(baseEntry.data, snapshot, requested, ends, duration);
+                applied = r.applied;
+                secondsMismatch = r.secondsMismatch;
+                // 동기 사본(graft ref)에도 기록 — 진행 중인 Stage 2가 스냅샷으로 덮어써도 이식돼 살아남는다
+                for (const [sec, se] of r.grafts) speechEndGraftRef.current.set(`${targetFile.name}_${targetFile.size}|${sec}`, se);
+                const merged = r.merged;
                 latestData = merged;
                 // 계산이 끝난 결과만 상태에 반영한다(업데이터는 순수 — 값을 꺼내오지 않는다)
                 setFiles(prev => prev.map(p => (p.id === fileId ? { ...p, data: merged } : p)));
@@ -1025,7 +990,7 @@ export const useMediaAnalysis = ({
             // 미감지 문장이 남았으면 '그 문장들만' 재감지하는 액션 제공 (기감지분은 안 건드림)
             const remaining = latestData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length;
             if (showToast) {
-                if (idxSet) {
+                if (selective) {
                     // 선택 재감지: 고른 문장만 다시 잰 것 — 전체 개수/미감지 배지 문구를 쓰지 않는다.
                     // 판단 불가(SKIP)로 안 바뀐 문장은 '기존값 유지'임을 솔직히 알린다(확인창의 '교체' 약속 보정).
                     const kept = sentences.length - applied;
