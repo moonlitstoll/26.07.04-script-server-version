@@ -149,25 +149,6 @@ export const sanitizeData = (data, duration = 0) => {
             let text = item.o || item.text || "(No text)";
             const translation = item.t || item.translation || "";
 
-            // Handle patterns
-            let patterns = item.p || item.patterns || [];
-            if (Array.isArray(patterns)) {
-                patterns = patterns.map(p => ({
-                    term: p.t || p.term || "",
-                    definition: p.d || p.definition || ""
-                }));
-            }
-
-            // Handle words
-            let words = item.w || item.words || [];
-            if (Array.isArray(words)) {
-                words = words.map(w => ({
-                    word: w.w || w.word || "",
-                    meaning: w.m || w.meaning || "",
-                    func: w.f || w.func || ""
-                }));
-            }
-
             // MASTER SECOND ENGINE (Float Precision)
             // PRIORITIZE TIMESTAMP STRING to match user view exactly
             let startSeconds = 0;

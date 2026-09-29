@@ -546,7 +546,6 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         // loopTargetIdxRef는 '동기' 값 — 연타 시 React 상태(loopAnchorIdx)는 커밋이 늦어 같은 자리에 머문다.
         loopAnchorIdx,
         loopTargetIdxRef,
-        triggerManualScroll,
         handleRateChange,
         seekTo,
         togglePlay,

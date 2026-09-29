@@ -1510,5 +1510,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage1AbortRef, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
 };

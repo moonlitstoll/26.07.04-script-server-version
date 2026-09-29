@@ -1117,9 +1117,12 @@ const App = () => {
                     <div className="text-center">
                       <h3 className="text-lg font-bold text-slate-900">Analyzing {activeFile.file.name}...</h3>
                       <p className="text-slate-500">
-                        {transcriptData.length > 0
-                          ? `Applying 9 Principles & Deep Scan (${analyzedCount}/${transcriptData.length})`
-                          : "Extracting timeline using Gemini 2.5..."
+                        {/* isAnalyzing = 전사(Stage 1) 중. 받은 문장 수는 스트리밍으로 늘어난다 */}
+                        {!isAnalyzing
+                          ? '대본 여는 중...'
+                          : transcriptData.length > 0
+                            ? `전사 중... (${transcriptData.length}문장 받음)`
+                            : '전사 중...'
                         }
                       </p>
                     </div>

@@ -203,27 +203,10 @@ export const useMediaCache = ({
         }
     };
 
-    const purgeLocalByKey = async (key) => {
-        const cacheEntry = parseCacheEntry(key);
-        const name = cacheEntry?.metadata?.name ?? null;
-        const size = cacheEntry?.metadata?.size ?? null;
-        await purgeLocal({ name, size, localKey: key });
-    };
-
     // \ud074\ub77c\uc6b0\ub4dc(\uc11c\ubc84) \uc81c\uac70 \u2014 \ud655\uc778\ucc3d \uc5c6\uc74c
     const purgeCloud = async (item) => {
         await cloudDeleteItem({ name: item.name, size: item.size });
         setCloudItems(prev => prev.filter(i => i.folder !== item.folder));
-    };
-
-    const deleteCache = async (key) => {
-        showConfirm({
-            message: "\uc774 \ubd84\uc11d \uae30\ub85d\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?",
-            onConfirm: async () => {
-                await purgeLocalByKey(key);
-                showToast({ message: "\uc0ad\uc81c \uc644\ub8cc", type: "success" });
-            }
-        });
     };
 
     // \uc774 \uae30\uae30(\ub85c\uceec)\uc5d0\uc11c\ub9cc \uc0ad\uc81c \u2014 \ud074\ub77c\uc6b0\ub4dc\ub294 \uc720\uc9c0
@@ -280,21 +263,6 @@ export const useMediaCache = ({
                 } catch (e) {
                     console.warn('[Cache] \ub85c\uceec \uc77c\uad04 \ube44\uc6b0\uae30 \uc2e4\ud328:', e);
                 }
-            }
-        });
-    };
-
-    const clearAllCache = async () => {
-        const count = cacheKeys.length;
-        showConfirm({
-            message: `\uc800\uc7a5\ub41c \ubd84\uc11d \uae30\ub85d ${count}\uac1c\ub97c \ubaa8\ub450 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?`,
-            onConfirm: async () => {
-                if (stage2AbortRef && stage2AbortRef.current) stage2AbortRef.current.abort();
-                cacheKeys.forEach(k => localStorage.removeItem(k));
-                await mediaStore.clearAll();
-                setCacheKeys([]);
-                setLocalVideoIds(new Set());
-                showToast({ message: "\uc804\uccb4 \uae30\ub85d \uc0ad\uc81c \uc644\ub8cc", type: "success" });
             }
         });
     };
@@ -509,12 +477,9 @@ export const useMediaCache = ({
 
     return {
         cacheKeys,
-        setCacheKeys,
-        deleteCache,
         deleteLocal,
         deleteServer,
         clearLocalCache,
-        clearAllCache,
         loadCache,
         refreshCacheKeys,
         cloudItems,
