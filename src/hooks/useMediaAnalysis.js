@@ -647,41 +647,39 @@ export const useMediaAnalysis = ({
     };
 
     /**
-     * [구간 선택 재전사]
-     * 사용자가 고른 문장들의 시간대 오디오만 다시 전사하고, 그 자리에 교체한다.
-     * 나머지 문장의 타임스탬프·분석은 그대로 보존된다(타임라인 최대 보존).
-     * 새로 나온 문장은 미분석 상태로 넣고 runStage2가 그것들만 분석한다.
+     * [재전사 계열 공통 뼈대] 문장별 재전사·빈칸 복구·구간 재전사가 똑같이 하던 앞뒤 처리.
+     *  API 키 확인 → 최신 대본 읽기 → 기능별 사전 검사(prepare) → 진행 중인 분석 멈춤 → 대상 문장 '다시 전사 중' 표시
+     *  → Stage 1 중단 채널 교체 → 원본 미디어 확보·길이 계산 → 기능별 본문(work) → 예외 시 표시 해제·안내.
+     * 기능마다 다른 부분(어느 구간을 들을지, 결과를 끼워 넣는 방식, 저장·실행취소·휴지통)은 work가 그대로 맡는다.
+     *  - prepare(currentData): 부작용 전 검사. falsy면 조용히 중단. 반환값은 isTarget·work에 prep으로 전달.
+     *  - isTarget(d, i, prep): '다시 전사 중' 표시할 문장
+     *  - work(ctx): 결과 반영. '결과 없음'으로 끝낼 땐 ctx.clearFlag()로 표시를 직접 지운다.
      */
-    const retranscribeSentences = async (fileId, indices) => {
+    const runRetranscribeJob = async (fileId, { label, failPrefix, missingToast = null, prepare = () => ({}), isTarget }, work) => {
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
         }
-        if (!indices || indices.length === 0) return;
-
-        // 현재 파일/데이터 스냅샷 확보 (경합 제거 — 위 retryAnalysis 주석 참조)
+        // 최신 사본(filesRef)에서 동기적으로 읽는다 — setFiles 업데이터 안에서 값을 꺼내면 늦게 돌 때 조용히 실패했다
         const base = (filesRef?.current || []).find(p => p.id === fileId);
         const targetFile = base?.file || null;
         const targetUrl = base?.url || null;
         const currentData = base?.data || null;
-        await new Promise(r => setTimeout(r, 0));
         if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) {
-            console.warn('[Retranscribe] 대상 파일/데이터 없음', { fileId });
+            console.warn(`[${label}] 대상 파일/데이터 없음`, { fileId });
+            if (missingToast && showToast) showToast({ message: missingToast, type: 'error' });
             return;
         }
+        const prep = prepare(currentData);
+        if (!prep) return;
 
-        const sortedIdx = [...new Set(indices)]
-            .filter(i => i >= 0 && i < currentData.length)
-            .sort((a, b) => a - b);
-        if (sortedIdx.length === 0) return;
-
-        // 진행 중인 Stage 2 중단 (교체 후 재개)
+        // 진행 중인 Stage 2 중단 (교체 후 기능별로 재개)
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
 
-        // 선택 문장에 재전사 로딩 표시
-        const clearRetranscribingFlag = makeClearRetranscribingFlag(setFiles, fileId);
+        // 대상 문장에 '다시 전사 중' 표시
+        const clearFlag = makeClearRetranscribingFlag(setFiles, fileId);
         setFiles(prev => prev.map(p => p.id === fileId
-            ? { ...p, data: p.data.map((d, i) => sortedIdx.includes(i) ? { ...d, isRetranscribing: true } : d) }
+            ? { ...p, data: p.data.map((d, i) => isTarget(d, i, prep) ? { ...d, isRetranscribing: true } : d) }
             : p));
 
         // 재전사도 Stage 1 계열 → 같은 abort 채널 사용 (파일 전환 시 함께 취소됨)
@@ -690,110 +688,130 @@ export const useMediaAnalysis = ({
         const { signal } = stage1AbortRef.current;
 
         try {
-            // 온디맨드/클라우드 파일 + 캐시 복원 자리표시자 대응 (3단 폴백)
-            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'Retranscribe');
+            // 온디맨드/클라우드 파일 + 캐시 복원 자리표시자 대응 (3단 폴백) — 예전엔 자리표시자를 그대로 넘겨
+            // createObjectURL이 터지고 복구가 조용히 실패했다
+            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, label);
             if (!fileForAnalysis) {
-                clearRetranscribingFlag();
+                clearFlag();
                 if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
                 return;
             }
-
             let duration = 0;
             try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
 
-            // 선택 문장을 '블록'(동일 시각으로 뭉친 연속 구간) 단위로 정규화.
-            // 블록 시각 공유로 여러 문장이 같은 seconds를 가지면, 한 개만 교체 시 형제 문장이
-            // 남아 중복이 생기므로 그 블록 전체를 통째로 교체한다. (보통은 lo===hi인 단일 문장)
-            const grabTexts = (from, to) => collectTexts(currentData, from, to);
-            const blockMap = new Map(); // lo -> { lo, hi, start, end }
-            for (const i of sortedIdx) {
-                const t = currentData[i].seconds;
-                let lo = i; while (lo > 0 && currentData[lo - 1].seconds === t) lo--;
-                let hi = i; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === t) hi++;
-                if (blockMap.has(lo)) continue;
-                // 블록 끝(배타적 경계) = 다음(더 큰) 시각, 없으면 영상 끝
-                let end = duration > t ? duration : t + 8;
-                let nextIdx = -1;
-                for (let j = hi + 1; j < currentData.length; j++) {
-                    if (currentData[j].seconds > t) { end = currentData[j].seconds; nextIdx = j; break; }
-                }
-                // 경계 겹침/딸려온 이웃 판별용 텍스트
-                const prevText = lo > 0 ? (currentData[lo - 1].text || '') : '';
-                const nextText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
-                // 대상 블록 자신의 (기존) 텍스트 — 재전사 결과 중 '진짜 대상 문장'을 골라내는 기준
-                const selfText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
-                // 프롬프트 문맥용 앞뒤 2문장 (경계 파편 차단)
-                const contextBefore = grabTexts(lo - 2, lo - 1);
-                const contextAfter = nextIdx >= 0 ? grabTexts(nextIdx, nextIdx + 1) : [];
-                blockMap.set(lo, { lo, hi, start: t, end, prevText, nextText, selfText, contextBefore, contextAfter });
-            }
-            const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
-            const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText, selfText: b.selfText, contextBefore: b.contextBefore, contextAfter: b.contextAfter }));
-
-            // [속도·효율] 선택 구간이 한데 모여 있으면(유니온 ≤120초) 복구처럼 오디오 1회추출 후
-            //  슬라이스 + 병렬 전사로 대폭 단축. 멀리 흩어져 유니온이 과대하면 기존 안전 방식 폴백.
-            const unionSpan = windows.length
-                ? Math.max(...windows.map(w => w.end)) - Math.min(...windows.map(w => w.start))
-                : 0;
-            const useSingleExtract = windows.length > 1 && unionSpan > 0 && unionSpan <= 120;
-
-            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
-                totalDuration: duration,
-                temperature,
-                topP,
-                signal,
-                antiRecitation,
-                markerChar,
-                markerInterval,
-                mediaSrc: targetUrl, // 실시간 캡처용(모바일 대응). 실패 시 전체추출 폴백
-                singleExtract: useSingleExtract, // 모여 있을 때만 1회추출(유니온 과대 방지)
-                concurrency: 3,                  // 유니온 추출 성공 시에만 병렬(실패 시 자동 순차)
-            });
-
-            // 뒤 블록부터 splice 교체 (앞 인덱스 밀림 방지)
-            const newData = currentData.slice();
-            let replacedCount = 0;
-            let failedCount = 0;
-            let firstError = null;
-            for (let k = blocks.length - 1; k >= 0; k--) {
-                const b = blocks[k];
-                const fresh = perWindow[k]?.sentences;
-                if (fresh && fresh.length > 0) {
-                    newData.splice(b.lo, b.hi - b.lo + 1, ...fresh); // 새 문장은 isAnalyzed:false 상태
-                    replacedCount++;
-                } else {
-                    failedCount++; // 실패 → 원본 유지
-                    if (!firstError && perWindow[k]?.error) firstError = perWindow[k].error;
-                }
-            }
-
-            const cleanData = sanitizeData(newData, duration);
-            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
-
-            persistCache(targetFile, cleanData, saveStatusOf(cleanData));
-            if (refreshCacheKeys) refreshCacheKeys();
-
-            if (replacedCount > 0) {
-                if (showToast) showToast({
-                    message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
-                    type: 'success'
-                });
-                // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
-                runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
-            } else {
-                clearRetranscribingFlag();
-                if (showToast) showToast({
-                    message: `재전사 실패: ${firstError || '결과 없음'}`,
-                    type: 'error'
-                });
-            }
+            await work({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag, prep });
         } catch (err) {
-            clearRetranscribingFlag();
+            clearFlag();
             if (err.name === 'AbortError') return;
-            console.error('[Retranscribe] 실패', err);
-            if (showToast) showToast({ message: '재전사 실패: ' + err.message, type: 'error' });
+            console.error(`[${label}] 실패`, err);
+            if (showToast) showToast({ message: `${failPrefix}: ` + err.message, type: 'error' });
         }
     };
+
+    /**
+     * [구간 선택 재전사]
+     * 사용자가 고른 문장들의 시간대 오디오만 다시 전사하고, 그 자리에 교체한다.
+     * 나머지 문장의 타임스탬프·분석은 그대로 보존된다(타임라인 최대 보존).
+     * 새로 나온 문장은 미분석 상태로 넣고 runStage2가 그것들만 분석한다.
+     */
+    const retranscribeSentences = (fileId, indices) => runRetranscribeJob(fileId, {
+        label: 'Retranscribe',
+        failPrefix: '재전사 실패',
+        prepare: (currentData) => {
+            const sortedIdx = [...new Set(indices || [])]
+                .filter(i => i >= 0 && i < currentData.length)
+                .sort((a, b) => a - b);
+            return sortedIdx.length ? { sortedIdx } : null;
+        },
+        isTarget: (d, i, { sortedIdx }) => sortedIdx.includes(i),
+    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag, prep: { sortedIdx } }) => {
+        // 선택 문장을 '블록'(동일 시각으로 뭉친 연속 구간) 단위로 정규화.
+        // 블록 시각 공유로 여러 문장이 같은 seconds를 가지면, 한 개만 교체 시 형제 문장이
+        // 남아 중복이 생기므로 그 블록 전체를 통째로 교체한다. (보통은 lo===hi인 단일 문장)
+        const grabTexts = (from, to) => collectTexts(currentData, from, to);
+        const blockMap = new Map(); // lo -> { lo, hi, start, end }
+        for (const i of sortedIdx) {
+            const t = currentData[i].seconds;
+            let lo = i; while (lo > 0 && currentData[lo - 1].seconds === t) lo--;
+            let hi = i; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === t) hi++;
+            if (blockMap.has(lo)) continue;
+            // 블록 끝(배타적 경계) = 다음(더 큰) 시각, 없으면 영상 끝
+            let end = duration > t ? duration : t + 8;
+            let nextIdx = -1;
+            for (let j = hi + 1; j < currentData.length; j++) {
+                if (currentData[j].seconds > t) { end = currentData[j].seconds; nextIdx = j; break; }
+            }
+            // 경계 겹침/딸려온 이웃 판별용 텍스트
+            const prevText = lo > 0 ? (currentData[lo - 1].text || '') : '';
+            const nextText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
+            // 대상 블록 자신의 (기존) 텍스트 — 재전사 결과 중 '진짜 대상 문장'을 골라내는 기준
+            const selfText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
+            // 프롬프트 문맥용 앞뒤 2문장 (경계 파편 차단)
+            const contextBefore = grabTexts(lo - 2, lo - 1);
+            const contextAfter = nextIdx >= 0 ? grabTexts(nextIdx, nextIdx + 1) : [];
+            blockMap.set(lo, { lo, hi, start: t, end, prevText, nextText, selfText, contextBefore, contextAfter });
+        }
+        const blocks = [...blockMap.values()].sort((a, b) => a.lo - b.lo);
+        const windows = blocks.map(b => ({ start: b.start, end: b.end, prevText: b.prevText, nextText: b.nextText, selfText: b.selfText, contextBefore: b.contextBefore, contextAfter: b.contextAfter }));
+
+        // [속도·효율] 선택 구간이 한데 모여 있으면(유니온 ≤120초) 복구처럼 오디오 1회추출 후
+        //  슬라이스 + 병렬 전사로 대폭 단축. 멀리 흩어져 유니온이 과대하면 기존 안전 방식 폴백.
+        const unionSpan = windows.length
+            ? Math.max(...windows.map(w => w.end)) - Math.min(...windows.map(w => w.start))
+            : 0;
+        const useSingleExtract = windows.length > 1 && unionSpan > 0 && unionSpan <= 120;
+
+        const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
+            totalDuration: duration,
+            temperature,
+            topP,
+            signal,
+            antiRecitation,
+            markerChar,
+            markerInterval,
+            mediaSrc: targetUrl, // 실시간 캡처용(모바일 대응). 실패 시 전체추출 폴백
+            singleExtract: useSingleExtract, // 모여 있을 때만 1회추출(유니온 과대 방지)
+            concurrency: 3,                  // 유니온 추출 성공 시에만 병렬(실패 시 자동 순차)
+        });
+
+        // 뒤 블록부터 splice 교체 (앞 인덱스 밀림 방지)
+        const newData = currentData.slice();
+        let replacedCount = 0;
+        let failedCount = 0;
+        let firstError = null;
+        for (let k = blocks.length - 1; k >= 0; k--) {
+            const b = blocks[k];
+            const fresh = perWindow[k]?.sentences;
+            if (fresh && fresh.length > 0) {
+                newData.splice(b.lo, b.hi - b.lo + 1, ...fresh); // 새 문장은 isAnalyzed:false 상태
+                replacedCount++;
+            } else {
+                failedCount++; // 실패 → 원본 유지
+                if (!firstError && perWindow[k]?.error) firstError = perWindow[k].error;
+            }
+        }
+
+        const cleanData = sanitizeData(newData, duration);
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
+
+        persistCache(targetFile, cleanData, saveStatusOf(cleanData));
+        if (refreshCacheKeys) refreshCacheKeys();
+
+        if (replacedCount > 0) {
+            if (showToast) showToast({
+                message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
+                type: 'success'
+            });
+            // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
+            runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
+        } else {
+            clearFlag();
+            if (showToast) showToast({
+                message: `재전사 실패: ${firstError || '결과 없음'}`,
+                type: 'error'
+            });
+        }
+    });
 
     /**
      * [구간 선택 분석만 다시 - Phase 2 재실행]
@@ -1034,176 +1052,135 @@ export const useMediaAnalysis = ({
      *  - direction 'backward': 이전 살아있는 문장 ~ 앵커 사이(앞 빈칸, 맨 앞 포함)
      * 앵커/이웃 문장은 유지(분석 보존)하고, 복구된 문장만 실측 시각으로 삽입 → 자동 재분석(Stage 3).
      */
-    const recoverGap = async (fileId, anchorIndex, direction = 'both') => {
-        if (!apiKey) {
-            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
-            return;
-        }
-        if (anchorIndex === null || anchorIndex === undefined || anchorIndex < 0) return;
-
-        // 경합 제거 — retryAnalysis 주석 참조 (여기서 조용히 return 하면 '복구 버튼이 먹통'이 된다)
-        const gapBase = (filesRef?.current || []).find(p => p.id === fileId);
-        const targetFile = gapBase?.file || null;
-        const targetUrl = gapBase?.url || null;
-        const currentData = gapBase?.data || null;
-        await new Promise(r => setTimeout(r, 0));
-        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) {
-            console.warn('[RecoverGap] 대상 파일/데이터 없음', { fileId });
-            if (showToast) showToast({ message: '대상 대본을 찾지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.', type: 'error' });
-            return;
-        }
-        if (anchorIndex >= currentData.length) return;
-
-        if (stage2AbortRef.current) stage2AbortRef.current.abort();
-
-        const anchorSec = currentData[anchorIndex].seconds;
-
+    const recoverGap = (fileId, anchorIndex, direction = 'both') => runRetranscribeJob(fileId, {
+        label: 'Recover',
+        failPrefix: '구간 복구 실패',
+        // 여기서 조용히 return 하면 '복구 버튼이 먹통'이 된다
+        missingToast: '대상 대본을 찾지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+        prepare: (currentData) => {
+            if (anchorIndex === null || anchorIndex === undefined || anchorIndex < 0 || anchorIndex >= currentData.length) return null;
+            return { anchorSec: currentData[anchorIndex].seconds };
+        },
         // 로딩 표시: 앵커와 같은 시각(블록) 문장에 스피너
-        const clearRetranscribingFlag = makeClearRetranscribingFlag(setFiles, fileId);
-        setFiles(prev => prev.map(p => p.id === fileId
-            ? { ...p, data: p.data.map(d => d.seconds === anchorSec ? { ...d, isRetranscribing: true } : d) }
-            : p));
+        isTarget: (d, i, { anchorSec }) => d.seconds === anchorSec,
+    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag, prep: { anchorSec } }) => {
+        // 앵커 블록(동일 시각) 경계
+        let lo = anchorIndex; while (lo > 0 && currentData[lo - 1].seconds === anchorSec) lo--;
+        let hi = anchorIndex; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
+        const sBlockText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
 
-        if (stage1AbortRef.current) stage1AbortRef.current.abort();
-        stage1AbortRef.current = new AbortController();
-        const { signal } = stage1AbortRef.current;
+        // 앞/뒤 이웃(살아있는 문장) 탐색
+        let prevIdx = -1;
+        for (let j = lo - 1; j >= 0; j--) { if (currentData[j].seconds < anchorSec) { prevIdx = j; break; } }
+        let nextIdx = -1;
+        for (let j = hi + 1; j < currentData.length; j++) { if (currentData[j].seconds > anchorSec) { nextIdx = j; break; } }
+        const pSec = prevIdx >= 0 ? currentData[prevIdx].seconds : 0;
+        const pText = prevIdx >= 0 ? (currentData[prevIdx].text || '') : '';
+        const nSec = nextIdx >= 0 ? currentData[nextIdx].seconds : (duration > anchorSec ? duration : anchorSec + 8);
+        const nText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
 
-        try {
-            // 캐시 복원 자리표시자 대응 (3단 폴백) — 예전엔 자리표시자를 그대로 넘겨
-            // createObjectURL이 터지고 복구가 조용히 실패했다
-            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'Recover');
-            if (!fileForAnalysis) {
-                clearRetranscribingFlag();
-                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
-                return;
-            }
-
-            let duration = 0;
-            try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
-
-            // 앵커 블록(동일 시각) 경계
-            let lo = anchorIndex; while (lo > 0 && currentData[lo - 1].seconds === anchorSec) lo--;
-            let hi = anchorIndex; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
-            const sBlockText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
-
-            // 앞/뒤 이웃(살아있는 문장) 탐색
-            let prevIdx = -1;
-            for (let j = lo - 1; j >= 0; j--) { if (currentData[j].seconds < anchorSec) { prevIdx = j; break; } }
-            let nextIdx = -1;
-            for (let j = hi + 1; j < currentData.length; j++) { if (currentData[j].seconds > anchorSec) { nextIdx = j; break; } }
-            const pSec = prevIdx >= 0 ? currentData[prevIdx].seconds : 0;
-            const pText = prevIdx >= 0 ? (currentData[prevIdx].text || '') : '';
-            const nSec = nextIdx >= 0 ? currentData[nextIdx].seconds : (duration > anchorSec ? duration : anchorSec + 8);
-            const nText = nextIdx >= 0 ? (currentData[nextIdx].text || '') : '';
-
-            // 방향별 구간(빈칸) 및 유지 경계 문장 계산.
-            //  - 'both'(기본): 앞 이웃 ~ 뒤 이웃 전체를 한 번에(앵커는 가운데서 유지)
-            //  - 'backward': 앞 이웃 ~ 앵커  /  'forward': 앵커 ~ 뒤 이웃
-            //  dropSimilarTo: 유지되는 경계 문장(앞/앵커/뒤)과 겹치는 재전사본 제거 → 중복 방지
-            let winStart, winEnd, prevText, nextText, dropList;
-            if (direction === 'backward') {
-                winStart = pSec; winEnd = anchorSec;
-                prevText = pText; nextText = sBlockText;
-                dropList = [pText, sBlockText];
-            } else if (direction === 'forward') {
-                winStart = anchorSec; winEnd = nSec;
-                prevText = sBlockText; nextText = nText;
-                dropList = [sBlockText, nText];
-            } else {
-                winStart = pSec; winEnd = nSec;
-                prevText = pText; nextText = nText;
-                dropList = [pText, sBlockText, nText];
-            }
-
-            if (winEnd - winStart < 0.5) {
-                clearRetranscribingFlag();
-                if (showToast) showToast({ message: '복구할 구간이 없습니다.', type: 'error' });
-                return;
-            }
-
-            // 긴 빈칸을 한 번에 재전사하면 Gemini가 문장을 덜 쪼개거나(언더세그멘테이션)
-            // 실시간 캡처가 중간에 끊겨 일부만 잡힌다 → 구간을 서브창으로 분할해 순차 재전사 후 합침.
-            // 짧은 구간(임계값 이하)은 지금처럼 한 번에 처리한다.
-            const dropSimilarTo = dropList.filter(Boolean);
-
-            // 프롬프트 문맥용 앞뒤 2문장 (경계 파편 차단) — 빈칸 양쪽의 살아있는 이웃 기준
-            const grabTexts = (from, to) => collectTexts(currentData, from, to);
-            const anchorTexts = grabTexts(lo, hi);
-            let contextBefore, contextAfter;
-            if (direction === 'backward') {
-                contextBefore = prevIdx >= 0 ? grabTexts(prevIdx - 1, prevIdx) : [];
-                contextAfter = anchorTexts;
-            } else if (direction === 'forward') {
-                contextBefore = anchorTexts;
-                contextAfter = nextIdx >= 0 ? grabTexts(nextIdx, nextIdx + 1) : [];
-            } else {
-                contextBefore = prevIdx >= 0 ? grabTexts(prevIdx - 1, prevIdx) : [];
-                contextAfter = nextIdx >= 0 ? grabTexts(nextIdx, nextIdx + 1) : [];
-            }
-            // 근접 가드용: 빈칸 양쪽 살아있는 이웃 문장의 시작 시각 (파편 시각 제거)
-            const boundaryTimes = [
-                prevIdx >= 0 ? pSec : null,
-                nextIdx >= 0 ? nSec : null,
-            ].filter(v => v != null);
-
-            const SUB_LEN = 22;          // 서브창 길이(초) — 무음 스냅이 경계를 방어하므로 크게(호출↓·토큰↓)
-            const SUB_OVERLAP = 2.5;     // 오버랩(초) — 무음 스냅 덕에 축소 가능(중복 전송↓)
-            const SPLIT_THRESHOLD = 25;  // 이 길이 넘으면 분할
-            const windows = [];
-            if (winEnd - winStart > SPLIT_THRESHOLD) {
-                const step = SUB_LEN - SUB_OVERLAP;
-                for (let s = winStart; s < winEnd - 0.5; s += step) {
-                    const e = Math.min(s + SUB_LEN, winEnd);
-                    windows.push({ start: s, end: e, prevText, nextText, recover: true, dropSimilarTo, contextBefore, contextAfter, boundaryTimes });
-                    if (e >= winEnd) break;
-                }
-            } else {
-                windows.push({ start: winStart, end: winEnd, prevText, nextText, recover: true, dropSimilarTo, contextBefore, contextAfter, boundaryTimes });
-            }
-
-            const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
-                totalDuration: duration,
-                temperature,
-                topP,
-                signal,
-                antiRecitation,
-                markerChar,
-                markerInterval,
-                mediaSrc: targetUrl,
-                singleExtract: true, // 유니온 오디오 1회 추출 후 슬라이스 → 실시간 캡처 대기 제거
-                concurrency: 3,      // 서브창 병렬 전사 → 순차 대비 대폭 단축
-            });
-
-            // 서브창 결과를 모두 합치고 오버랩 중복 제거 → 빈칸 전체를 원래 밀도로 복구
-            const merged = perWindow.flatMap(r => r?.sentences || []);
-            const fresh = deduplicateOverlap(merged);
-            if (!fresh || fresh.length === 0) {
-                clearRetranscribingFlag();
-                const firstErr = perWindow.find(r => r?.error)?.error;
-                if (showToast) showToast({
-                    message: `복구할 내용이 없습니다 (${firstErr || '전사된 내용 없음'}).`,
-                    type: 'error'
-                });
-                return;
-            }
-
-            // 기존 문장은 그대로 유지하고, 복구된(실측 시각) 문장만 삽입 → 정렬
-            const cleanData = sanitizeData([...currentData, ...fresh], duration);
-            setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
-
-            persistCache(targetFile, cleanData, saveStatusOf(cleanData));
-            if (refreshCacheKeys) refreshCacheKeys();
-
-            if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
-            // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
-            runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
-        } catch (err) {
-            clearRetranscribingFlag();
-            if (err.name === 'AbortError') return;
-            console.error('[Recover] 실패', err);
-            if (showToast) showToast({ message: '구간 복구 실패: ' + err.message, type: 'error' });
+        // 방향별 구간(빈칸) 및 유지 경계 문장 계산.
+        //  - 'both'(기본): 앞 이웃 ~ 뒤 이웃 전체를 한 번에(앵커는 가운데서 유지)
+        //  - 'backward': 앞 이웃 ~ 앵커  /  'forward': 앵커 ~ 뒤 이웃
+        //  dropSimilarTo: 유지되는 경계 문장(앞/앵커/뒤)과 겹치는 재전사본 제거 → 중복 방지
+        let winStart, winEnd, prevText, nextText, dropList;
+        if (direction === 'backward') {
+            winStart = pSec; winEnd = anchorSec;
+            prevText = pText; nextText = sBlockText;
+            dropList = [pText, sBlockText];
+        } else if (direction === 'forward') {
+            winStart = anchorSec; winEnd = nSec;
+            prevText = sBlockText; nextText = nText;
+            dropList = [sBlockText, nText];
+        } else {
+            winStart = pSec; winEnd = nSec;
+            prevText = pText; nextText = nText;
+            dropList = [pText, sBlockText, nText];
         }
-    };
+
+        if (winEnd - winStart < 0.5) {
+            clearFlag();
+            if (showToast) showToast({ message: '복구할 구간이 없습니다.', type: 'error' });
+            return;
+        }
+
+        // 긴 빈칸을 한 번에 재전사하면 Gemini가 문장을 덜 쪼개거나(언더세그멘테이션)
+        // 실시간 캡처가 중간에 끊겨 일부만 잡힌다 → 구간을 서브창으로 분할해 순차 재전사 후 합침.
+        // 짧은 구간(임계값 이하)은 지금처럼 한 번에 처리한다.
+        const dropSimilarTo = dropList.filter(Boolean);
+
+        // 프롬프트 문맥용 앞뒤 2문장 (경계 파편 차단) — 빈칸 양쪽의 살아있는 이웃 기준
+        const grabTexts = (from, to) => collectTexts(currentData, from, to);
+        const anchorTexts = grabTexts(lo, hi);
+        let contextBefore, contextAfter;
+        if (direction === 'backward') {
+            contextBefore = prevIdx >= 0 ? grabTexts(prevIdx - 1, prevIdx) : [];
+            contextAfter = anchorTexts;
+        } else if (direction === 'forward') {
+            contextBefore = anchorTexts;
+            contextAfter = nextIdx >= 0 ? grabTexts(nextIdx, nextIdx + 1) : [];
+        } else {
+            contextBefore = prevIdx >= 0 ? grabTexts(prevIdx - 1, prevIdx) : [];
+            contextAfter = nextIdx >= 0 ? grabTexts(nextIdx, nextIdx + 1) : [];
+        }
+        // 근접 가드용: 빈칸 양쪽 살아있는 이웃 문장의 시작 시각 (파편 시각 제거)
+        const boundaryTimes = [
+            prevIdx >= 0 ? pSec : null,
+            nextIdx >= 0 ? nSec : null,
+        ].filter(v => v != null);
+
+        const SUB_LEN = 22;          // 서브창 길이(초) — 무음 스냅이 경계를 방어하므로 크게(호출↓·토큰↓)
+        const SUB_OVERLAP = 2.5;     // 오버랩(초) — 무음 스냅 덕에 축소 가능(중복 전송↓)
+        const SPLIT_THRESHOLD = 25;  // 이 길이 넘으면 분할
+        const windows = [];
+        if (winEnd - winStart > SPLIT_THRESHOLD) {
+            const step = SUB_LEN - SUB_OVERLAP;
+            for (let s = winStart; s < winEnd - 0.5; s += step) {
+                const e = Math.min(s + SUB_LEN, winEnd);
+                windows.push({ start: s, end: e, prevText, nextText, recover: true, dropSimilarTo, contextBefore, contextAfter, boundaryTimes });
+                if (e >= winEnd) break;
+            }
+        } else {
+            windows.push({ start: winStart, end: winEnd, prevText, nextText, recover: true, dropSimilarTo, contextBefore, contextAfter, boundaryTimes });
+        }
+
+        const perWindow = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, windows, {
+            totalDuration: duration,
+            temperature,
+            topP,
+            signal,
+            antiRecitation,
+            markerChar,
+            markerInterval,
+            mediaSrc: targetUrl,
+            singleExtract: true, // 유니온 오디오 1회 추출 후 슬라이스 → 실시간 캡처 대기 제거
+            concurrency: 3,      // 서브창 병렬 전사 → 순차 대비 대폭 단축
+        });
+
+        // 서브창 결과를 모두 합치고 오버랩 중복 제거 → 빈칸 전체를 원래 밀도로 복구
+        const merged = perWindow.flatMap(r => r?.sentences || []);
+        const fresh = deduplicateOverlap(merged);
+        if (!fresh || fresh.length === 0) {
+            clearFlag();
+            const firstErr = perWindow.find(r => r?.error)?.error;
+            if (showToast) showToast({
+                message: `복구할 내용이 없습니다 (${firstErr || '전사된 내용 없음'}).`,
+                type: 'error'
+            });
+            return;
+        }
+
+        // 기존 문장은 그대로 유지하고, 복구된(실측 시각) 문장만 삽입 → 정렬
+        const cleanData = sanitizeData([...currentData, ...fresh], duration);
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
+
+        persistCache(targetFile, cleanData, saveStatusOf(cleanData));
+        if (refreshCacheKeys) refreshCacheKeys();
+
+        if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
+        // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
+        runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
+    });
 
     /**
      * [구간 선택 삭제]
@@ -1350,84 +1327,52 @@ export const useMediaAnalysis = ({
      * 구간 밖에서 시작해 걸친 문장은 그대로 두고, 새 결과에 딸려 온 그 문장 조각은 지운다(retranscribeSegments 복구 모드).
      * 바뀐 옛 문장은 휴지통에 보관, 새 문장은 자동 분석. 새 결과가 없으면 옛 문장을 그대로 둔다.
      */
-    const retranscribeRange = async (fileId, start, end) => {
-        if (!apiKey) {
-            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+    const retranscribeRange = (fileId, start, end) => runRetranscribeJob(fileId, {
+        label: 'RangeRetranscribe',
+        failPrefix: '구간 재전사 실패',
+        prepare: (currentData) => (end > start ? { replacedIdx: new Set(indicesInRange(currentData, start, end)) } : null),
+        isTarget: (d, i, { replacedIdx }) => replacedIdx.has(i),
+    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag }) => {
+        const { prev, next } = rangeNeighbors(currentData, start, end);
+        const prevText = prev >= 0 ? (currentData[prev].text || '') : '';
+        const nextText = next >= 0 ? (currentData[next].text || '') : '';
+        const [perWindow] = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, [{
+            start, end,
+            recover: true, // 구간 안 문장을 유사도로 거르지 않고 전량 채택
+            prevText, nextText,
+            // 구간 앞에서 시작해 걸친 문장·바로 뒤 문장에서 새어 나온 조각은 버린다(구간 밖 문장은 건드리지 않음).
+            // 기존 복구의 dropSimilarTo(단어 70% 겹침)는 진짜 새 문장까지 버려서 쓰지 않는다(실측).
+            dropLeakedFrom: [prevText, nextText].filter(Boolean),
+            contextBefore: prev >= 0 ? collectTexts(currentData, prev - 1, prev) : [],
+            contextAfter: next >= 0 ? collectTexts(currentData, next, next + 1) : [],
+        }], {
+            totalDuration: duration, temperature, topP, signal, antiRecitation, markerChar, markerInterval,
+            mediaSrc: targetUrl,
+        });
+
+        const fresh = perWindow?.sentences;
+        if (!fresh || fresh.length === 0) {
+            clearFlag();
+            if (showToast) showToast({ message: `구간 재전사 실패 — 원래 문장을 그대로 뒀어요. (${perWindow?.error || '결과 없음'})`, type: 'error', duration: 8000 });
             return;
         }
-        const base = (filesRef?.current || []).find(p => p.id === fileId);
-        const targetFile = base?.file || null;
-        const targetUrl = base?.url || null;
-        const currentData = base?.data || null;
-        if (!targetFile || !Array.isArray(currentData) || !(end > start)) return;
 
-        if (stage2AbortRef.current) stage2AbortRef.current.abort();
-        const replacedIdx = new Set(indicesInRange(currentData, start, end));
-        const clearRetranscribingFlag = makeClearRetranscribingFlag(setFiles, fileId);
-        setFiles(prev => prev.map(p => p.id === fileId
-            ? { ...p, data: p.data.map((d, i) => replacedIdx.has(i) ? { ...d, isRetranscribing: true } : d) }
-            : p));
-
-        if (stage1AbortRef.current) stage1AbortRef.current.abort();
-        stage1AbortRef.current = new AbortController();
-        const { signal } = stage1AbortRef.current;
-
-        try {
-            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'RangeRetranscribe');
-            if (!fileForAnalysis) {
-                clearRetranscribingFlag();
-                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
-                return;
-            }
-            let duration = 0;
-            try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
-
-            const { prev, next } = rangeNeighbors(currentData, start, end);
-            const prevText = prev >= 0 ? (currentData[prev].text || '') : '';
-            const nextText = next >= 0 ? (currentData[next].text || '') : '';
-            const [perWindow] = await retranscribeSegments(fileForAnalysis, apiKey, stage3Model, [{
-                start, end,
-                recover: true, // 구간 안 문장을 유사도로 거르지 않고 전량 채택
-                prevText, nextText,
-                // 구간 앞에서 시작해 걸친 문장·바로 뒤 문장에서 새어 나온 조각은 버린다(구간 밖 문장은 건드리지 않음).
-                // 기존 복구의 dropSimilarTo(단어 70% 겹침)는 진짜 새 문장까지 버려서 쓰지 않는다(실측).
-                dropLeakedFrom: [prevText, nextText].filter(Boolean),
-                contextBefore: prev >= 0 ? collectTexts(currentData, prev - 1, prev) : [],
-                contextAfter: next >= 0 ? collectTexts(currentData, next, next + 1) : [],
-            }], {
-                totalDuration: duration, temperature, topP, signal, antiRecitation, markerChar, markerInterval,
-                mediaSrc: targetUrl,
-            });
-
-            const fresh = perWindow?.sentences;
-            if (!fresh || fresh.length === 0) {
-                clearRetranscribingFlag();
-                if (showToast) showToast({ message: `구간 재전사 실패 — 원래 문장을 그대로 뒀어요. (${perWindow?.error || '결과 없음'})`, type: 'error', duration: 8000 });
-                return;
-            }
-
-            const { data: merged, removed } = replaceRange(currentData, start, end, fresh);
-            const clean = sanitizeData(merged, duration);
-            setFiles(prev2 => prev2.map(p => p.id === fileId ? { ...p, data: clean } : p));
-            if (targetFile.name && removed.length) {
-                addToTrash(targetFile.name, targetFile.size, removed);
-                if (onTrashChange) onTrashChange();
-            }
-            persistEdit(targetFile, clean);
-            if (showToast) showToast({
-                message: `구간 재전사 완료: ${removed.length}개 → ${fresh.length}개 문장. 분석 진행 중...`,
-                type: 'success',
-                action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, currentData, removed, '구간 재전사를 취소했습니다.') },
-                duration: 6000,
-            });
-            runStage2(fileId, targetFile, clean, apiKey, stage3Model);
-        } catch (err) {
-            clearRetranscribingFlag();
-            if (err.name === 'AbortError') return;
-            console.error('[RangeRetranscribe] 실패', err);
-            if (showToast) showToast({ message: '구간 재전사 실패: ' + err.message, type: 'error' });
+        const { data: merged, removed } = replaceRange(currentData, start, end, fresh);
+        const clean = sanitizeData(merged, duration);
+        setFiles(prev2 => prev2.map(p => p.id === fileId ? { ...p, data: clean } : p));
+        if (targetFile.name && removed.length) {
+            addToTrash(targetFile.name, targetFile.size, removed);
+            if (onTrashChange) onTrashChange();
         }
-    };
+        persistEdit(targetFile, clean);
+        if (showToast) showToast({
+            message: `구간 재전사 완료: ${removed.length}개 → ${fresh.length}개 문장. 분석 진행 중...`,
+            type: 'success',
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, currentData, removed, '구간 재전사를 취소했습니다.') },
+            duration: 6000,
+        });
+        runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+    });
 
     // 진행 중인 Stage1 전사를 사용자가 취소.
     // abort 후 해당 파일을 취소 상태로 전환 → 무한 스피너 대신 재시도 가능한 에러 카드 노출.
