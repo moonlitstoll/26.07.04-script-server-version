@@ -446,36 +446,24 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
     }, [activeFile, findActiveIndex, isGlobalLoopActive, bufferTime, speechTailPad, videoNode, setAnchor]);
 
     // ─────────────────────────────────────────────────────────────
-    // MediaSession: 알림/잠금화면에 '이전/다음 문장' 버튼만 추가한다.
+    // MediaSession: 알림/잠금화면의 제목만 여기서 정한다.
+    //  - 이전/다음 버튼은 App이 한 곳에서 등록한다(화면 ◀▶와 같은 goPrev/goNext — 오답 모드·묶음 반복 인식).
+    //    예전엔 여기서도 등록했는데, 이 effect가 대본이 바뀔 때마다(분석 배치·편집) 다시 돌며
+    //    App의 등록을 덮어써 잠금화면 버튼만 오답·묶음을 무시하고 한 문장씩 움직였다.
     //  - play/pause는 등록하지 않는다 → 크롬 기본 재생 동작을 그대로 유지
     //    (과거 play/pause를 덮어썼다가 백그라운드에서 '타임라인만 흐르고 소리 없음' 회귀 발생).
     //  - setPositionState/playbackState도 등록하지 않는다(가짜 재생 표시 방지).
-    //  - prev/next 핸들러는 알림 버튼 탭(=사용자 제스처)으로 실행되므로 백그라운드에서도
-    //    seek+play가 정상 동작한다. 최신 인덱스는 activeIdxRef.current에서 읽는다.
     // ─────────────────────────────────────────────────────────────
+    const mediaTitle = activeFile?.file?.name || 'Media Analyzer';
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
-        const ms = navigator.mediaSession;
-
         try {
-            ms.metadata = new window.MediaMetadata({
-                title: activeFile?.file?.name || 'Media Analyzer',
+            navigator.mediaSession.metadata = new window.MediaMetadata({
+                title: mediaTitle,
                 artist: 'AI Shadowing Helper',
             });
         } catch { /* MediaMetadata 미지원 시 무시 */ }
-
-        const safeSet = (action, handler) => {
-            try { ms.setActionHandler(action, handler); } catch { /* 미지원 액션 무시 */ }
-        };
-        safeSet('previoustrack', () => handlePrev(Math.max(0, activeIdxRef.current)));
-        safeSet('nexttrack', () => handleNext(Math.max(0, activeIdxRef.current)));
-
-        return () => {
-            ['previoustrack', 'nexttrack'].forEach(a => {
-                try { ms.setActionHandler(a, null); } catch { /* noop */ }
-            });
-        };
-    }, [activeFile, handlePrev, handleNext]);
+    }, [mediaTitle]);
 
     // 예약된 seek을 비디오가 준비되는 대로 적용 (늦게 마운트되거나 모바일서 메타데이터가 늦어도 유실 없음)
     const applyPendingSeek = useCallback(() => {

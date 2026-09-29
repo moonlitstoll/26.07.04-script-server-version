@@ -381,15 +381,21 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFileId]);
 
-  // [함정 #8] 잠금화면/알림(MediaSession)의 이전·다음도 오답 인식 네비게이션으로 통일.
-  // useAudioPlayer의 기본 등록 이후 App이 덮어써 최종 승자가 된다.
+  // [함정 #8] 잠금화면/알림(MediaSession)의 이전·다음도 화면 ◀▶와 같은 goPrev/goNext(오답 모드·묶음 반복 인식).
+  // 등록은 여기 한 곳, 한 번만 — 핸들러는 ref로 최신 함수를 부른다. 예전엔 useAudioPlayer도 따로 등록해
+  // 대본이 바뀔 때마다(분석 배치·편집) 그쪽이 다시 덮어써, 잠금화면 버튼만 오답·묶음을 무시했다.
+  // 알림 버튼 탭은 사용자 제스처라 백그라운드에서도 seek+play가 정상 동작한다.
+  const goPrevRef = useRef(goPrev);
+  const goNextRef = useRef(goNext);
+  useEffect(() => { goPrevRef.current = goPrev; goNextRef.current = goNext; }, [goPrev, goNext]);
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     const ms = navigator.mediaSession;
     const set = (a, h) => { try { ms.setActionHandler(a, h); } catch { /* 미지원 무시 */ } };
-    set('previoustrack', () => goPrev());
-    set('nexttrack', () => goNext());
-  }, [goPrev, goNext]);
+    set('previoustrack', () => goPrevRef.current());
+    set('nexttrack', () => goNextRef.current());
+    return () => { set('previoustrack', null); set('nexttrack', null); };
+  }, []);
 
   // 대본 스크롤 컨테이너 (위치 저장/복원용)
   const scrollContainerRef = useRef(null);
