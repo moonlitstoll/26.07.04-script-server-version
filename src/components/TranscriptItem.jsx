@@ -273,7 +273,7 @@ const TranscriptItem = memo(({
                         <div
                             onClick={hasBreakdown ? () => setFlipped(f => !f) : undefined}
                             title={hasBreakdown ? (breakdownOpen ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
-                            className={`relative px-1 space-y-0.5 text-slate-800 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer pb-3' : ''}`}
+                            className={`px-1 space-y-0.5 text-slate-800 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer' : ''}`}
                         >
                             {analysisLines.map(([main, breakdown, tail], li) => (
                                 <p key={li} className="font-medium">
@@ -282,13 +282,14 @@ const TranscriptItem = memo(({
                                         <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>
                                     )}
                                     {tail}
+                                    {/* 화살표는 마지막 줄 오른쪽 끝에 띄운다 — 따로 한 줄을 차지하면 카드마다 빈 행이 생긴다 */}
+                                    {hasBreakdown && li === analysisLines.length - 1 && (
+                                        <span aria-hidden="true" className="float-right mt-1 text-slate-300">
+                                            {breakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </span>
+                                    )}
                                 </p>
                             ))}
-                            {hasBreakdown && (
-                                <span aria-hidden="true" className="absolute right-0 bottom-0 text-slate-300">
-                                    {breakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                </span>
-                            )}
                         </div>
                     )}
                 </div>
