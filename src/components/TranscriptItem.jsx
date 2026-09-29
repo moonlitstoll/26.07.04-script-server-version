@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useMemo, useState, memo } from 'react';
 import {
-    Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2
+    Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2, ChevronDown, ChevronUp
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
@@ -48,19 +48,23 @@ const TranscriptItem = memo(({
     // item 객체가 바뀔 때만 재계산 (memo 카드라 재생 틱마다 돌지 않음).
     const coverage = useMemo(() => checkAnalysisCoverage(item), [item]);
 
-    // 괄호 풀이 줄별 펼침: 툴바 '풀이'(showBreakdown)가 전체 기본값, 줄을 탭하면 그 줄만 반대로 뒤집는다.
-    const [flippedLines, setFlippedLines] = useState(() => new Set());
-    const flipLine = (li) => setFlippedLines(prev => {
-        const next = new Set(prev);
-        if (next.has(li)) next.delete(li); else next.add(li);
-        return next;
-    });
-    // 툴바로 전체를 바꾸면 줄별 예외는 초기화(모든 줄이 새 기본값을 따르게)
+    // 분석 줄 → [청크·뜻, 괄호 풀이, 꼬리]. 풀이가 한 줄도 없으면 탭·화살표 없음.
+    const analysisLines = useMemo(() => {
+        if (!item.analysis || typeof item.analysis !== 'string') return [];
+        return stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
+            .split('\n').filter(l => l.trim()).map(splitBreakdown);
+    }, [item.analysis, item.text]);
+    const hasBreakdown = analysisLines.some(([, b]) => b);
+
+    // 괄호 풀이 카드별 펼침: 눈 버튼(showBreakdown)이 전체 기본값, 분석 칸을 탭하면 이 카드만 반대로 뒤집는다.
+    const [flipped, setFlipped] = useState(false);
+    // 눈 버튼으로 전체를 바꾸면 카드별 예외는 초기화(모든 카드가 새 기본값을 따르게)
     const [prevShowBreakdown, setPrevShowBreakdown] = useState(showBreakdown);
     if (prevShowBreakdown !== showBreakdown) {
         setPrevShowBreakdown(showBreakdown);
-        setFlippedLines(new Set());
+        setFlipped(false);
     }
+    const breakdownOpen = showBreakdown !== flipped;
 
     // 1. Focus Lock: Conditional Anchoring
     const prevActiveRef = useRef(isActive);
@@ -90,7 +94,7 @@ const TranscriptItem = memo(({
         if (isActive && itemRef.current) {
             itemRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
         }
-    }, [showAnalysis, showBreakdown, isActive]);
+    }, [showAnalysis, showBreakdown, flipped, isActive]);
 
     return (
         <div
@@ -250,9 +254,12 @@ const TranscriptItem = memo(({
                         </div>
                     ) : null}
 
-                    {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약) */}
+                    {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약). 탭하면 원문처럼 문장 시작으로 */}
                     {showAnalysis && item.translation && (
-                        <div className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 border-indigo-100">
+                        <div
+                            onClick={() => jumpToSentence(idx)}
+                            className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 border-indigo-100 cursor-pointer"
+                        >
                             <p className="text-slate-700 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
                                 {item.translation?.replace(/\\n/g, '\n')}
                             </p>
@@ -260,28 +267,28 @@ const TranscriptItem = memo(({
                     )}
 
                     {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게.
-                        풀이는 기본 접힘("(…)")이라 휴대폰에서 문장 하나가 한 화면에 들어온다. 줄을 탭하면 그 줄만 펼침/접힘. */}
-                    {item.analysis && typeof item.analysis === 'string' && (
-                        <div className="px-1 space-y-0.5 text-slate-800 text-[16px] leading-[1.5]">
-                            {stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
-                                .split('\n').filter(l => l.trim()).map((line, li) => {
-                                    const [main, breakdown, tail] = splitBreakdown(line);
-                                    const open = showBreakdown !== flippedLines.has(li);
-                                    return (
-                                        <p
-                                            key={li}
-                                            onClick={breakdown ? () => flipLine(li) : undefined}
-                                            title={breakdown ? (open ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
-                                            className={`font-medium ${breakdown ? 'cursor-pointer' : ''}`}
-                                        >
-                                            {renderBold(main, `m${li}`)}
-                                            {breakdown && (open
-                                                ? <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>
-                                                : <span className="text-slate-400 font-normal">(…)</span>)}
-                                            {tail}
-                                        </p>
-                                    );
-                                })}
+                        풀이는 기본 접힘이라 휴대폰에서 문장 하나가 한 화면에 들어온다. 분석 칸 아무 곳이나 탭하면
+                        이 카드의 풀이 전체가 펼침/접힘(재생 위치는 그대로). 표시는 오른쪽 아래 화살표 하나뿐. */}
+                    {analysisLines.length > 0 && (
+                        <div
+                            onClick={hasBreakdown ? () => setFlipped(f => !f) : undefined}
+                            title={hasBreakdown ? (breakdownOpen ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
+                            className={`relative px-1 space-y-0.5 text-slate-800 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer pb-3' : ''}`}
+                        >
+                            {analysisLines.map(([main, breakdown, tail], li) => (
+                                <p key={li} className="font-medium">
+                                    {renderBold(main, `m${li}`)}
+                                    {breakdown && breakdownOpen && (
+                                        <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>
+                                    )}
+                                    {tail}
+                                </p>
+                            ))}
+                            {hasBreakdown && (
+                                <span aria-hidden="true" className="absolute right-0 bottom-0 text-slate-300">
+                                    {breakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>
