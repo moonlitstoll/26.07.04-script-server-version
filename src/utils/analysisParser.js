@@ -41,14 +41,16 @@ export function splitBreakdown(line) {
 // 새로 받은 응답에만 쓴다(stage2Parser). 옛 캐시의 한자 뜻풀이 "(날 출 + 나타날 현)"까지 바꾸면
 // 오히려 모양이 깨지므로 표시 단계에서는 부르지 않는다.
 const NOTATION_PAREN = /^[^\s가-힣ㄱ-ㅎㅏ-ㅣ()]{1,12}$/;
-// 청크 뜻(굵은 청크 바로 뒤)에 화살표가 오면 오른쪽(이 문장의 뜻)만 남긴다 — 화살표는 괄호 안 단어 풀이 전용.
+// 청크 뜻(굵은 청크 바로 뒤)에 화살표가 오면 '이 문장의 뜻' 쪽만 남긴다 — 화살표는 괄호 안 단어 풀이 전용.
+// v4 규칙 C는 `문맥뜻←본뜻`(지금 뜻이 앞)이라 ←면 왼쪽을, 옛 모양 `본뜻→문맥뜻`이 섞여 오면 →의 오른쪽을 남긴다.
 // 실측(v4 시험): "**đang chơi**: ~하는 중이다→운행하는 중이다", "**ghé tới**: 들르다→비추다".
 const stripMainArrow = (main) => {
     const m = main.match(/^(\s*\*\*.+?\*\*\s*:\s*)(.*)$/s);
-    if (!m || !m[2].includes('→')) return main;
+    if (!m || !/[→←]/.test(m[2])) return main;
     const rest = m[2];
     const ws = rest.match(/\s*$/)[0];
-    return m[1] + rest.slice(rest.lastIndexOf('→') + 1).trim() + ws;
+    const kept = rest.includes('←') ? rest.slice(0, rest.indexOf('←')) : rest.slice(rest.lastIndexOf('→') + 1);
+    return m[1] + kept.trim() + ws;
 };
 export function flattenNestedParens(line) {
     const [rawMain, group, tail] = splitBreakdown(line);
@@ -67,7 +69,7 @@ export function flattenNestedParens(line) {
                 const parts = content.split(/\s\+\s/).map(x => x.replace(/^[^:]*:\s*/, '').trim()).filter(Boolean);
                 return '〈' + parts.join('·') + '〉';
             }
-            if (!prev || /[:→+·]/.test(prev)) return (sp ? ' ' : '') + content;
+            if (!prev || /[:→←+·]/.test(prev)) return (sp ? ' ' : '') + content;
             return '·' + content;
         });
         if (next === inner) break;

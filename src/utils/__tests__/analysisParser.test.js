@@ -69,6 +69,12 @@ describe('청크 뜻의 화살표 안전망', () => {
         expect(flattenNestedParens('**ghé tới**: 들르다→비추다 (ghé: 들르다 + tới: 오다)'))
             .toBe('**ghé tới**: 비추다 (ghé: 들르다 + tới: 오다)');
     });
+    it('v4 모양(문맥뜻←본뜻)이 청크 뜻에 오면 왼쪽(이 문장의 뜻)만 남긴다', () => {
+        expect(flattenNestedParens('**đang chơi**: 운행하는 중←~하는 중 (đang: ~하는 중 + chơi: 운행하다←놀다)'))
+            .toBe('**đang chơi**: 운행하는 중 (đang: ~하는 중 + chơi: 운행하다←놀다)');
+        const ok = '**mày có gấu chưa**: 너 애인 생겼어? (mày: 너 + có: 가지다 + gấu: 애인←곰 + chưa: 아직 ~안 했니·의문)';
+        expect(flattenNestedParens(ok)).toBe(ok);
+    });
     it('풀이 묶음이 없는 줄에도 적용, 화살표 없으면 그대로', () => {
         expect(flattenNestedParens('**Chạy đi**: 달려→도망쳐')).toBe('**Chạy đi**: 도망쳐');
         const ok = '**Chạy mày đấy**: 너 도망쳐 (Chạy: 달리다→도망치다 + mày: 너 + đấy: ~야)';
