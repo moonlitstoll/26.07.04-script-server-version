@@ -17,6 +17,25 @@ const normWords = (t) => (t || '')
     .split(/\s+/)
     .filter(Boolean);
 
+// 뭉침 길이 검사용 '의미 단위' 개수. 대문자로 시작하는 음절이 이어지면 지명·이름 하나로 센다.
+// 베트남어는 음절마다 띄어 써서 지명이 2칸으로 세어졌다 — 실측 오탐(휴대폰, 2026-10-09):
+//  "đi từ Hải Phòng đến xã Bum Tở Lai Châu" = 10칸 → 뭉침 배지. 지명을 하나로 세면 6.
+// 쉼표·마침표로 끝난 토큰 뒤에서는 끊는다("Hà Nội, Sài Gòn"은 둘). 문장 첫 단어 + 이름("Chú Hùng")은
+// 하나로 세어지지만 경고가 덜 뜨는 쪽이라 둔다. 누락 검사(normWords)에는 쓰지 않는다.
+const countMeaningUnits = (t) => {
+    const toks = (t || '').replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean);
+    let n = 0;
+    let prevCap = false;
+    for (const raw of toks) {
+        const w = raw.replace(/[^\p{L}\p{N}]/gu, '');
+        if (!w) { prevCap = false; continue; }
+        const cap = /^\p{Lu}/u.test(w);
+        if (!(cap && prevCap)) n++;
+        prevCap = cap && !/[,.;:!?…]$/.test(raw);
+    }
+    return n;
+};
+
 /**
  * @returns {null | { kind: 'no-chunks' } | { kind: 'coverage', missing: string[], overlong: string[] }}
  *  null = 통과(또는 검사 대상 아님). missing = 청크 분석에 안 들어간 원문 단어(중복 제거).
@@ -48,7 +67,7 @@ export function checkAnalysisCoverage(item) {
     const HAS_NUM_NOTATION = /\([\d.,%/\s]+\)/;
     const overlong = wholeSentence
         ? [chunks[0].chunk]
-        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && normWords(c).length > 9);
+        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && countMeaningUnits(c) > 9);
 
     if (missing.length === 0 && overlong.length === 0) return null;
     return { kind: 'coverage', missing, overlong };

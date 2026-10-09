@@ -148,3 +148,27 @@ describe('검사 대상에서 제외되는 경우', () => {
         expect(checkAnalysisCoverage(null)).toBeNull();
     });
 });
+
+describe('지명·이름은 1단어로 센다 (뭉침 길이)', () => {
+    // 실측 오탐(휴대폰, 2026-10-09): 지명 3개가 각각 2칸으로 세어져 10칸 → 뭉침 배지.
+    const text = 'Hiện tại mình đang chơi một chuyến xe từ thiện đi từ Hải Phòng đến xã Bum Tở Lai Châu với khoảng cách hơn sáu trăm(600) km.';
+    const analysis = [
+        '**Hiện tại mình đang chơi**: 현재 나는 운행하고 있다 (Hiện tại: 현재 + mình: 나 + đang: ~하는 중 + chơi: 놀다)',
+        '**một chuyến xe từ thiện**: 자선 차량 한 대를 (một: 한 + chuyến: 편 + xe: 차 + từ thiện: 자선)',
+        '**đi từ Hải Phòng đến xã Bum Tở Lai Châu**: 하이퐁에서 라이쩌우의 붐떠 면까지 가는 (đi: 가다 + từ: ~에서 + Hải Phòng: 하이퐁 + đến: ~까지 + xã: 면 + Bum Tở: 붐떠 + Lai Châu: 라이쩌우)',
+        '**với khoảng cách hơn sáu trăm(600) km**: 600km가 넘는 거리로 (với: ~로 + khoảng cách: 거리 + hơn: ~넘는 + sáu trăm(600): 600 + km: 킬로미터)',
+    ].join('\n');
+    it('지명이 든 실측 청크는 뭉침이 아니다', () => {
+        expect(checkAnalysisCoverage({ isAnalyzed: true, text, analysis })).toBeNull();
+    });
+    it('대문자 단어도 쉼표로 끊기면 따로 센다', () => {
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ ok',
+            analysis: '**Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ**: 도시들\n**ok**: ok',
+        })?.overlong).toBeUndefined();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa ok',
+            analysis: '**Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa**: 도시 10곳\n**ok**: ok',
+        })?.overlong).toHaveLength(1);
+    });
+});
