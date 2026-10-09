@@ -28,6 +28,12 @@ import { flattenNestedParens } from '../utils/analysisParser';
 // 분석 청크 앞에 붙는 접두어(청크:/분석: 등)를 벗겨 순수 '원어: 뜻'만 남긴다.
 export const ANALYSIS_PREFIX_STRIP = /^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i;
 
+// 굵은 청크에 글자·숫자가 하나도 없는 줄(구두점만) 판정. 굵은 청크가 없는 줄은 건드리지 않는다.
+const isPunctOnlyChunk = (line) => {
+    const m = line.match(/^\s*\*\*(.+?)\*\*/);
+    return !!m && !/[\p{L}\p{N}]/u.test(m[1]);
+};
+
 // 어느 INDEX든 문장 시작 마커. 다음 문장 경계(끝 clamp)를 찾는 데 쓴다.
 const START_MARKER_RE = /--- \[INDEX: \d+\] START ---/g;
 
@@ -58,8 +64,11 @@ export const parseStage2Response = (text, items) => {
             const subText = src.substring(startIndex + startMarker.length, end);
 
             const translationMatch = subText.match(/\[번역\]\s*(.*)/);
+            // 구두점만인 청크 줄(`**?**: ?`, `**,**: ,`)은 버린다 — 2.5 Flash Lite 실측 이탈(42묶음 중 9문장).
+            // 규칙 13에 금지를 넣어 0이 됐지만, 다시 나와도 저장·화면에 남지 않게 하는 안전망.
             const analysisLines = [...subText.matchAll(/\[분석\]\s*(.*)/g)]
-                .map(m => flattenNestedParens(m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim()));
+                .map(m => flattenNestedParens(m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim()))
+                .filter(line => !isPunctOnlyChunk(line));
             // [전사의심] (규칙 15, 선택 출력): 문맥상 오전사가 의심될 때만 모델이 남기는 한 줄.
             // 없으면 빈 문자열 — 이 줄이 없는 응답/옛 캐시와 완전 호환.
             const suspectMatch = subText.match(/\[전사의심\]\s*(.*)/);

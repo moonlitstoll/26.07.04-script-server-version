@@ -156,3 +156,18 @@ describe('파서가 괄호 속 괄호 안전망을 거친다', () => {
         expect(res[0].analysis).toBe('**Tằng tằng**: 쨍 쨍 (Tằng: 쨍·종소리 + tằng: 쨍)');
     });
 });
+
+describe('구두점만인 청크 줄은 버린다 (2.5 Flash Lite 실측 이탈)', () => {
+    it('`**?**: ?` 줄이 저장되지 않고, 글자가 있는 줄은 그대로', () => {
+        const res = parseStage2Response(
+            '--- [INDEX: 7] START ---\n[번역] 보통 여기서 얼마나 운동해요?\n[분석] **Bình thường**: 보통 (Bình thường: 보통)\n[분석] **bao nhiêu lâu**: 얼마나 오래 (bao nhiêu: 얼마나 + lâu: 오래)\n[분석] **?**: ?\n[분석] **,**: ,\n--- [INDEX: 7] END ---',
+            [{ index: 7 }]);
+        expect(res[0].analysis).toBe('**Bình thường**: 보통 (Bình thường: 보통)\n**bao nhiêu lâu**: 얼마나 오래 (bao nhiêu: 얼마나 + lâu: 오래)');
+    });
+    it('숫자 병기만인 청크(`**24**`)나 굵은 그냥 줄은 건드리지 않는다', () => {
+        const res = parseStage2Response(
+            '--- [INDEX: 1] START ---\n[번역] 24\n[분석] **hai mươi tư(24)**: 24 (hai mươi tư: 24)\n[분석] 그냥 줄: 뜻\n--- [INDEX: 1] END ---',
+            [{ index: 1 }]);
+        expect(res[0].analysis).toBe('**hai mươi tư(24)**: 24 (hai mươi tư: 24)\n그냥 줄: 뜻');
+    });
+});

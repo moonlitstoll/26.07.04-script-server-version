@@ -13,6 +13,7 @@ import { validSpeechEnd } from '../utils/speechSegments';
 import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange } from '../utils/sentenceEdit';
+import { missingWordCount, shouldAdoptMissingRetry } from '../utils/analysisCoverage';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
@@ -355,6 +356,58 @@ export const useMediaAnalysis = ({
             };
             await Promise.all(Array.from({ length: Math.min(CONCURRENCY, splitBatches.length) }, () => runSplitWorker()));
         }
+        // [누락 자동 재시도 (2026-10)] 모델이 청크 하나를 통째로 건너뛰어 원문 단어가 빠진 문장을 한 번 더 요청한다.
+        // 앱이 잘라 먹는 게 아니라 응답 원문부터 빠져 있는 것(실측: 저장 청크 수 < 응답 청크 수인 문장 0개,
+        // 누락 배지 3~16%/실행). 문맥 없이 작은 묶음으로 다시 보내면 대개 채워진다. 채택은 '빠진 단어가 줄었을 때만'
+        // (shouldAdoptMissingRetry — 문장 전체 1청크 결과는 거부). 최대 2라운드.
+        const MAX_MISSING_RETRIES = 2;
+        for (let round = 0; round < MAX_MISSING_RETRIES && !signal.aborted; round++) {
+            const missingIdx = pendingIndices.filter(idx => {
+                const d = workingData[idx];
+                return d && d.isAnalyzed && missingWordCount(d.text, d.analysis) > 0;
+            });
+            if (missingIdx.length === 0) break;
+            didRetry = true;
+            console.log(`[Stage 2] 누락 ${missingIdx.length}개 (라운드 ${round + 1}/${MAX_MISSING_RETRIES}) → 재분석(배치)`);
+            const missBatches = [];
+            for (let i = 0; i < missingIdx.length; i += BATCH_SIZE) missBatches.push(missingIdx.slice(i, i + BATCH_SIZE));
+            let missCursor = 0;
+            const processMissBatch = async (idxGroup) => {
+                const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
+                try {
+                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, [], false);
+                    if (results && !signal.aborted) {
+                        results.forEach(res => {
+                            if (res && res.translation && !res.failed) {
+                                const prev = workingData[res.index];
+                                if (shouldAdoptMissingRetry(prev.text, prev.analysis, res.analysis)) {
+                                    workingData[res.index] = {
+                                        ...prev,
+                                        translation: res.translation,
+                                        analysis: res.analysis,
+                                        transcriptSuspect: res.transcriptSuspect || '',
+                                        isAnalyzed: true
+                                    };
+                                }
+                            }
+                        });
+                        updateGlobalState(workingData);
+                    }
+                } catch (e) {
+                    if (e.name === 'AbortError') return;
+                    console.warn('[Stage 2] 누락 재분석 실패:', e);
+                }
+            };
+            const runMissWorker = async () => {
+                while (!signal.aborted) {
+                    const mi = missCursor++;
+                    if (mi >= missBatches.length) break;
+                    await processMissBatch(missBatches[mi]);
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(CONCURRENCY, missBatches.length) }, () => runMissWorker()));
+        }
+
         if (didRetry && !signal.aborted) {
             persistCache(fileInfo, workingData, saveStatusOf(workingData));
         }

@@ -37,8 +37,14 @@ const countMeaningUnits = (t) => {
 };
 
 /**
- * @returns {null | { kind: 'no-chunks' } | { kind: 'coverage', missing: string[], overlong: string[] }}
+ * @returns {null | { kind: 'no-chunks' } | { kind: 'coverage', missing: string[], overlong: string[], oversplit: null | { punct: number, chunks: number, words: number } }}
  *  null = 통과(또는 검사 대상 아님). missing = 청크 분석에 안 들어간 원문 단어(중복 제거).
+ *  oversplit = 과분할(2026-10): 구두점만인 청크(`**?**: ?`)가 있거나, 6청크 이상인데 청크당 평균 2.5음절 미만.
+ *   기준 2.5의 근거: 규칙 13이 청크를 2~4단어로 두므로 평균 2.5 미만은 '거의 전부 2단어'. 실측 2.5 Flash 결과 278문장은
+ *   2.8 미만도 0건, 2.5 Flash Lite 165문장은 2.5 미만 9건(2-단어 청크 나열) — Flash 오탐 없이 Lite 과분할만 잡힌다.
+ *   실측(휴대폰, 2.5 Flash Lite): 33단어 문장이 18줄(`Cảm ơn` / `những con người` / `,` / …)로 쪼개짐.
+ *   Lite로 42묶음을 돌리면 구두점 청크가 9/990 나왔다(규칙 추가 후 0). 7단어 문장이 4청크로 나뉜 정도는
+ *   잡지 않는다(6청크 조건) — 그건 읽는 데 지장이 없고 배지 신뢰를 깎는다.
  */
 export function checkAnalysisCoverage(item) {
     if (!item || !item.isAnalyzed || item.analysisFailed) return null;
@@ -69,8 +75,35 @@ export function checkAnalysisCoverage(item) {
         ? [chunks[0].chunk]
         : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && countMeaningUnits(c) > 9);
 
-    if (missing.length === 0 && overlong.length === 0) return null;
-    return { kind: 'coverage', missing, overlong };
+    const chunkLens = chunks.map(c => normWords(c.chunk).length);
+    const punct = chunkLens.filter(n => n === 0).length;
+    const tooFine = chunks.length >= 6 && textWords.length / chunks.length < 2.5; // 휴대폰 실측 33/16 = 2.06
+    const oversplit = (punct > 0 || tooFine) ? { punct, chunks: chunks.length, words: textWords.length } : null;
+
+    if (missing.length === 0 && overlong.length === 0 && !oversplit) return null;
+    return { kind: 'coverage', missing, overlong, oversplit };
+}
+
+/** 분석에서 빠진 원문 단어 수. 분석 형식이 깨졌으면(청크 0) 원문 단어 수 전부. */
+export function missingWordCount(text, analysis) {
+    const cov = checkAnalysisCoverage({ text, analysis, isAnalyzed: !!analysis });
+    if (!cov) return 0;
+    if (cov.kind === 'no-chunks') return normWords(text).length;
+    return cov.missing.length;
+}
+
+/**
+ * [누락 재시도 채택 규칙] 빠진 단어가 있는 문장을 다시 요청한 결과를 받아들일지.
+ *  - 빠진 단어가 줄었을 때만 (같거나 늘면 옛것 유지 — 퇴행 방지)
+ *  - 단, 문장 전체가 1청크로 뭉친 결과는 거부 (빠진 단어 0이어도 규칙 13 위반 — 뭉침 재시도가 다시 돌게 됨)
+ * 실측(2026-10, Circle K 165문장): 2.5 Flash가 청크 하나를 통째로 건너뛰는 문장이 실행마다 3~16%.
+ */
+export function shouldAdoptMissingRetry(text, prevAnalysis, nextAnalysis) {
+    if (!nextAnalysis) return false;
+    const nextChunks = parseChunks({ text, analysis: nextAnalysis, isAnalyzed: true });
+    if (nextChunks.length === 0) return false;
+    if (nextChunks.length === 1 && normWords(text).length >= 6) return false;
+    return missingWordCount(text, nextAnalysis) < missingWordCount(text, prevAnalysis);
 }
 
 /** 배지 title용 요약문 (탭 안내 포함) */
@@ -80,5 +113,8 @@ export function coverageTitle(cov) {
     const parts = [];
     if (cov.missing.length > 0) parts.push(`분석에서 빠진 단어: ${cov.missing.join(', ')}`);
     if (cov.overlong.length > 0) parts.push(`5단어 초과 뭉친 청크 ${cov.overlong.length}개`);
+    if (cov.oversplit) parts.push(cov.oversplit.punct > 0
+        ? `구두점만 있는 청크 ${cov.oversplit.punct}개`
+        : `너무 잘게 쪼개짐 (${cov.oversplit.words}단어를 ${cov.oversplit.chunks}청크로)`);
     return `${parts.join(' · ')} — 탭하면 이 문장만 재분석`;
 }

@@ -5,7 +5,7 @@
 // 아래 통과 케이스들은 대부분 실사용에서 오탐으로 확인돼 기준을 완화한 흔적이다 —
 // 기준을 다시 조일 땐 이 케이스들이 여전히 통과하는지 반드시 확인할 것.
 import { describe, it, expect } from 'vitest';
-import { checkAnalysisCoverage, coverageTitle } from '../analysisCoverage';
+import { checkAnalysisCoverage, coverageTitle, missingWordCount, shouldAdoptMissingRetry } from '../analysisCoverage';
 
 // 공식 작성 예시와 같은 형식의 정상 문장
 const good = {
@@ -170,5 +170,55 @@ describe('지명·이름은 1단어로 센다 (뭉침 길이)', () => {
             isAnalyzed: true, text: 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa ok',
             analysis: '**Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa**: 도시 10곳\n**ok**: ok',
         })?.overlong).toHaveLength(1);
+    });
+});
+
+describe('과분할 감지 (2026-10, 2.5 Flash Lite 실측)', () => {
+    it('구두점만인 청크가 있으면 과분할', () => {
+        const r = checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Bình thường cô tập ở đây bao nhiêu lâu?',
+            analysis: '**Bình thường**: 보통 (Bình thường: 보통)\n**cô tập**: 당신은 운동하다 (cô: 당신 + tập: 운동하다)\n**ở đây**: 여기서 (ở: ~에 + đây: 여기)\n**bao nhiêu lâu**: 얼마나 오래 (bao nhiêu: 얼마나 + lâu: 오래)\n**?**: ?',
+        });
+        expect(r?.oversplit?.punct).toBe(1);
+        expect(coverageTitle(r)).toContain('구두점만 있는 청크 1개');
+    });
+    it('휴대폰 실측: 33단어가 16청크(구두점 제외)로 쪼개지면 과분할', () => {
+        const text = 'Cảm ơn những con người tuyệt vời không ngại khó khăn đã dành thời gian, công sức, tiền bạc để giúp đỡ những mảnh đời kém may mắn nơi rừng núi hiểm trở.';
+        const chunks = ['Cảm ơn', 'những con người', 'tuyệt vời', 'không ngại', 'khó khăn', 'đã dành', 'thời gian', 'công sức', 'tiền bạc', 'để', 'giúp đỡ', 'những mảnh đời', 'kém may mắn', 'nơi', 'rừng núi', 'hiểm trở'];
+        const r = checkAnalysisCoverage({ isAnalyzed: true, text, analysis: chunks.map(c => `**${c}**: 뜻`).join('\n') });
+        expect(r?.oversplit).toEqual({ punct: 0, chunks: 16, words: 33 });
+        expect(coverageTitle(r)).toContain('너무 잘게 쪼개짐');
+    });
+    it('정상 분할(33단어 8청크)과 가벼운 분할(7단어 4청크)은 잡지 않는다', () => {
+        const text = 'Cảm ơn những con người tuyệt vời không ngại khó khăn đã dành thời gian, công sức, tiền bạc để giúp đỡ những mảnh đời kém may mắn nơi rừng núi hiểm trở.';
+        const ok = ['Cảm ơn những con người tuyệt vời', 'không ngại khó khăn', 'đã dành thời gian', 'công sức, tiền bạc', 'để giúp đỡ những mảnh đời', 'kém may mắn', 'nơi rừng núi hiểm trở'];
+        expect(checkAnalysisCoverage({ isAnalyzed: true, text, analysis: ok.map(c => `**${c}**: 뜻`).join('\n') })).toBeNull();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Nên bạn nào sợ thì đi về nhá.',
+            analysis: '**Nên bạn nào**: 그러니 누구든\n**sợ**: 무서워하면\n**thì đi về**: 집에 가\n**nhá**: ~해',
+        })).toBeNull();
+    });
+});
+
+describe('누락 재시도 채택 규칙 (shouldAdoptMissingRetry)', () => {
+    // 실측(Circle K #37): "Và đó chính là quán nét." → 모델이 `quán nét` 청크를 건너뜀
+    const text = 'Và đó chính là quán nét.';
+    const prev = '**Và đó**: 그리고 그것 (Và: 그리고 + đó: 그것)\n**chính là**: 바로 ~이다 (chính: 바로 + là: ~이다)';
+    const full = prev + '\n**quán nét**: PC방 (quán: 가게 + nét: 인터넷)';
+    it('빠진 단어가 줄면 채택', () => {
+        expect(missingWordCount(text, prev)).toBe(2);
+        expect(missingWordCount(text, full)).toBe(0);
+        expect(shouldAdoptMissingRetry(text, prev, full)).toBe(true);
+    });
+    it('빠진 단어가 같거나 늘면 거부 (퇴행 방지)', () => {
+        expect(shouldAdoptMissingRetry(text, prev, prev)).toBe(false);
+        expect(shouldAdoptMissingRetry(text, prev, '**Và đó**: 그리고 그것 (Và: 그리고 + đó: 그것)')).toBe(false);
+    });
+    it('문장 전체를 1청크로 뭉친 결과는 빠진 단어 0이어도 거부, 빈 결과도 거부', () => {
+        const long = 'Và mong rằng sẽ không bị nhân viên phát hiện.';
+        const partial = '**Và mong rằng**: 바라건대\n**nhân viên phát hiện**: 직원이 발견하다';
+        expect(shouldAdoptMissingRetry(long, partial, '**Và mong rằng sẽ không bị nhân viên phát hiện**: 직원에게 안 들키길')).toBe(false);
+        expect(shouldAdoptMissingRetry(long, partial, '')).toBe(false);
+        expect(shouldAdoptMissingRetry(long, partial, '**Và mong rằng**: 바라건대\n**sẽ không bị**: ~당하지 않다\n**nhân viên phát hiện**: 직원이 발견하다')).toBe(true);
     });
 });
