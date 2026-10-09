@@ -879,7 +879,7 @@ const App = () => {
       {isStaleAnalysis && contentReady && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
-          <span className="flex-1 min-w-0 truncate font-medium">분석 규칙이 업데이트됐어요. 재분석하면 청크 분할이 개선됩니다.</span>
+          <span className="flex-1 min-w-0 truncate font-medium">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
           <button
             onClick={confirmReanalyzeAll}
             className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors"

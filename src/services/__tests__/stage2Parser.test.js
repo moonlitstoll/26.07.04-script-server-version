@@ -147,3 +147,12 @@ describe('parseStage2Response — 방어적 입력', () => {
         expect(parseStage2Response('아무 텍스트', undefined)).toEqual([]);
     });
 });
+
+describe('파서가 괄호 속 괄호 안전망을 거친다', () => {
+    it('저장되는 analysis에서 보충 설명 괄호가 가운뎃점이 된다', () => {
+        const res = parseStage2Response(
+            '--- [INDEX: 3] START ---\n[번역] 쨍 쨍\n[분석] **Tằng tằng**: 쨍 쨍 (Tằng: 쨍(종소리) + tằng: 쨍)\n--- [INDEX: 3] END ---',
+            [{ index: 3 }]);
+        expect(res[0].analysis).toBe('**Tằng tằng**: 쨍 쨍 (Tằng: 쨍·종소리 + tằng: 쨍)');
+    });
+});

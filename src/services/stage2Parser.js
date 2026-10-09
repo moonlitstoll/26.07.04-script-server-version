@@ -23,6 +23,8 @@
 // failed 판정은 기존 그대로: 자기 START나 자기 END 마커가 아예 없으면 실패(빈 분석).
 // (출력이 토큰 상한에 잘려 뒤쪽 마커가 통째로 유실된 경우를 재시도로 넘기는 안전망 — 유지.)
 
+import { flattenNestedParens } from '../utils/analysisParser';
+
 // 분석 청크 앞에 붙는 접두어(청크:/분석: 등)를 벗겨 순수 '원어: 뜻'만 남긴다.
 export const ANALYSIS_PREFIX_STRIP = /^(청크|Analysis|분석|•|청크:|\[분석\])[:\s-]*/i;
 
@@ -57,7 +59,7 @@ export const parseStage2Response = (text, items) => {
 
             const translationMatch = subText.match(/\[번역\]\s*(.*)/);
             const analysisLines = [...subText.matchAll(/\[분석\]\s*(.*)/g)]
-                .map(m => m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim());
+                .map(m => flattenNestedParens(m[1].replace(ANALYSIS_PREFIX_STRIP, '').trim()));
             // [전사의심] (규칙 15, 선택 출력): 문맥상 오전사가 의심될 때만 모델이 남기는 한 줄.
             // 없으면 빈 문자열 — 이 줄이 없는 응답/옛 캐시와 완전 호환.
             const suspectMatch = subText.match(/\[전사의심\]\s*(.*)/);
