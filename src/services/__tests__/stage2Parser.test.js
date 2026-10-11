@@ -171,3 +171,12 @@ describe('구두점만인 청크 줄은 버린다 (2.5 Flash Lite 실측 이탈)
         expect(res[0].analysis).toBe('**hai mươi tư(24)**: 24 (hai mươi tư: 24)\n그냥 줄: 뜻');
     });
 });
+
+describe('파서가 표기 정리 안전망을 거친다', () => {
+    it('같은 말 ♪·같은 화살표·⚡ 꼬리표가 저장 전에 정리된다', () => {
+        const res = parseStage2Response(
+            '--- [INDEX: 2] START ---\n[번역] 공원\n[분석] **phi ra công viên**: 공원으로 달려 (phi: 날다←날다 + ra: 나가다 + công viên: 공원·공원♪) 〔⚡phi: 질주하다(슬랭)〕\n--- [INDEX: 2] END ---',
+            [{ index: 2 }]);
+        expect(res[0].analysis).toBe('**phi ra công viên**: 공원으로 달려 (phi: 날다 + ra: 나가다 + công viên: 공원♪) 〔⚡phi: 질주하다〕');
+    });
+});

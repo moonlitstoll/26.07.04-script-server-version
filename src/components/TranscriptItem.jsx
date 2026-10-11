@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
-import { splitBreakdown } from '../utils/analysisParser';
+import { splitBreakdown, tidyGlosses } from '../utils/analysisParser';
 
 // **굵게** 표시 → 초록 굵은 청크
 const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
@@ -52,7 +52,7 @@ const TranscriptItem = memo(({
     const analysisLines = useMemo(() => {
         if (!item.analysis || typeof item.analysis !== 'string') return [];
         return stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
-            .split('\n').filter(l => l.trim()).map(splitBreakdown);
+            .split('\n').filter(l => l.trim()).map(l => splitBreakdown(tidyGlosses(l)));
     }, [item.analysis, item.text]);
     const hasBreakdown = analysisLines.some(([, b]) => b);
 

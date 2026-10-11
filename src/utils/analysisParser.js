@@ -78,12 +78,45 @@ export function flattenNestedParens(line) {
     return main + '(' + inner + ')' + ws + tail;
 }
 
+// [표기 정리 안전망 — 2026-10, 실측: Circle K 182문장을 2.5 Flash Lite로 분석] 규칙은 알지만 적는 모양이 틀린 것만 고친다.
+// 뜻이 맞는지는 판단하지 않는다(틀린 소리 ♪·틀린 부품 뜻은 모델 지식 문제라 코드로 못 고침).
+//  ① 같은 말 되풀이 ♪: "công viên: 공원·공원♪" → "공원♪", "thành công: 성공하다·성공♪" → "성공하다♪" (실측 18곳)
+//     — '자연스러운 말·한자어♪'(규칙 5)는 두 말이 다를 때만 쓰는 모양이다.
+//  ② 양쪽이 같은 화살표: "phi: 날다←날다" → "날다" (본뜻과 같으면 화살표가 무의미)
+//  ③ 〔⚡표현: 뜻〕 안의 꼬리표·여러 뜻: "〔⚡vãi chưởng: 존나/개–(강한 감탄·강조)〕" → "〔⚡vãi chưởng: 존나〕"
+//     (괄호 꼬리표 제거 → '/' 나열은 첫 뜻만 → 끝의 ·슬랭/·비속어 제거)
+// 옛 캐시에도 안전하다(v3엔 ♪·←가 없고, 옛 〔⚡실제: …(슬랭)〕은 꼬리표만 빠짐) — 그래서 표시 단계에서도 부른다.
+const FLASH_LABEL = /\s*·\s*(슬랭|비속어|욕설|속어|은어|강조)\s*$/;
+const tidyFlash = (tail) => tail.replace(/〔⚡([^:：〕]+)([:：])\s*([^〕]*)〕/g, (m, expr, colon, mean) => {
+    let v = mean.replace(/\s*\([^()]*\)/g, '').split('/')[0].replace(FLASH_LABEL, '').replace(/[\s–—\-·]+$/, '').trim();
+    return v ? `〔⚡${expr}${colon} ${v}〕` : m;
+});
+const tidyGloss = (part) => {
+    const m = part.match(/^(\s*[^:]+:\s*)(.*?)(\s*)$/s);
+    if (!m) return part;
+    let mean = m[2];
+    const arrow = mean.match(/^(.+?)←(.+)$/);
+    if (arrow && arrow[1].trim() === arrow[2].trim()) mean = arrow[1].trim();
+    const note = mean.match(/^(.*)·([^·]+)♪$/);
+    if (note && note[1].trim().startsWith(note[2].trim())) mean = note[1].trim() + '♪';
+    return m[1] + mean + m[3];
+};
+export function tidyGlosses(line) {
+    const [main, group, tail] = splitBreakdown(line);
+    const t = tail ? tidyFlash(tail) : tail;
+    if (!group) return main + t;
+    const g = group.replace(/\s+$/, '');
+    const ws = group.slice(g.length);
+    const inner = g.slice(1, -1).split(/(\s\+\s)/).map((x, i) => (i % 2 ? x : tidyGloss(x))).join('');
+    return main + '(' + inner + ')' + ws + t;
+}
+
 export function parseChunks(item) {
     if (!item || !item.isAnalyzed || typeof item.analysis !== 'string') return [];
     return item.analysis.split('\n')
         .map(raw => {
             // 혹시 남아있을 수 있는 [분석]/분석] 접두 제거
-            const line = raw.replace(/^\s*\[?\s*분석\s*\]?\s*/, '');
+            const line = tidyGlosses(raw.replace(/^\s*\[?\s*분석\s*\]?\s*/, ''));
             const m = line.match(/^\s*\*\*(.+?)\*\*\s*:?\s*(.*)$/);
             if (!m) return null;
             const chunk = m[1].trim();

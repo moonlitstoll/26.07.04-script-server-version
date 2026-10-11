@@ -81,3 +81,41 @@ describe('청크 뜻의 화살표 안전망', () => {
         expect(flattenNestedParens(ok)).toBe(ok);
     });
 });
+
+// [표기 정리 안전망] 실측 줄: Circle K 182문장, 2단계 2.5 Flash Lite (2026-10-11 PC 크롬 저장본)
+import { tidyGlosses, parseChunks } from '../analysisParser';
+describe('표기 정리 안전망(tidyGlosses)', () => {
+    it('같은 말을 되풀이한 ♪는 한쪽만 남긴다', () => {
+        expect(tidyGlosses('**Mình phi xe ra công viên**: 공원으로 차를 몰고 (Mình: 나 + phi: 몰다 + xe: 차 + ra: 나가다 + công viên: 공원·공원♪)'))
+            .toBe('**Mình phi xe ra công viên**: 공원으로 차를 몰고 (Mình: 나 + phi: 몰다 + xe: 차 + ra: 나가다 + công viên: 공원♪)');
+        expect(tidyGlosses('**Phi vụ thành công**: 작전 성공 (Phi vụ: 작전·비무♪ + thành công: 성공하다·성공♪)'))
+            .toBe('**Phi vụ thành công**: 작전 성공 (Phi vụ: 작전·비무♪ + thành công: 성공하다♪)');
+    });
+    it('두 말이 다른 ♪·보충 설명·부품은 그대로', () => {
+        const ok = '**nó xuất hiện**: 그게 나타나게 (nó: 그것 + xuất hiện: 나타나다·출현♪ + đứa: 명·아이 세는 말 + búng tay: 손가락 튕기다〈튀기다·손〉 + từ thiện: 자선♪)';
+        expect(tidyGlosses(ok)).toBe(ok);
+    });
+    it('양쪽이 같은 화살표는 지우고, 다른 화살표는 그대로', () => {
+        expect(tidyGlosses('**mình phi xe**: 나는 차를 몰고 (mình: 나 + phi: 날다←날다 + xe: 차)'))
+            .toBe('**mình phi xe**: 나는 차를 몰고 (mình: 나 + phi: 날다 + xe: 차)');
+        const ok = '**bay mất**: 날렸다 (bay mất: 날려버리다←날다·잃다 + gấu: 애인←곰)';
+        expect(tidyGlosses(ok)).toBe(ok);
+    });
+    it('⚡ 안의 괄호 꼬리표·여러 뜻·종류 꼬리표를 떼고 첫 뜻만', () => {
+        expect(tidyGlosses('**và hồi hộp vãi chưởng luôn**: 존나 떨린다 (và: 그리고 + hồi hộp: 떨리다 + vãi chưởng: 존나 + luôn: 완전) 〔⚡vãi chưởng: 존나/개–(강한 감탄·강조)〕'))
+            .toBe('**và hồi hộp vãi chưởng luôn**: 존나 떨린다 (và: 그리고 + hồi hộp: 떨리다 + vãi chưởng: 존나 + luôn: 완전) 〔⚡vãi chưởng: 존나〕');
+        expect(tidyGlosses('**thả thính**: 작업 걸다 (thả: 놓다 + thính: 미끼) 〔⚡thả thính: 작업 걸다·슬랭〕'))
+            .toBe('**thả thính**: 작업 걸다 (thả: 놓다 + thính: 미끼) 〔⚡thả thính: 작업 걸다〕');
+        const ok = '**Nó đách có vị gì**: 아무 맛도 없어 (Nó: 그것 + đách: 전혀~않다 + có: 있다 + vị: 맛 + gì: 무엇) 〔⚡đách: 전혀~않다〕';
+        expect(tidyGlosses(ok)).toBe(ok);
+    });
+    it('풀이 괄호가 없는 줄, 옛 한자 뜻풀이 줄은 그대로', () => {
+        expect(tidyGlosses('**À**: 아·감탄사')).toBe('**À**: 아·감탄사');
+        const old = '**Đàn ông**: 남자 (Đàn ông: 남자 (사내 단 + 사내 웅))';
+        expect(tidyGlosses(old)).toBe(old);
+    });
+    it('가리기 학습(parseChunks)의 뜻에도 정리된 모양이 쓰인다', () => {
+        const [c] = parseChunks({ isAnalyzed: true, analysis: '**công viên**: 공원 (công viên: 공원·공원♪)' });
+        expect(c).toEqual({ chunk: 'công viên', meaning: '공원 (công viên: 공원♪)' });
+    });
+});
