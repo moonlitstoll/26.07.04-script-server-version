@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds, LOOP_GROUP_MIN, LOOP_GROUP_MAX } from './utils/loopGroups';
 import { validSpeechEnd } from './utils/speechSegments';
+import { speechEndMissingSet } from './utils/speechEndMerge';
 import { nextAnalysisView } from './utils/analysisView';
 import { useEscapeToClose } from './hooks/useEscapeToClose';
 
@@ -74,7 +75,7 @@ import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import TrashModal from './components/TrashModal';
-import { RetranscribeDialog, SplitDialog } from './components/SentenceEditDialogs';
+import { RetranscribeDialog, SplitDialog, SpeechEndDialog } from './components/SentenceEditDialogs';
 import { getPassphrase, setPassphrase as persistPassphrase, CLOUD_ENABLED } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
 import { mediaStore } from './utils/MediaStore';
@@ -253,6 +254,8 @@ const App = () => {
   );
   // 유효한 감지값이 없는 문장 수 — 칩 배지(!N)로 표시, 탭하면 그 문장들만 재감지
   // speechEndSkipped(이미 시도했으나 모델이 판단 못 한 구간)는 제외 — 안 그러면 배지가 영원히 안 사라진다
+  // 카드의 '대사 끝 없음' 배지(판단 불가 + 미감지, 블록 기준) — 탭하면 그 문장 직접 맞추기 창
+  const speechEndMissingIdxs = useMemo(() => speechEndMissingSet(transcriptData, duration), [transcriptData, duration]);
   const missingSpeechEnds = useMemo(
     () => (hasSpeechEnds ? transcriptData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length : 0),
     [transcriptData, hasSpeechEnds]
@@ -407,12 +410,15 @@ const App = () => {
 
   const refreshCacheKeysRef = useRef(null);
 
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
+  // 감지 완료 안내의 [그 문장 보기] — 훅보다 아래에서 정의되는 선택 상태를 쓰므로 ref로 넘긴다
+  const revealSentenceRef = useRef(null);
+  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
     showToast,
-    onTrashChange: () => setTrashNonce(n => n + 1)
+    onTrashChange: () => setTrashNonce(n => n + 1),
+    onRevealSentence: (fileId, idx) => revealSentenceRef.current && revealSentenceRef.current(fileId, idx),
   });
 
   // [회귀방지] TranscriptItem(memo)에 넘길 콜백을 안정화 — 재생 중 currentTime 틱마다
@@ -506,7 +512,7 @@ const App = () => {
 
   // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 설정의 Stage 3 모델 사용.
   // 확인창에서 '문장별로 다시'(기존, 기본값)와 '한 구간으로 다시'(시각 조정·미리 듣기) 중 고른다.
-  // editDialog: null | { kind: 'retranscribe', fileId, idxs:Set } | { kind: 'split', fileId, idx }
+  // editDialog: null | { kind: 'retranscribe', fileId, idxs:Set } | { kind: 'split' | 'speechEnd', fileId, idx }
   const [editDialog, setEditDialog] = useState(null);
   const confirmRetranscribe = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
@@ -517,6 +523,20 @@ const App = () => {
     if (!activeFile || selectedIdxs.size !== 1) return;
     setEditDialog({ kind: 'split', fileId: activeFile.id, idx: [...selectedIdxs][0] });
   };
+  // 카드의 '대사 끝 없음' 배지 → 그 문장의 '대사 끝 맞추기' 창 (선택 모드를 거치지 않는다)
+  const handleSpeechEndFix = useCallback((i) => {
+    if (speechDetectBusy) return; // 감지 중엔 결과가 덮어쓸 수 있어 막는다(선택 모드 '대사만'과 같은 규칙)
+    setEditDialog({ kind: 'speechEnd', fileId: activeFileId, idx: i });
+  }, [activeFileId, speechDetectBusy]);
+  // 감지 완료 안내의 [그 문장 보기]: 그 문장으로 이동하고 선택해 둔다 → 바로 '대사만'으로 직접 맞추기
+  useEffect(() => {
+    revealSentenceRef.current = (fileId, idx) => {
+      if (activeFileRef.current?.id !== fileId || !activeFileRef.current?.data?.[idx]) return; // 그사이 다른 영상으로 옮겼으면 무시
+      setSelectMode(true);
+      setSelectedIdxs(new Set([idx]));
+      jumpToSentence(idx);
+    };
+  });
   // 미리 듣기 전에 본 플레이어를 멈춘다(소리 겹침 방지)
   const pauseMainPlayer = useCallback(() => {
     const v = videoRef.current;
@@ -599,6 +619,8 @@ const App = () => {
     if (speechDetectBusy) return; // 다른 감지 진행 중이면 무반응+선택소실이 되므로 차단(칩/배지 핸들러와 동일 패턴)
     const idxs = [...selectedIdxs];
     const fileId = activeFile.id;
+    // 문장 1개면 'AI가 다시 듣기 / 직접 맞추기' 창 — 직접 맞추기는 ±버튼·미리 듣기로 끝 시각을 정한다(무료)
+    if (idxs.length === 1) { setEditDialog({ kind: 'speechEnd', fileId, idx: idxs[0] }); return; }
     showConfirm({
       message: `선택한 ${idxs.length}개 문장의 '대사 끝나는 지점'만 다시 감지해 '대사만' 건너뛰기를 고칩니다. 문장 글자·번역·분석은 그대로예요. (그 구간 오디오만 전송, 감지되면 기존 값을 새로 바꿔요) 진행할까요?`,
       confirmText: '대사만 다시',
@@ -1199,6 +1221,8 @@ const App = () => {
                               onRetryAnalysis={handleRetryOne}
                               onCoverageRetry={handleCoverageRetry}
                               onRetranscribe={handleRetranscribeOne}
+                              speechEndMissing={speechEndMissingIdxs.has(idx)}
+                              onSpeechEndFix={handleSpeechEndFix}
                               drillMode={drillMode}
                               difficulty={difficulty}
                               drillRound={drillRound}
@@ -1310,6 +1334,19 @@ const App = () => {
           playbackRate={playbackRate}
           onPausePlayer={pauseMainPlayer}
           onApply={(opts) => { splitSentence(editDialog.fileId, editDialog.idx, opts); setEditDialog(null); exitSelectMode(); }}
+          onClose={() => setEditDialog(null)}
+        />
+      )}
+      {editDialog?.kind === 'speechEnd' && activeFile?.id === editDialog.fileId && activeFile.data[editDialog.idx] && (
+        <SpeechEndDialog
+          data={activeFile.data}
+          idx={editDialog.idx}
+          duration={duration}
+          mediaUrl={mediaUrl}
+          playbackRate={playbackRate}
+          onPausePlayer={pauseMainPlayer}
+          onDetect={() => { detectSpeechEndsForFile(editDialog.fileId, { indices: [editDialog.idx] }); setEditDialog(null); exitSelectMode(); }}
+          onApply={(se) => { setSpeechEndManual(editDialog.fileId, editDialog.idx, se); setEditDialog(null); exitSelectMode(); }}
           onClose={() => setEditDialog(null)}
         />
       )}

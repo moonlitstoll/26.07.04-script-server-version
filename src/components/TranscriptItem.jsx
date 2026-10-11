@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useMemo, useState, memo } from 'react';
 import {
-    Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2, ChevronDown, ChevronUp
+    Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2, ChevronDown, ChevronUp, FastForward
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
@@ -39,6 +39,7 @@ const TranscriptItem = memo(({
     isLooping, showAnalysis, showBreakdown = false,
     selectMode = false, isSelected = false, onToggleSelect,
     onRetryAnalysis, onCoverageRetry, onRetranscribe,
+    speechEndMissing = false, onSpeechEndFix,
     drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false,
     inLoopGroup = false, groupLoopOn = false
 }) => {
@@ -184,6 +185,16 @@ const TranscriptItem = memo(({
                                 className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 transition-colors"
                             >
                                 <Volume2 size={9} /> 전사의심
+                            </button>
+                        )}
+                        {/* '대사만' 끝 시각 없음 — 이 문장 뒤는 건너뛰지 않는다. 탭하면 직접 맞추기 창 */}
+                        {!drillMode && speechEndMissing && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onSpeechEndFix && onSpeechEndFix(idx); }}
+                                title="'대사만'에서 이 문장의 대사 끝을 몰라 뒤를 건너뛰지 않습니다 — 탭하면 직접 맞추기"
+                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 transition-colors"
+                            >
+                                <FastForward size={9} /> 대사 끝 없음
                             </button>
                         )}
                     </div>

@@ -10,9 +10,9 @@ import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd } from '../utils/speechSegments';
-import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds } from '../utils/speechEndMerge';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
-import { applySplit, replaceRange, rangeNeighbors, indicesInRange } from '../utils/sentenceEdit';
+import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
@@ -58,7 +58,8 @@ export const useMediaAnalysis = ({
     stage2ActiveRef, // Map<fileId, 실행중 개수> — loadCache의 Stage 2 재시작 방지용
     filesRef,        // 최신 files 사본(App 소유). setFiles 업데이터 실행 타이밍에 의존하지 않기 위함
     showToast,
-    onTrashChange
+    onTrashChange,
+    onRevealSentence // (fileId, idx) — 감지 완료 안내의 [그 문장 보기]: 그 문장으로 이동 + 선택
 }) => {
     const [isDragging, setIsDragging] = useState(false);
     // 백그라운드 Stage 2(재분석 등) 진행 표시: null 또는 { fileId, done, total }.
@@ -1000,7 +1001,11 @@ export const useMediaAnalysis = ({
                 setFiles(prev => prev.map(p => (p.id === fileId ? { ...p, data: merged } : p)));
             }
 
-            if (applied === 0 || !latestData) {
+            // 모델이 요청한 문장에 답은 했는데 값이 전부 기준 밖(대개 시작 시각을 되풀이 = 끝을 못 찾음)이면 오류가 아니라
+            // '판단 불가' 결과다 — 저장하고 아래 안내(그 문장 보기·직접 맞추기)로 보낸다. 예전엔 오류 토스트 + 저장 안 함이라
+            // "잠시 후 다시 시도"를 해도 같은 답이 오고, 다시 열면 !N 배지가 되살아났다.
+            const answeredButUnresolved = [...requested].some(i => ends.has(i));
+            if (!latestData || (applied === 0 && !answeredButUnresolved)) {
                 // 실패 원인을 남긴다 — '응답은 왔는데 한 건도 반영 안 됨'은 원인이 여러 갈래라
                 // (대상 파일 소실 / 문장 시각 어긋남 / 값 전부 탈락) 로그 없이는 사후 추적이 불가능하다.
                 console.warn('[SpeechEnd] 병합 0건 · ' + JSON.stringify({
@@ -1038,6 +1043,9 @@ export const useMediaAnalysis = ({
             }
             // 미감지 문장이 남았으면 '그 문장들만' 재감지하는 액션 제공 (기감지분은 안 건드림)
             const remaining = latestData.filter(d => validSpeechEnd(d) === null && !d.speechEndSkipped).length;
+            // 판단 불가(끝을 못 찾아 비어 있는) 문장 — 예전엔 안내에 안 보여 '전체 N문장 완료'로만 떴다
+            const unresolved = unresolvedSpeechEnds(latestData, duration);
+            const unresolvedNote = unresolved.length > 0 ? ` · ${unresolved.length}개는 대사 끝을 못 찾아 그 뒤를 안 건너뜁니다` : '';
             if (showToast) {
                 if (selective) {
                     // 선택 재감지: 고른 문장만 다시 잰 것 — 전체 개수/미감지 배지 문구를 쓰지 않는다.
@@ -1051,10 +1059,17 @@ export const useMediaAnalysis = ({
                     });
                 } else if (remaining > 0) {
                     showToast({
-                        message: `대사 구간 감지 완료 (${applied}/${sentences.length}문장 · 미감지 ${remaining}개)`,
+                        message: `대사 구간 감지 완료 (${applied}/${sentences.length}문장 · 미감지 ${remaining}개)${unresolvedNote}`,
                         type: 'success',
                         duration: 8000,
                         action: { label: `빠진 ${remaining}개 재시도`, onClick: () => detectSpeechEndsForFile(fileId, { onlyMissing: true }) },
+                    });
+                } else if (unresolved.length > 0) {
+                    showToast({
+                        message: `대사 구간 감지 완료 (${latestData.length}문장 중 ${latestData.length - unresolved.length}개)${unresolvedNote}`,
+                        type: 'success',
+                        duration: 15000, // 읽고 버튼을 누를 시간(10초는 실측에서 누르기 전에 닫혔다)
+                        ...(onRevealSentence ? { action: { label: '그 문장 보기', onClick: () => onRevealSentence(fileId, unresolved[0]) } } : {}),
                     });
                 } else {
                     showToast({
@@ -1356,6 +1371,33 @@ export const useMediaAnalysis = ({
     };
 
     /**
+     * [대사 끝 직접 맞추기] 선택 모드 '대사만' → 직접 맞추기. AI를 부르지 않고 사용자가 맞춘 끝 시각을 넣는다.
+     * 같은 시각의 형제 문장 전부에 넣고 판단 불가 표시를 지운다(speechEndMerge#applyManualSpeechEnd). 6초 실행취소.
+     */
+    const setSpeechEndManual = (fileId, idx, se) => {
+        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const targetFile = base?.file || null;
+        const prevData = base?.data || null;
+        if (!targetFile || !Array.isArray(prevData) || !prevData[idx] || !Number.isFinite(se)) return;
+        const { data: next } = applyManualSpeechEnd(prevData, idx, se);
+        // 분석이 도는 중이면 멈췄다가 이어서 돌린다 — 분석은 시작 때 사본으로 통째로 덮어쓰고, 이식(speechEndGraftRef)은
+        // '끝 시각이 빈 문장'만 채우므로 옛 감지값이 있던 문장은 맞춘 값이 다음 묶음 때 옛 값으로 되돌아간다.
+        const wasAnalyzing = !!stage2ActiveRef?.current?.get(fileId);
+        if (wasAnalyzing && stage2AbortRef.current) stage2AbortRef.current.abort();
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: next } : p));
+        persistEdit(targetFile, next);
+        if (showToast) showToast({
+            message: `대사 끝을 ${formatStamp(se)}로 맞췄어요.`,
+            type: 'success',
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, [], '대사 끝 맞추기를 취소했습니다.') },
+            duration: 6000,
+        });
+        if (wasAnalyzing && apiKey && next.some(d => !d.isAnalyzed && !d.analysisFailed)) {
+            runStage2(fileId, targetFile, next, apiKey, stage2Model);
+        }
+    };
+
+    /**
      * [구간 재전사] 지정한 시각 구간 [start, end)를 한 번에 다시 듣고, 시작 시각이 그 안인 문장을 전부 새 결과로 바꾼다.
      * 구간 밖에서 시작해 걸친 문장은 그대로 두고, 새 결과에 딸려 온 그 문장 조각은 지운다(retranscribeSegments 복구 모드).
      * 바뀐 옛 문장은 휴지통에 보관, 새 문장은 자동 분석. 새 결과가 없으면 옛 문장을 그대로 둔다.
@@ -1428,5 +1470,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
+    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
 };

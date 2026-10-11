@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Play, Square, AlertTriangle, Scissors, AudioLines } from 'lucide-react';
+import { Play, Square, AlertTriangle, Scissors, AudioLines, FastForward } from 'lucide-react';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { usePreviewPlayer } from '../hooks/usePreviewPlayer';
 import {
     formatStamp, splitWords, sentenceEndOf, estimateSplitTime, splitTimeBounds,
     rangeFromSelection, indicesInRange, clampRange, LONG_RANGE_WARN_SEC,
 } from '../utils/sentenceEdit';
+import { speechEndEditBounds, initialSpeechEnd, speechEndSkipInfo } from '../utils/speechEndMerge';
 
 const STEPS = [0.5, 0.1]; // 조정 단위(큰 이동, 미세 조정)
 const PREVIEW_SEC = 3;
@@ -134,6 +135,66 @@ export function RetranscribeDialog({ data, selectedIdxs, duration, mediaUrl, pla
                             3분이 넘는 구간입니다. 길수록 멀쩡하던 문장까지 바뀌고, 문장이 뭉치거나 빠질 수 있어요.
                         </p>
                     )}
+                </div>
+            )}
+        </Shell>
+    );
+}
+
+/**
+ * 선택 모드 '대사만'(문장 1개) — AI에게 다시 듣게 하거나(기존, 짧은 클립 전송) 끝 시각을 직접 맞춘다(무료).
+ * 직접 맞추기: ±0.5·±0.1초 + '끝 앞/뒤 3초' 미리 듣기, 아래 줄에 그 값이면 건너뛰는지 보여 준다.
+ */
+export function SpeechEndDialog({ data, idx, duration, mediaUrl, playbackRate, onPausePlayer, onDetect, onApply, onClose }) {
+    const item = data[idx];
+    const bounds = useMemo(() => speechEndEditBounds(data, idx, duration), [data, idx, duration]);
+    const initial = useMemo(() => initialSpeechEnd(data, idx, duration), [data, idx, duration]);
+    const [mode, setMode] = useState('manual');
+    const [se, setSe] = useState(initial.value);
+    const preview = usePreviewPlayer(mediaUrl, { onStart: onPausePlayer, rate: playbackRate });
+    const info = speechEndSkipInfo(data, idx, se, duration);
+    const close = () => { preview.stop(); onClose(); };
+    const afterEnd = duration > 0 ? Math.min(duration, se + PREVIEW_SEC) : se + PREVIEW_SEC;
+
+    return (
+        <Shell
+            title="대사 끝 맞추기" icon={<FastForward size={18} className="text-sky-600" />} onClose={close}
+            footer={<>
+                <button onClick={close} className="flex-1 py-2.5 text-slate-600 font-bold hover:bg-white rounded-xl">취소</button>
+                <button
+                    onClick={() => { preview.stop(); if (mode === 'manual') onApply(se); else onDetect(); }}
+                    className="flex-1 py-2.5 text-white font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200">
+                    {mode === 'manual' ? '적용' : '대사만 다시'}
+                </button>
+            </>}
+        >
+            <div className="rounded-xl border border-slate-200 px-3 py-2">
+                <span className="font-mono text-xs text-slate-500 tabular-nums">{formatStamp(item.seconds)}</span>
+                <p className="font-bold text-slate-800 leading-snug">{item.text}</p>
+            </div>
+            <ModeOption checked={mode === 'manual'} onClick={() => setMode('manual')}
+                title="직접 맞추기 (무료)"
+                desc="들어 보면서 대사가 끝나는 시각을 직접 정합니다." />
+            <ModeOption checked={mode === 'ai'} onClick={() => setMode('ai')}
+                title="AI가 다시 듣기"
+                desc="이 문장 주변 오디오만 AI에게 다시 들려 끝을 찾습니다(몇 원). 못 찾으면 기존 값을 그대로 둡니다." />
+
+            {mode === 'manual' && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2.5">
+                    {initial.estimated && (
+                        <p className="text-xs text-slate-500 leading-snug">끝 시각이 없어 글자 수로 어림했어요. 들어 보고 맞춰 주세요.</p>
+                    )}
+                    <TimeAdjuster label="끝" value={se} onChange={setSe} min={bounds.min} max={bounds.max} />
+                    <div className="flex flex-wrap gap-1.5 justify-center">
+                        <PreviewButton preview={preview} name="before" label={`끝 앞 ${PREVIEW_SEC}초`} start={Math.max(item.seconds, se - PREVIEW_SEC)} end={se} />
+                        <PreviewButton preview={preview} name="after" label={`끝 뒤 ${PREVIEW_SEC}초`} start={se} end={afterEnd} />
+                    </div>
+                    <p className="text-xs text-slate-600 leading-snug">
+                        {info.kind === 'skip' && <>다음 문장({formatStamp(info.nextStart)})까지 <b>{info.gap.toFixed(1)}초를 건너뜁니다</b>. '끝 뒤'에 말소리가 없어야 해요.</>}
+                        {info.kind === 'short' && <>다음 문장까지 간격이 {Math.max(0, info.gap).toFixed(1)}초라 건너뛰지 않고 그대로 재생합니다(3초 넘어야 건너뜀).</>}
+                        {info.kind === 'wrap' && <>마지막 문장 — 끝 뒤 {info.gap.toFixed(1)}초를 건너뛰고 처음으로 돌아갑니다.</>}
+                        {info.kind === 'end' && <>마지막 문장 — 남은 부분이 짧아 끝까지 재생합니다.</>}
+                    </p>
                 </div>
             )}
         </Shell>

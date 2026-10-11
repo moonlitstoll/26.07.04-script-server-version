@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds } from '../speechEndMerge';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, initialSpeechEnd, speechEndEditBounds, applyManualSpeechEnd, speechEndSkipInfo, unresolvedSpeechEnds, speechEndMissingSet } from '../speechEndMerge';
+import { gapSkipTarget } from '../speechSegments';
+import { sanitizeData } from '../mediaUtils';
 
 const S = (seconds, text, extra = {}) => ({ seconds, text, ...extra });
 
@@ -79,5 +81,118 @@ describe('감지 결과 합치기', () => {
         const r = mergeSpeechEnds(cur, cur, new Set([0]), new Map([[0, 130]]), 120);
         expect(r.merged[0].speechEnd).toBe(120);
         expect('speechEndSkipped' in r.merged[0]).toBe(false);
+    });
+});
+
+// ─── 대사 끝 직접 맞추기 ───
+describe('대사 끝 직접 맞추기', () => {
+    // 실측 v1b(1번 영상): 4:30.0 "Ai."가 판단 불가 → 뒤따르는 음악(재청취상 4:24.7~4:40.7)을 못 건너뜀
+    const v1b = () => [
+        S(262.5, 'Thôi chết rồi.', { speechEnd: 263.6 }),
+        S(270.0, 'Ai.', { speechEndSkipped: true }),
+        S(281.2, 'Đây là cái gì vậy?', { speechEnd: 282.9 }),
+    ];
+
+    it('판단 불가 문장의 처음 값은 글자 수 어림(다음 문장 시작이 아니다 — −0.5를 20번 넘게 눌러야 해서)', () => {
+        const r = initialSpeechEnd(v1b(), 1, 900);
+        expect(r).toEqual({ value: 270.6, estimated: true });
+    });
+
+    it('어림값은 다음 문장 시작을 넘지 않는다', () => {
+        const d = [S(100, 'một hai ba bốn năm sáu bảy tám chín mười mười một mười hai mười ba'), S(102.5, 'x')];
+        expect(initialSpeechEnd(d, 0, 900).value).toBe(102.5);
+    });
+
+    it('끝 시각이 있으면 그 값(형제 문장 중 가장 늦은 값 — 엔진이 쓰는 값)', () => {
+        const d = [S(50, 'a', { speechEnd: 51.2 }), S(50, 'b', { speechEnd: 53.4 }), S(60, 'c')];
+        expect(initialSpeechEnd(d, 0, 900)).toEqual({ value: 53.4, estimated: false });
+    });
+
+    it('맞출 수 있는 범위: 시작+0.1 ~ min(시작+60, 영상 끝)', () => {
+        expect(speechEndEditBounds(v1b(), 1, 900)).toEqual({ min: 270.1, max: 330 });
+        expect(speechEndEditBounds(v1b(), 1, 300)).toEqual({ min: 270.1, max: 300 });
+    });
+
+    it('맞춘 값을 넣으면 판단 불가가 풀리고 실제 재생 엔진이 다음 문장까지 건너뛴다', () => {
+        const { data, changed } = applyManualSpeechEnd(v1b(), 1, 270.6);
+        expect(changed).toEqual([1]);
+        expect(data[1].speechEnd).toBe(270.6);
+        expect('speechEndSkipped' in data[1]).toBe(false);
+        expect(data[0]).toEqual(v1b()[0]); // 다른 문장은 그대로
+        // 대사 끝 + 여유(0.5)가 지나면 다음 문장 시작 − 버퍼(0.5)로 점프
+        expect(gapSkipTarget(data, 1, 2, 271.2, 0.5, 0.5)).toBe(280.7);
+        expect(gapSkipTarget(v1b(), 1, 2, 271.2, 0.5, 0.5)).toBeNull(); // 맞추기 전엔 못 건너뜀
+    });
+
+    it('같은 시각의 형제 문장 전부에 넣는다(하나만 바꾸면 옛 늦은 값이 이겨 건너뛰기가 안 바뀜)', () => {
+        const d = [S(50, 'a', { speechEnd: 51.2 }), S(50, 'b', { speechEnd: 58.0 }), S(65, 'c')];
+        const { data, changed } = applyManualSpeechEnd(d, 0, 52.0);
+        expect(changed).toEqual([0, 1]);
+        expect(gapSkipTarget(data, 1, 2, 52.6, 0.5, 0.5)).toBe(64.5);
+    });
+
+    it('저장 형식 정리(sanitizeData)를 거쳐도 맞춘 값이 남고 판단 불가 표시는 없다', () => {
+        const { data } = applyManualSpeechEnd(v1b(), 1, 270.6);
+        const clean = sanitizeData(data, 0);
+        expect(clean[1].speechEnd).toBe(270.6);
+        expect(clean[1].speechEndSkipped).toBeUndefined();
+    });
+
+    it('안내 문구: 건너뜀 / 간격 짧음(3초 이하) / 마지막 문장', () => {
+        expect(speechEndSkipInfo(v1b(), 1, 270.6, 900)).toMatchObject({ kind: 'skip', nextStart: 281.2 });
+        expect(speechEndSkipInfo(v1b(), 1, 278.2, 900).kind).toBe('short');   // 간격 정확히 3.0 → 엔진도 안 건너뜀
+        expect(speechEndSkipInfo(v1b(), 2, 282.9, 900).kind).toBe('wrap');
+        expect(speechEndSkipInfo(v1b(), 2, 282.9, 285).kind).toBe('end');
+    });
+
+    it('판단 불가로 비어 있는 문장만 센다(옛 값이 남았거나 형제가 끝을 가진 문장은 재생에 문제없음)', () => {
+        const d = [
+            S(10, 'a', { speechEndSkipped: true }),                   // 비어 있음 → 셈
+            S(20, 'b', { speechEndSkipped: true, speechEnd: 21.5 }),  // 재감지 실패했지만 옛 값 유지
+            S(30, 'c1', { speechEndSkipped: true }),                  // 형제가 끝을 가짐
+            S(30, 'c2', { speechEnd: 31.4 }),
+            S(40, 'd'),                                                // 아직 감지 안 함(미감지 — 따로 셈)
+        ];
+        expect(unresolvedSpeechEnds(d)).toEqual([0]);
+    });
+});
+
+describe("카드의 '대사 끝 없음' 배지", () => {
+    it('감지를 한 번도 안 한 영상엔 배지 없음(전부 없으니 무의미)', () => {
+        expect([...speechEndMissingSet([S(1, 'a'), S(5, 'b')])]).toEqual([]);
+    });
+    it('판단 불가·미감지 모두, 형제가 끝을 가진 문장은 제외', () => {
+        const d = [
+            S(10, 'a', { speechEnd: 11 }),
+            S(20, 'b', { speechEndSkipped: true }),  // 판단 불가
+            S(30, 'c'),                              // 재전사로 새로 생긴 미감지
+            S(40, 'd1'), S(40, 'd2', { speechEnd: 41.5 }), // 형제가 끝을 가짐
+            S(50, 'e', { speechEnd: 49 }),           // 시작보다 이른 값 = 무효
+        ];
+        expect([...speechEndMissingSet(d)]).toEqual([1, 2, 5]);
+    });
+});
+
+describe('건너뛸 자리가 아니면 배지·안내에서 뺀다', () => {
+    // 실측 5번 영상: 판단 불가 "Này là cơm."(15:27.12) 다음 문장 "Bà ơi."가 0.68초 뒤 — 끝을 알아도 건너뛸 게 없다
+    const v5 = () => [
+        S(900.0, 'Trước.', { speechEnd: 901.2 }),
+        S(927.12, 'Này là cơm.', { speechEndSkipped: true }),
+        S(927.8, 'Bà ơi. Ừm.', { speechEnd: 929.0 }),
+    ];
+    it('다음 문장까지 3초 이하면 배지 없음', () => {
+        expect([...speechEndMissingSet(v5(), 961)]).toEqual([]);
+        expect(unresolvedSpeechEnds(v5(), 961)).toEqual([]);
+    });
+    it('실측 1번 영상 "Ai."(4:30.0, 다음 4:41.2)는 배지·안내 대상', () => {
+        const d = [S(262.5, 'a', { speechEnd: 263.6 }), S(270.0, 'Ai.', { speechEndSkipped: true }), S(281.2, 'b', { speechEnd: 282.9 })];
+        expect([...speechEndMissingSet(d, 900)]).toEqual([1]);
+        expect(unresolvedSpeechEnds(d, 900)).toEqual([1]);
+    });
+    it('마지막 문장: 영상 끝까지 3초 넘으면 대상, 아니면 제외(길이를 모르면 대상)', () => {
+        const d = [S(10, 'a', { speechEnd: 11 }), S(20, 'b', { speechEndSkipped: true })];
+        expect(unresolvedSpeechEnds(d, 30)).toEqual([1]);
+        expect(unresolvedSpeechEnds(d, 22)).toEqual([]);
+        expect(unresolvedSpeechEnds(d)).toEqual([1]);
     });
 });
