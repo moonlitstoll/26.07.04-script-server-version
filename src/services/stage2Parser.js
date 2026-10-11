@@ -20,8 +20,17 @@
 // 정상 응답에선 다음 START가 자기 END '바로 뒤'라 min이 자기 END를 고르고, 그 사이엔 [분석] 줄이
 // 없으므로 결과가 기존과 완전히 동일하다(회귀 없음).
 //
-// failed 판정은 기존 그대로: 자기 START나 자기 END 마커가 아예 없으면 실패(빈 분석).
-// (출력이 토큰 상한에 잘려 뒤쪽 마커가 통째로 유실된 경우를 재시도로 넘기는 안전망 — 유지.)
+// [END 없는 블록 받아들이기 — 2026-10-11]
+// 2.5 Flash Lite가 묶음 하나를 START만 쓰고 END를 하나도 안 쓰는 이탈이 실측됐다(2번 영상, 첫 분석 묶음
+// 76개 중 1개 — 내용은 25문장 모두 정상). 예전엔 END가 없으면 실패로 둬 25문장이 통째로 '분석 실패' 카드가
+// 됐다. 끝 경계는 위 수정으로 이미 '다음 문장 START'가 정하고 있으므로, END가 없어도 다음 START가 있으면
+// 그 블록은 끝까지 온 것이다. 그래서 END가 없을 때도 받아들인다. 단:
+//  - 응답의 마지막 블록(뒤에 다음 START가 없음)은 응답이 정상 종료(finishReason 'STOP')일 때만 받는다.
+//    토큰 상한(MAX_TOKENS)에 잘린 응답이면 반쯤 쓴 분석이 '성공'으로 저장되므로 실패로 남긴다.
+//  - END 없이 받은 블록은 [번역] 줄이 있어야 한다(마커만 있고 내용이 없는 블록은 실패).
+// 실측(9회 실행 응답 112개·블록 2,036개): 블록 사이 잡문·코드 울타리 0건 — 다음 START까지를 한 문장으로
+// 봐도 다른 내용이 섞인 적이 없다. 그래도 블록 안에서는 [번역]/[분석]/[전사의심] 줄만 읽는다.
+// 자기 START가 없으면 여전히 실패 → gemini.js#analyzeBatchSentences가 실패 문장만 한 번 다시 요청한다.
 
 import { flattenNestedParens, tidyGlosses } from '../utils/analysisParser';
 
@@ -37,7 +46,8 @@ const isPunctOnlyChunk = (line) => {
 // 어느 INDEX든 문장 시작 마커. 다음 문장 경계(끝 clamp)를 찾는 데 쓴다.
 const START_MARKER_RE = /--- \[INDEX: \d+\] START ---/g;
 
-export const parseStage2Response = (text, items) => {
+// finishReason: 응답의 종료 사유(gemini 응답 candidates[0].finishReason). 마지막 블록의 END가 없을 때만 쓴다.
+export const parseStage2Response = (text, items, { finishReason } = {}) => {
     const src = typeof text === 'string' ? text : '';
     if (!Array.isArray(items)) return [];
 
@@ -57,13 +67,18 @@ export const parseStage2Response = (text, items) => {
         const startIndex = src.indexOf(startMarker);
         const endIndex = src.indexOf(endMarker);
 
-        if (startIndex !== -1 && endIndex !== -1) {
-            // 끝 경계: 자기 END(자기 START 뒤에 있을 때만 유효)와 '다음 문장 START' 중 먼저 오는 것.
-            const ownEnd = endIndex > startIndex ? endIndex : Infinity;
-            const end = Math.min(ownEnd, nextStartAfter(startIndex), src.length);
-            const subText = src.substring(startIndex + startMarker.length, end);
+        // 끝 경계: 자기 END(자기 START 뒤에 있을 때만 유효)와 '다음 문장 START' 중 먼저 오는 것.
+        const ownEnd = startIndex !== -1 && endIndex > startIndex ? endIndex : Infinity;
+        const nextStart = startIndex !== -1 ? nextStartAfter(startIndex) : Infinity;
+        const end = Math.min(ownEnd, nextStart, src.length);
+        const subText = startIndex !== -1 ? src.substring(startIndex + startMarker.length, end) : '';
+        const translationMatch = subText.match(/\[번역\]\s*(.*)/);
+        // 자기 END가 있으면 예전 그대로 받는다. 없으면: 다음 START가 있거나(블록이 끝까지 옴)
+        // 마지막 블록이면 응답이 정상 종료일 때만, 그리고 [번역] 줄이 있을 때만 받는다.
+        const closedWithoutEnd = (nextStart !== Infinity || finishReason === 'STOP') && !!translationMatch;
+        const accepted = startIndex !== -1 && (endIndex !== -1 || closedWithoutEnd);
 
-            const translationMatch = subText.match(/\[번역\]\s*(.*)/);
+        if (accepted) {
             // 구두점만인 청크 줄(`**?**: ?`, `**,**: ,`)은 버린다 — 2.5 Flash Lite 실측 이탈(42묶음 중 9문장).
             // 규칙 13에 금지를 넣어 0이 됐지만, 다시 나와도 저장·화면에 남지 않게 하는 안전망.
             const analysisLines = [...subText.matchAll(/\[분석\]\s*(.*)/g)]

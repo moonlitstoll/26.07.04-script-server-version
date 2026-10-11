@@ -1242,7 +1242,8 @@ function abortableSleep(ms, signal) {
     });
 }
 
-export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false) {
+// formatRetry: 응답은 왔는데 마커가 없어 실패한 문장(형식 실패)을 한 번 더 요청할지. 재요청 안에서는 false(무한 반복 방지).
+export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false, formatRetry = true) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -1305,7 +1306,16 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
             //  cached>0 이면 암시적 캐싱(프리픽스 75% 할인) 적중 중, think>0 이면 Pro thinking 청구.
             const u = response.usageMetadata;
             if (u) console.log(`[Stage2 tokens] ${resolvedModel} in=${u.promptTokenCount} out=${u.candidatesTokenCount} cached=${u.cachedContentTokenCount ?? 0} think=${u.thoughtsTokenCount ?? 0} (${items.length}문장${forceSplit ? ', 강제분할' : ''})`);
-            return parseStage2Response(response.text(), items);
+            const parsed = parseStage2Response(response.text(), items, { finishReason: response.candidates?.[0]?.finishReason });
+            // [형식 실패 재요청] 응답은 정상으로 왔는데 일부 문장의 마커가 없어 failed가 된 경우(START 누락,
+            // 토큰 상한에 잘린 마지막 블록 등). 예전엔 오류가 아니라서 재시도 없이 그대로 '분석 실패' 카드가 됐다.
+            // 실패한 문장만 같은 문맥으로 한 번 더 요청해 채운다(재요청 안에서는 다시 하지 않음).
+            const failedItems = items.filter(it => parsed.find(p => p.index === it.index)?.failed);
+            if (!formatRetry || failedItems.length === 0) return parsed;
+            console.warn(`[Stage 2] 형식 실패 ${failedItems.length}문장 → 그 문장만 한 번 더 요청`);
+            const retried = await analyzeBatchSentences(failedItems, apiKey, modelId, signal, contextItems, forceSplit, false);
+            const byIndex = new Map(retried.filter(r => !r.failed).map(r => [r.index, r]));
+            return parsed.map(p => (p.failed && byIndex.has(p.index) ? byIndex.get(p.index) : p));
         } catch (error) {
             lastError = error;
             if (signal?.aborted) throw new DOMException('Aborted', 'AbortError'); // 사용자 취소 → 재시도 없음

@@ -103,12 +103,32 @@ describe('parseStage2Response — END 마커 몰림 (스크린샷 누적 버그)
 });
 
 describe('parseStage2Response — 실패/누락 처리 (안전망 유지)', () => {
-    it('자기 END 마커가 아예 없으면 failed (토큰 잘림 재시도 안전망 보존)', () => {
-        // S1 START+본문은 있으나 S1 END가 없음. 뒤에 S2 블록이 와도 S1은 failed로 둔다.
+    it('END가 없어도 다음 문장 START가 있으면 받아들인다 (2026-10-11, 25문장 통째 실패 수정)', () => {
+        // S1 START+본문은 있으나 S1 END가 없음. 뒤에 S2 블록이 오면 S1은 거기서 끊어 받는다.
         const text = [openBlock(S1), block(S2)].join('\n\n');
         const res = parseStage2Response(text, items(S1, S2));
-        expect(res[0]).toMatchObject({ index: 1, translation: '', analysis: '', failed: true });
+        expect(res[0]).toMatchObject({ index: 1, translation: S1.tr, analysis: S1.a.join('\n') });
+        expect(res[0].failed).toBeUndefined();
         expect(res[1]).toMatchObject({ index: 2, analysis: S2.a.join('\n') }); // S2는 정상
+        expect(res[1].failed).toBeUndefined();
+    });
+
+    it('마지막 블록에 END가 없으면 응답이 정상 종료(STOP)일 때만 받는다 — 토큰 상한에 잘린 응답은 실패로 남긴다', () => {
+        const text = [block(S1), openBlock(S2)].join('\n\n');
+        const stop = parseStage2Response(text, items(S1, S2), { finishReason: 'STOP' });
+        expect(stop[1]).toMatchObject({ index: 2, translation: S2.tr, analysis: S2.a.join('\n') });
+        expect(stop[1].failed).toBeUndefined();
+        for (const finishReason of ['MAX_TOKENS', undefined]) {
+            const res = parseStage2Response(text, items(S1, S2), { finishReason });
+            expect(res[0].failed).toBeUndefined();
+            expect(res[1]).toMatchObject({ index: 2, translation: '', analysis: '', failed: true });
+        }
+    });
+
+    it('END 없이 받는 블록은 [번역] 줄이 있어야 한다 (마커만 있는 빈 블록은 실패)', () => {
+        const text = `--- [INDEX: 1] START ---\n\n${block(S2)}`;
+        const res = parseStage2Response(text, items(S1, S2), { finishReason: 'STOP' });
+        expect(res[0].failed).toBe(true);
         expect(res[1].failed).toBeUndefined();
     });
 
@@ -117,6 +137,39 @@ describe('parseStage2Response — 실패/누락 처리 (안전망 유지)', () =
         const res = parseStage2Response(text, items(S1, S2));
         expect(res[0].failed).toBe(true);
         expect(res[1].failed).toBeUndefined();
+    });
+});
+
+describe('실측: END 표시가 하나도 없는 Lite 응답 (2번 영상, 문장 25~49 묶음)', () => {
+    // 2026-10-11 2.5 Flash Lite 실제 응답 앞부분 그대로(START만 있고 END 0개, finishReason STOP).
+    // 예전엔 이 묶음 25문장이 전부 '분석 실패' 카드가 됐다.
+    const REAL = [
+        '--- [INDEX: 25] START ---',
+        '[번역] 젓가락, 숟가락, 포크가 더럽다니 믿을 수가 없어.',
+        '[분석] **Đờ hờ sờ**: 믿을 수 없어 (Đờ hờ sờ: 믿을 수 없어←믿기 힘든) 〔⚡ĐHS: 믿을 수 없어〕',
+        '[분석] **bát đũa thìa**: 밥그릇, 젓가락, 숟가락 (bát: 밥그릇 + đũa: 젓가락 + thìa: 숟가락)',
+        '[분석] **bẩn đờ**: 더럽다니 (bẩn: 더럽다 + đờ: ~하다니←부사)',
+        '--- [INDEX: 26] START ---',
+        '[번역] 다음번에 리뷰를 쓸 때는 득라 씨가 좀 더 명확하게 써주셨으면 좋겠어요.',
+        '[분석] **Lần sau**: 다음번에 (Lần: 번 + sau: 뒤)',
+        '[분석] **một tí ạ**: 조금 (một: 한 + tí: 조금 + ạ: ~해요)',
+        '--- [INDEX: 27] START ---',
+        '[번역] 감사합니다.',
+        '[분석] **Mình cảm ơn**: 나는 고맙다 (Mình: 나 + cảm ơn: 고맙다)',
+        // 모델이 [문맥참고] 문장(50)까지 분석해 붙였다 — 27번은 여기서 끊겨야 한다
+        '--- [INDEX: 50] START ---',
+        '[번역] 쾌적하고, 테이블과 의자는 깨끗했다.',
+        '[분석] **Thoáng mát**: 쾌적하다 (Thoáng mát: 쾌적하다)',
+    ].join('\n');
+
+    it('세 문장 모두 자기 번역·분석만 갖고 저장된다', () => {
+        const res = parseStage2Response(REAL, [{ index: 25 }, { index: 26 }, { index: 27 }], { finishReason: 'STOP' });
+        expect(res.every(r => !r.failed)).toBe(true);
+        expect(res[0].translation).toBe('젓가락, 숟가락, 포크가 더럽다니 믿을 수가 없어.');
+        expect(res[0].analysis.split('\n')).toHaveLength(3);
+        expect(res[1].analysis.split('\n')).toHaveLength(2);
+        expect(res[2]).toMatchObject({ translation: '감사합니다.', analysis: '**Mình cảm ơn**: 나는 고맙다 (Mình: 나 + cảm ơn: 고맙다)' });
+        expect(res[2].analysis).not.toContain('Thoáng mát'); // 문맥 문장 분석이 새어들지 않음
     });
 });
 
