@@ -78,11 +78,12 @@ export function flattenNestedParens(line) {
     return main + '(' + inner + ')' + ws + tail;
 }
 
-// [표기 정리 안전망 — 2026-10, 실측: Circle K 182문장을 2.5 Flash Lite로 분석] 규칙은 알지만 적는 모양이 틀린 것만 고친다.
+// [표기 정리 안전망 — 2026-10, 실측: Circle K 182문장 저장본(2.5 Flash 분석 — 노란 줄 '전체 재분석'은 재분석 모델을 쓴다)] 규칙은 알지만 적는 모양이 틀린 것만 고친다.
 // 뜻이 맞는지는 판단하지 않는다(틀린 소리 ♪·틀린 부품 뜻은 모델 지식 문제라 코드로 못 고침).
 //  ① 같은 말 되풀이 ♪: "công viên: 공원·공원♪" → "공원♪", "thành công: 성공하다·성공♪" → "성공하다♪" (실측 18곳)
 //     — '자연스러운 말·한자어♪'(규칙 5)는 두 말이 다를 때만 쓰는 모양이다.
 //  ② 양쪽이 같은 화살표: "phi: 날다←날다" → "날다" (본뜻과 같으면 화살표가 무의미)
+//  ④ 부품끼리 같은 말인 〈〉는 지움: "khó khăn: 어렵다〈어렵다·어렵다〉" → "어렵다" (2026-10-11)
 //  ③ 〔⚡표현: 뜻〕 안의 꼬리표·여러 뜻: "〔⚡vãi chưởng: 존나/개–(강한 감탄·강조)〕" → "〔⚡vãi chưởng: 존나〕"
 //     (괄호 꼬리표 제거 → '/' 나열은 첫 뜻만 → 끝의 ·슬랭/·비속어 제거)
 // 옛 캐시에도 안전하다(v3엔 ♪·←가 없고, 옛 〔⚡실제: …(슬랭)〕은 꼬리표만 빠짐) — 그래서 표시 단계에서도 부른다.
@@ -99,6 +100,14 @@ const tidyGloss = (part) => {
     if (arrow && arrow[1].trim() === arrow[2].trim()) mean = arrow[1].trim();
     const note = mean.match(/^(.*)·([^·]+)♪$/);
     if (note && note[1].trim().startsWith(note[2].trim())) mean = note[1].trim() + '♪';
+    // ④ 부품끼리 같은 말인 〈〉: "khó khăn: 어렵다〈어렵다·어렵다〉" → "어렵다", "màu sắc: 색깔〈색·색깔〉" → "색깔"
+    //    (부품이 서로 같거나 한쪽이 다른 쪽에 들어 있으면 배울 게 없다. "닭다리〈다리·닭〉"처럼 부품이 다르면 그대로)
+    const pm = mean.match(/^(.*?)〈([^〉]*)〉(.*)$/);
+    if (pm) {
+        const ps = pm[2].split('·').map(x => x.trim()).filter(Boolean);
+        const same = ps.length >= 2 && ps.every(a => ps.every(b => a.includes(b) || b.includes(a)));
+        if (same) mean = (pm[1] + pm[3]).trim();
+    }
     return m[1] + mean + m[3];
 };
 export function tidyGlosses(line) {

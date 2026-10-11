@@ -109,6 +109,13 @@ describe('표기 정리 안전망(tidyGlosses)', () => {
         const ok = '**Nó đách có vị gì**: 아무 맛도 없어 (Nó: 그것 + đách: 전혀~않다 + có: 있다 + vị: 맛 + gì: 무엇) 〔⚡đách: 전혀~않다〕';
         expect(tidyGlosses(ok)).toBe(ok);
     });
+    it('부품끼리 같은 말인 〈〉는 지우고, 부품이 다르면 그대로', () => {
+        expect(tidyGlosses('**gặp khó khăn**: 어려움을 겪다 (gặp: 만나다 + khó khăn: 어려움〈어렵다·어렵다〉)'))
+            .toBe('**gặp khó khăn**: 어려움을 겪다 (gặp: 만나다 + khó khăn: 어려움)');
+        expect(tidyGlosses('**màu sắc**: 색깔 (màu sắc: 색깔〈색·색깔〉)')).toBe('**màu sắc**: 색깔 (màu sắc: 색깔)');
+        const ok = '**đùi gà**: 닭다리 (đùi gà: 닭다리〈다리·닭〉 + đôi môi: 입술〈쌍·입술〉 + vòng quay: 룰렛〈돌다·돌리다〉)';
+        expect(tidyGlosses(ok)).toBe(ok);
+    });
     it('풀이 괄호가 없는 줄, 옛 한자 뜻풀이 줄은 그대로', () => {
         expect(tidyGlosses('**À**: 아·감탄사')).toBe('**À**: 아·감탄사');
         const old = '**Đàn ông**: 남자 (Đàn ông: 남자 (사내 단 + 사내 웅))';
