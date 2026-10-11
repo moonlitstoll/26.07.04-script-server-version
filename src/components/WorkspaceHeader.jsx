@@ -38,7 +38,9 @@ const WorkspaceHeader = ({
                                 <span className={`text-sm font-bold truncate group-hover:text-indigo-700 transition-colors ${busy ? 'text-slate-500 italic' : ''}`}>
                                     {isAnalyzing
                                         ? `Extracting Transcript...`
-                                        : (activeFile?.data && activeFile.data.some(d => !d.isAnalyzed)
+                                        // 실패로 끝난 문장(analysisFailed)은 '분석 중'으로 세지 않는다 — 예전엔 실패가 남은 채 끝나도
+                                        // 이 문구가 계속 떠 진행 중처럼 보였다(점검 #13·#19). 실패 문장은 카드의 '다시 시도'가 알린다.
+                                        : (activeFile?.data && activeFile.data.some(d => !d.isAnalyzed && !d.analysisFailed)
                                             ? `Analyzing Details (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
                                             : activeFile?.file?.name || "Ready")
                                     }

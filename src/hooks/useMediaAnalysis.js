@@ -223,7 +223,6 @@ export const useMediaAnalysis = ({
         // 한 배치가 느려도(재시도/타임아웃) 다른 워커는 계속 다음 배치를 당겨 처리 → head-of-line blocking 제거.
         // 배치 간 의존성 없음(불변 text만 읽고 배타적 index에만 기록) → 완료 순서 무관, 프롬프트·출력 동일.
         let batchCursor = 0;
-        let succeededBatches = 0;
 
         const processBatch = async (batchIndices) => {
             const batchItems = batchIndices.map(idx => ({ index: idx, text: workingData[idx].text }));
@@ -260,9 +259,9 @@ export const useMediaAnalysis = ({
                     totalSuccessCount += groupSuccess;
                     updateGlobalState(workingData);
                     setStage2Progress({ fileId, done: totalSuccessCount, total: pendingIndices.length });
-                    succeededBatches++;
-                    const allDone = succeededBatches >= batches.length; // 전 배치 성공 시에만 'completed'(부분 실패는 하단 마무리에서 처리)
-                    persistCache(fileInfo, workingData, allDone ? 'completed' : 'analyzing');
+                    // 상태는 묶음 수가 아니라 실제 분석된 문장으로 — 예전엔 0문장 성공 묶음도 성공으로 세어, 마지막 묶음 뒤
+                    // 마무리 저장까지(점검 실측 약 33초) 빈 문장이 있는데도 'completed'로 저장돼 있었다(그사이 중단되면 그대로 남음)
+                    persistCache(fileInfo, workingData, saveStatusOf(workingData));
                     if (refreshCacheKeys) refreshCacheKeys();
                 }
             } catch (e) {
@@ -405,12 +404,21 @@ export const useMediaAnalysis = ({
         if (!signal.aborted && failedIndices.length > 0) {
             failedIndices.forEach(idx => { workingData[idx] = { ...workingData[idx], analysisFailed: true }; });
             updateGlobalState(workingData);
-            persistCache(fileInfo, workingData, saveStatusOf(workingData));
+            // 'partial' = 끝났는데 실패 문장이 남음 → 기록 창 배지 '일부 실패'(cacheStatusOf). 열면 남은 문장을 이어서 분석
+            const endStatus = saveStatusOf(workingData);
+            persistCache(fileInfo, workingData, endStatus === 'analyzing' ? 'partial' : endStatus);
         }
 
         if (!signal.aborted && totalSuccessCount === 0 && pendingIndices.length > 0) {
             console.error('[Stage 2] All batches failed.');
-            if (showToast) showToast({ message: '분석 실패: API 오류가 발생했습니다. 설정에서 모델을 확인해주세요.', type: 'error' });
+            // 원인은 오류 응답만이 아니다 — 응답 형식이 깨져도(마커 없음) 여기로 온다. 예전 문구 'API 오류… 모델을 확인'은
+            // 그런 경우 엉뚱한 안내였다(점검 #20). 사실만 알리고 다시 시도 버튼을 준다.
+            if (showToast) showToast({
+                message: `${failedIndices.length || pendingIndices.length}개 문장을 분석하지 못했어요. 잠시 후 다시 시도해 주세요.`,
+                type: 'error',
+                ...(failedIndices.length ? { action: { label: '다시 시도', onClick: () => reanalyzeSentences(fileId, failedIndices) } } : {}),
+                duration: 8000,
+            });
         } else if (!signal.aborted && reportPartialFail && failedIndices.length > 0 && totalSuccessCount > 0) {
             // [부분 실패 알림] 일부 배치만 실패 → 조용히 두지 말고 개수 표시 + 재시도 제공
             if (showToast) showToast({

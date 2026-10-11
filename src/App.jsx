@@ -1292,6 +1292,7 @@ const App = () => {
         <CacheHistoryModal
           cacheKeys={cacheKeys}
           files={files}
+          runningKeys={new Set(files.filter(f => f.file?.name && (f.isAnalyzing || stage2ActiveRef.current.get(f.id))).map(f => `${f.file.name}_${f.file.size}`))}
           activeFile={activeFile}
           activeFileId={activeFileId}
           searchQuery={searchQuery}

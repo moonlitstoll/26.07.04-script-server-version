@@ -14,6 +14,7 @@ const stripExt = (n) => (n || '').replace(/\.[^.]+$/, '');
 const CacheHistoryModal = ({
     cacheKeys, files, activeFile, activeFileId, searchQuery, setSearchQuery,
     loadCache, deleteLocal, deleteServer, clearLocalCache, localVideoIds = new Set(),
+    runningKeys = new Set(), // `${name}_${size}` — 지금 전사·분석이 도는 영상(배지 깜박임은 이때만)
     processFiles, removeFile,
     setActiveFileId, cloudItems = [], loadCloud,
     isFavorite = () => false, toggleFavorite = () => {}, onClose
@@ -85,7 +86,7 @@ const CacheHistoryModal = ({
         // 상태 뱃지 (분석/전사 진행 상태)
         let statusText, statusCls, progressText = null;
         if (rec.localKey) {
-            const s = getCacheStatus(rec.localKey);
+            const s = getCacheStatus(rec.localKey, { running: runningKeys.has(rec.localKey.replace(/^gemini_analysis_/, '')) });
             statusText = s.statusText; statusCls = s.badgeColor; progressText = s.progressText;
         } else {
             const done = rec.cloudItem.status === 'completed';
