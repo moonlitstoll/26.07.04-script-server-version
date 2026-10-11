@@ -13,7 +13,7 @@ import { validSpeechEnd } from '../utils/speechSegments';
 import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange } from '../utils/sentenceEdit';
-import { missingWordCount, shouldAdoptMissingRetry } from '../utils/analysisCoverage';
+import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
@@ -23,26 +23,6 @@ const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
             const c = { ...d }; delete c.isRetranscribing; return c;
         }) }
         : p));
-};
-
-// 분석이 '뭉침/과편중'인지 감지: 모든 볼드 청크 중 '가장 큰 것'이 문장의 60% 이상을 덮으면 뭉침.
-// (문장 전체를 1청크로 낸 경우뿐 아니라, 한 청크가 지나치게 큰 편중 분할도 재교정 대상에 포함)
-// 짧은 문장(6단어 미만)은 1청크가 정상이라 제외. ⚡실제 태그는 원어 볼드가 아니라 영향 미미.
-const NORM_WORDS = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
-const isLumpedAnalysis = (sentence, analysis) => {
-    if (!analysis || !sentence) return false;
-    const sw = NORM_WORDS(sentence);
-    if (sw.length < 6) return false;
-    const bolds = analysis.match(/\*\*(.+?)\*\*/g) || [];
-    if (bolds.length === 0) return false;
-    let maxCovered = 0;
-    for (const b of bolds) {
-        const cw = new Set(NORM_WORDS(b));
-        if (cw.size === 0) continue;
-        const covered = sw.filter(w => cw.has(w)).length / sw.length;
-        if (covered > maxCovered) maxCovered = covered;
-    }
-    return maxCovered >= 0.6;
 };
 
 // 인덱스 범위 [from, to]의 문장 텍스트를 순서대로 수집(빈 문자열 제외). 앞뒤 문맥 문장 추출용.
@@ -299,7 +279,6 @@ export const useMediaAnalysis = ({
         // [뭉침 자동 교정 — 검증형 재시도] 뭉친 문장을 '강제 분할'로 재분석하되,
         // 결과가 '더 잘 쪼개졌을 때만' 채택하고, 여전히 뭉치면 최대 MAX_SPLIT_RETRIES회까지 재시도(퇴행 방지).
         const MAX_SPLIT_RETRIES = 3;
-        const chunkCount = (a) => (a ? a.split('\n').filter(l => l.trim()).length : 0);
         let didRetry = false;
         for (let round = 0; round < MAX_SPLIT_RETRIES && !signal.aborted; round++) {
             const lumped = pendingIndices.filter(idx => {
@@ -326,10 +305,8 @@ export const useMediaAnalysis = ({
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
                                 const prev = workingData[res.index];
-                                // 더 잘 쪼개졌을 때만 채택: 더 이상 뭉치지 않거나, 청크 수가 늘었을 때 (퇴행 방지)
-                                const better = !isLumpedAnalysis(prev.text, res.analysis)
-                                    || chunkCount(res.analysis) > chunkCount(prev.analysis);
-                                if (better) {
+                                // 나빠진 것 없이 나아졌을 때만 채택 (analysisCoverage.js#shouldAdoptSplitRetry)
+                                if (shouldAdoptSplitRetry(prev.text, prev.analysis, res.analysis)) {
                                     workingData[res.index] = {
                                         ...prev,
                                         translation: res.translation,

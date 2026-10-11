@@ -5,7 +5,7 @@
 // 아래 통과 케이스들은 대부분 실사용에서 오탐으로 확인돼 기준을 완화한 흔적이다 —
 // 기준을 다시 조일 땐 이 케이스들이 여전히 통과하는지 반드시 확인할 것.
 import { describe, it, expect } from 'vitest';
-import { checkAnalysisCoverage, coverageTitle, missingWordCount, shouldAdoptMissingRetry } from '../analysisCoverage';
+import { checkAnalysisCoverage, coverageTitle, missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../analysisCoverage';
 
 // 공식 작성 예시와 같은 형식의 정상 문장
 const good = {
@@ -220,5 +220,69 @@ describe('누락 재시도 채택 규칙 (shouldAdoptMissingRetry)', () => {
         expect(shouldAdoptMissingRetry(long, partial, '**Và mong rằng sẽ không bị nhân viên phát hiện**: 직원에게 안 들키길')).toBe(false);
         expect(shouldAdoptMissingRetry(long, partial, '')).toBe(false);
         expect(shouldAdoptMissingRetry(long, partial, '**Và mong rằng**: 바라건대\n**sẽ không bị**: ~당하지 않다\n**nhân viên phát hiện**: 직원이 발견하다')).toBe(true);
+    });
+});
+
+describe('뭉침 자동 재분할 판정 (isLumpedAnalysis, 2026-10-11)', () => {
+    // 실측(4번 영상 v4a #95, 1차 분석 그대로). 옛 기준은 단어 '집합'으로 세어 `**Màu xanh**`가 86%를 덮는다고 봤다.
+    const MAU = 'Màu xanh, màu xanh, ôi màu xanh.';
+    const MAU_A = '**Màu xanh**: 파란색 (Màu xanh: 파란색)\n**màu xanh**: 파란색 (màu xanh: 파란색)\n**ôi màu xanh**: 오, 파란색 (ôi: 오·감탄사 + màu xanh: 파란색)';
+
+    it('같은 말이 되풀이되는 문장을 잘게 나눈 것은 뭉침이 아니다', () => {
+        expect(isLumpedAnalysis(MAU, MAU_A)).toBe(false);
+    });
+
+    it('규칙 13대로 2~4단어씩 나눈 짧은 문장은 뭉침이 아니다 (6단어를 4+2로)', () => {
+        expect(isLumpedAnalysis('Bắt tay vào làm luôn nào.', '**Bắt tay vào làm**: 착수하다 (Bắt tay: 손잡다 + vào làm: 일하다)\n**luôn nào**: 바로 하자 (luôn: 바로 + nào: ~하자)')).toBe(false);
+    });
+
+    it('숫자 병기 괄호는 단어로 세지 않는다 (실제 5단어 문장의 1청크는 정상)', () => {
+        expect(isLumpedAnalysis('Phải đến năm(5) phút rồi.', '**Phải đến năm(5) phút rồi**: 5분은 됐다 (Phải: ~해야 + đến: ~까지 + năm(5): 5 + phút: 분 + rồi: 이미)')).toBe(false);
+    });
+
+    it('6단어 이상 문장을 통째로 1청크로 낸 것은 뭉침', () => {
+        expect(isLumpedAnalysis('Các bạn nhìn thấy gì không?', '**Các bạn nhìn thấy gì không?**: 뭐가 보여요? (Các bạn: 여러분 + nhìn thấy: 보다 + gì: 무엇 + không: ~나요)')).toBe(true);
+    });
+
+    it('6단어 이상인 청크가 문장의 60% 이상이면 뭉침 (실측 v4a #18, 13단어 중 8단어)', () => {
+        const t = 'Dứt điểm hộp sữa chua rồi mình đi đến Circle K tiếp theo.';
+        const a = '**Dứt điểm hộp sữa chua**: 요거트 통을 다 비우고 (Dứt điểm: 끝내다 + hộp: 통 + sữa chua: 요거트)\n**rồi mình đi đến Circle K tiếp theo**: 그리고 다음 Circle K로 갔어요 (rồi: 그리고 + mình: 나 + đi đến: 가다 + Circle K: Circle K + tiếp theo: 다음)';
+        expect(isLumpedAnalysis(t, a)).toBe(true);
+    });
+
+    it('6단어 미만 문장은 판정하지 않는다', () => {
+        expect(isLumpedAnalysis('Ngon vãi luôn các bạn.', '**Ngon vãi luôn các bạn**: 진짜 맛있어 여러분 (Ngon: 맛있다 + vãi luôn: 엄청 + các bạn: 여러분)')).toBe(false);
+    });
+});
+
+describe('뭉침 재분할 채택 규칙 (shouldAdoptSplitRetry, 2026-10-11)', () => {
+    const T18 = 'Dứt điểm hộp sữa chua rồi mình đi đến Circle K tiếp theo.';
+    const A18 = '**Dứt điểm hộp sữa chua**: 요거트 통을 다 비우고 (Dứt điểm: 끝내다 + hộp: 통 + sữa chua: 요거트)\n**rồi mình đi đến Circle K tiếp theo**: 그리고 다음 Circle K로 갔어요 (rồi: 그리고 + mình: 나 + đi đến: 가다 + Circle K: Circle K + tiếp theo: 다음)';
+
+    it('풀이를 유지한 채 잘게 나눈 답은 채택 (실측 v4a #18 강제 분할 응답)', () => {
+        const next = '**Dứt điểm**: 끝내다·마무리하다 (Dứt điểm: 끝내다)\n**hộp sữa chua**: 요거트 통 (hộp: 통·상자 + sữa chua: 요거트)\n**rồi mình đi**: 그리고 나는 간다 (rồi: 그리고·완료 + mình: 나 + đi: 가다)\n**đến Circle K**: Circle K에 (đến: ~에 도착하다 + Circle K: Circle K)\n**tiếp theo**: 다음 (tiếp theo: 다음)';
+        expect(shouldAdoptSplitRetry(T18, A18, next)).toBe(true);
+    });
+
+    it('줄 수만 늘고 단어 풀이가 빠진 답은 거부 (실측 2번 영상 #133 3라운드 응답)', () => {
+        const t = 'Thực sự rất là kinh khủng.';
+        const prev = '**Thực sự**: 정말 (Thực sự: 정말)\n**rất là kinh khủng**: 아주 끔찍하네요 (rất: 매우 + là: ~이다 + kinh khủng: 끔찍하다)';
+        const next = '**Thực sự**: 정말로\n**rất là**: 아주\n**kinh khủng**: 끔찍하다';
+        expect(shouldAdoptSplitRetry(t, prev, next)).toBe(false);
+    });
+
+    it('원문 단어를 빠뜨린 답은 거부', () => {
+        const next = '**Dứt điểm**: 끝내다 (Dứt điểm: 끝내다)\n**hộp sữa chua**: 요거트 통 (hộp: 통 + sữa chua: 요거트)\n**tiếp theo**: 다음 (tiếp theo: 다음)';
+        expect(shouldAdoptSplitRetry(T18, A18, next)).toBe(false);
+    });
+
+    it('여전히 뭉쳤고 가장 큰 청크도 그대로면 거부', () => {
+        const next = '**Dứt điểm**: 끝내다 (Dứt điểm: 끝내다)\n**hộp sữa chua**: 요거트 통 (hộp: 통 + sữa chua: 요거트)\n**rồi mình đi đến Circle K tiếp theo**: 다음 Circle K로 갔어요 (rồi: 그리고 + mình: 나 + đi đến: 가다 + Circle K: Circle K + tiếp theo: 다음)';
+        expect(shouldAdoptSplitRetry(T18, A18, next)).toBe(false);
+    });
+
+    it('빈 답·청크 없는 답은 거부', () => {
+        expect(shouldAdoptSplitRetry(T18, A18, '')).toBe(false);
+        expect(shouldAdoptSplitRetry(T18, A18, '그냥 문장')).toBe(false);
     });
 });

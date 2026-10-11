@@ -1,4 +1,4 @@
-import { parseChunks } from './analysisParser';
+import { parseChunks, splitBreakdown } from './analysisParser';
 
 // 분석 커버리지 자동 검사 (API 비용 0 — 이미 받은 분석을 코드로만 대조).
 // Stage 2 규칙 위반을 감지한다:
@@ -104,6 +104,53 @@ export function shouldAdoptMissingRetry(text, prevAnalysis, nextAnalysis) {
     if (nextChunks.length === 0) return false;
     if (nextChunks.length === 1 && normWords(text).length >= 6) return false;
     return missingWordCount(text, nextAnalysis) < missingWordCount(text, prevAnalysis);
+}
+
+// ─────────────────────────────────────────────────────────────
+// [뭉침 자동 재분할 판정] (2026-10-11, useMediaAnalysis 안에서 옮겨 옴 — 테스트 대상)
+// 분석 직후 '뭉친' 문장을 강제 분할로 다시 요청할지 정한다. 화면 배지(checkAnalysisCoverage)와는 따로다.
+// 옛 기준('가장 큰 청크의 단어 집합이 문장 단어의 60% 이상을 덮음')이 정상 분석을 대량으로 뭉침으로 봤다
+// — 9회 실행 1차 분석 2,019문장 중 175개, 그중 137개가 정상:
+//  ① 같은 말이 되풀이되는 문장: "Màu xanh, màu xanh, ôi màu xanh."의 `**Màu xanh**`(2단어)가 집합 비교로 86%
+//  ② 규칙 13대로 2~4단어씩 나눈 짧은 문장: "Bắt tay vào làm / luôn nào"(6단어 중 4 = 67%)
+//  ③ 숫자 병기가 단어로 세어짐: "Phải đến năm(5) phút rồi."(실제 5단어 → 6)
+// 이런 문장을 3라운드 내내 다시 보냈고, '줄 수가 늘면 채택' 규칙 때문에 한 단어·구두점 청크로 쪼갠 답이
+// 멀쩡한 분석을 덮어썼다(4번 영상 '풀이 없음' 줄 전부). 새 기준:
+//  - 가장 큰 청크가 6단어 이상(규칙 13의 '5단어 초과 금지' 위반)이면서 문장의 60% 이상.
+//    (문장 전체 = 1청크인 6단어 이상 문장도 여기에 든다 — 규칙 13의 절대 금지)
+// 단어 수는 숫자 병기 괄호를 빼고 청크 안 단어를 그대로 센다(집합 비교 아님). 결과 175 → 38(새로 잡힌 것 0).
+const unitCount = (t) => normWords(t).length;
+const boldChunks = (analysis) => (analysis || '').match(/\*\*(.+?)\*\*/g) || [];
+
+export function isLumpedAnalysis(sentence, analysis) {
+    if (!analysis || !sentence) return false;
+    const sw = unitCount(sentence);
+    if (sw < 6) return false;
+    const lens = boldChunks(analysis).map(unitCount).filter(n => n > 0);
+    if (lens.length === 0) return false;
+    const max = Math.max(...lens); // 문장 전체 = 1청크(6단어 이상)도 여기서 잡힌다
+    return max >= 6 && max / sw >= 0.6;
+}
+
+// 단어 풀이 괄호가 없는 청크 줄 수
+const glosslessLines = (analysis) => (analysis || '').split('\n')
+    .filter(l => /^\s*\*\*/.test(l) && !splitBreakdown(l)[1]).length;
+const largestChunk = (analysis) => Math.max(0, ...boldChunks(analysis).map(unitCount));
+
+/**
+ * [뭉침 재분할 채택 규칙] 강제 분할로 다시 받은 분석을 받아들일지.
+ *  - 나빠진 게 없어야 한다: 풀이 없는 줄이 늘지 않고, 빠진 단어가 늘지 않고, 과분할(구두점 청크·잘게 쪼갬)이 새로 생기지 않음
+ *  - 그리고 나아져야 한다: 더 이상 뭉침이 아니거나, 가장 큰 청크가 작아짐
+ * 옛 규칙은 '뭉침이 풀렸거나 줄 수가 늘면' 채택이라, 문맥 없이 보낸 강제 분할 답이 `**,**`·한 단어 청크로
+ * 줄 수만 늘려도 채택됐다(예 4번 6:41: 풀이 있던 `ôi màu xanh: 아, 파란색 (…)`이 `Màu xanh / , / màu xanh / , / ôi`로).
+ */
+export function shouldAdoptSplitRetry(text, prevAnalysis, nextAnalysis) {
+    if (!nextAnalysis || parseChunks({ text, analysis: nextAnalysis, isAnalyzed: true }).length === 0) return false;
+    if (glosslessLines(nextAnalysis) > glosslessLines(prevAnalysis)) return false;
+    if (missingWordCount(text, nextAnalysis) > missingWordCount(text, prevAnalysis)) return false;
+    const over = (a) => !!checkAnalysisCoverage({ text, analysis: a, isAnalyzed: true })?.oversplit;
+    if (over(nextAnalysis) && !over(prevAnalysis)) return false;
+    return !isLumpedAnalysis(text, nextAnalysis) || largestChunk(nextAnalysis) < largestChunk(prevAnalysis);
 }
 
 /** 배지 title용 요약문 (탭 안내 포함) */
