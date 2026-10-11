@@ -12,6 +12,7 @@ import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd } from '../utils/speechSegments';
 import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
+import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
@@ -72,6 +73,8 @@ export const useMediaAnalysis = ({
     // Stage 2가 자기 스냅샷으로 상태/캐시를 통째로 덮어쓸 때, 그 사이 감지가 채운 speechEnd가
     // 지워지지 않도록 덮어쓰기 직전에 여기서 이식한다(상태는 지연 갱신이라 ref가 필요).
     const speechEndGraftRef = useRef(new Map());
+    // 1단계가 구글 파일 저장소에 올린 전체 오디오(utils/audioReuse) — '대사만' 감지가 다시 올리지 않고 재사용
+    const stage1AudioRef = useRef(new Map());
     const stage1AbortRef = useRef(null);
     const analysisQueueRef = useRef([]);   // 순차 분석 대기 파일 목록
     const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
@@ -432,7 +435,8 @@ export const useMediaAnalysis = ({
     /**
      * Stage 1 실행 공통 로직
      */
-    const runStage1 = async (fileId, file, precomputedDuration = null) => {
+    // identity: 캐시 신원(원본 파일). file은 메모리 적재본이라 크기가 다를 수 있다(runStage2의 fileInfo 주의와 같은 이유)
+    const runStage1 = async (fileId, file, precomputedDuration = null, identity = file) => {
         // 기존 Stage 1 중단
         if (stage1AbortRef.current) stage1AbortRef.current.abort();
         stage1AbortRef.current = new AbortController();
@@ -452,6 +456,7 @@ export const useMediaAnalysis = ({
         let incomplete = null;
         const rawData = await extractTranscript(file, apiKey, stage1Model, {
             onIncomplete: (info) => { if (!incomplete || info.at < incomplete.at) incomplete = info; },
+            onAudioUploaded: (part) => rememberAudio(stage1AudioRef.current, identity, part, fileDuration),
             totalDuration: fileDuration,
             onProgress: (incrementalData) => {
                 setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: incrementalData } : p));
@@ -502,7 +507,7 @@ export const useMediaAnalysis = ({
         let duration = 0;
         try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn("Failed to get media duration:", e); }
 
-        const data = await runStage1(fileId, fileForAnalysis, duration);
+        const data = await runStage1(fileId, fileForAnalysis, duration, sourceFile);
 
         setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data, isAnalyzing: false } : p));
 
@@ -627,6 +632,18 @@ export const useMediaAnalysis = ({
                     try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
                     const data = sanitizeData(cacheEntry.rawData, cacheDuration);
                     setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data, isAnalyzing: false, isFromCache: true } : p));
+                    // 분석이 덜 끝난 대본이면 남은 문장을 이어서 분석한다 — 목록에서 열 때(loadCache)와 같은 동작.
+                    // 예전엔 여기서 끝나 '파일을 다시 올리면' 남은 분석이 영영 안 돌았다(2026-10-11 점검 #19).
+                    // 같은 영상이 다른 항목으로 열려 전사·분석 중이면 건너뛴다 — runStage2 첫 줄의 abort가 그쪽 배치를
+                    // 죽이고 같은 문장을 중복 분석하게 된다(loadCache의 재시작 방지와 같은 이유).
+                    const idKey = `${fItem.file.name}_${fItem.file.size}`;
+                    const sameFileBusy = (filesRef?.current || []).some(p => p.id !== fItem.id && p.file
+                        && `${p.file.name}_${p.file.size}` === idKey && (p.isAnalyzing || stage2ActiveRef?.current?.get(p.id)));
+                    const pending = data.filter(d => !d.isAnalyzed).length;
+                    if (pending > 0 && apiKey && !sameFileBusy) {
+                        console.log(`[Upload] 캐시 대본에 미분석 ${pending}문장 → Stage 2 이어서`);
+                        runStage2(fItem.id, fItem.file, data, apiKey, stage2Model);
+                    }
                     // 캐시된 대본이 있어도 미디어가 IndexedDB에 없으면 (재)저장 → 새로고침 후에도 재생 복원.
                     // (사이트 데이터 삭제 등으로 미디어 스토어가 비면, '연결하기'/재업로드 한 번으로 다시 채워짐)
                     // 진단용 토스트로 저장 성공/실패를 화면에 노출 (콘솔 없이도 원인 파악)
@@ -943,27 +960,42 @@ export const useMediaAnalysis = ({
         speechBusyRef.current = true;
         setSpeechDetectBusy(fileId);
         try {
-            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'SpeechEnd');
-            if (!fileForAnalysis) {
-                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
-                return false;
-            }
-
-            let duration = 0;
-            try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
-
             // 요청할 문장 고르기(선택 재감지 = 형제 포함 / onlyMissing = 미감지·미포기만) — utils/speechEndMerge
             const { sentences, selective } = selectSpeechEndTargets(snapshot, { onlyMissing, indices });
             if (sentences.length === 0) {
                 if (showToast) showToast({ message: selective ? '선택한 문장을 찾지 못했어요.' : '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: selective ? 'error' : 'success' });
                 return !selective;
             }
-            // 선택 재감지는 클립만(비용 비례), 전체/누락 감지는 오디오 통째(기존).
-            let ends;
-            if (selective) {
-                ends = await detectSpeechEndsByClips(fileForAnalysis, apiKey, stage1Model, withNextStarts(snapshot, sentences), { mediaSrc: targetUrl, duration });
-            } else {
-                ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
+
+            let duration = 0;
+            let ends = null;
+            // 전체/누락 감지: 1단계가 구글에 올린 같은 오디오가 있으면 그걸 쓴다 — 원본 다시 읽기·길이 계산·
+            // 오디오 추출·업로드를 통째로 건너뛴다(utils/audioReuse). 실패하면(46시간 안에 지워졌거나 오류) 예전 방식으로.
+            const reuse = selective ? null : reusableAudio(stage1AudioRef.current, targetFile);
+            if (reuse) {
+                duration = reuse.duration || 0;
+                try {
+                    ends = await detectSpeechEnds(null, apiKey, stage1Model, sentences, { mediaPartOverride: reuse.part });
+                } catch (e) {
+                    if (e?.name === 'AbortError') throw e;
+                    console.warn('[SpeechEnd] 1단계 오디오 재사용 실패 → 다시 올려서 감지:', e?.message || e);
+                    forgetAudio(stage1AudioRef.current, targetFile);
+                    ends = null;
+                }
+            }
+            if (!ends) {
+                const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'SpeechEnd');
+                if (!fileForAnalysis) {
+                    if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                    return false;
+                }
+                try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
+                // 선택 재감지는 클립만(비용 비례), 전체/누락 감지는 오디오 통째(기존).
+                if (selective) {
+                    ends = await detectSpeechEndsByClips(fileForAnalysis, apiKey, stage1Model, withNextStarts(snapshot, sentences), { mediaSrc: targetUrl, duration });
+                } else {
+                    ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
+                }
             }
 
             // 최신 상태에 병합. 채택 조건(환각 방어): 시작+MIN_SPEECH_SEC 이후, MAX_SENTENCE_SEC 이내, 영상 길이 이내.

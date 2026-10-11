@@ -1072,6 +1072,7 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
     chunkMinutes = 10,
     realignEnabled = true,
     onIncomplete = null, // ({at, reason}) — 스트림이 끊겨 이어받기로도 끝까지 못 받았을 때
+    onAudioUploaded = null, // (part) — 전체 오디오를 구글 파일 저장소에 올렸을 때(단일 패스만). '대사만' 감지가 다시 올리지 않고 재사용
 } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -1139,6 +1140,7 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
         } else {
             // --- 단일 패스 전사 (기존 동작) ---
             const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
+            if (mediaPart.fileData && onAudioUploaded) onAudioUploaded(mediaPart);
             const dynamicPrompt = buildStage1Prompt(totalDuration, antiRecitation, markerChar, markerInterval);
 
             if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -1385,7 +1387,8 @@ export function parseSpeechEndResponse(text) {
 // audioBlobOverride: 넘기면 extractAudioBlob(file) 대신 이 오디오를 그대로 쓴다(전체 대신 클립).
 // 이때 sentences[].seconds는 '그 오디오 기준' 시각이어야 하고, 반환 Map도 그 기준으로 나온다.
 // (절대↔클립 변환은 호출자 몫 — detectSpeechEndsByClips가 담당. 이 함수는 타임라인에 무지하다.)
-export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signal = null, audioBlobOverride = null } = {}) {
+// mediaPartOverride: 1단계가 구글 파일 저장소에 이미 올린 같은 오디오(fileData). 넘기면 추출·업로드를 건너뛴다.
+export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signal = null, audioBlobOverride = null, mediaPartOverride = null } = {}) {
     if (!apiKey) throw new Error("API Key is required");
     if (!sentences || sentences.length === 0) return new Map();
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -1396,10 +1399,13 @@ export async function detectSpeechEnds(file, apiKey, modelId, sentences, { signa
         safetySettings
     }, { apiVersion: "v1beta" });
 
-    console.log(`[SpeechEnd] model: ${modelName}, ${sentences.length}문장 감지 시작${audioBlobOverride ? ' (클립)' : ''}`);
-    const audioBlob = audioBlobOverride || await extractAudioBlob(file);
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
+    console.log(`[SpeechEnd] model: ${modelName}, ${sentences.length}문장 감지 시작${audioBlobOverride ? ' (클립)' : mediaPartOverride ? ' (1단계 오디오 재사용)' : ''}`);
+    let mediaPart = mediaPartOverride;
+    if (!mediaPart) {
+        const audioBlob = audioBlobOverride || await extractAudioBlob(file);
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        mediaPart = await blobToGeminiPart(audioBlob, apiKey);
+    }
 
     const list = sentences.map(s => `[${s.index}] (시작 ${fmtSec(s.seconds)}) ${s.text}`).join('\n');
     const basePrompt = `당신은 오디오 타임라인 분석가입니다. 아래는 이 오디오의 대본 문장 목록이며, 각 문장의 시작 시각이 함께 적혀 있습니다.
