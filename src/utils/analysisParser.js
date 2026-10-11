@@ -83,6 +83,8 @@ export function flattenNestedParens(line) {
 //  ① 같은 말 되풀이 ♪: "công viên: 공원·공원♪" → "공원♪", "thành công: 성공하다·성공♪" → "성공하다♪" (실측 18곳)
 //     — '자연스러운 말·한자어♪'(규칙 5)는 두 말이 다를 때만 쓰는 모양이다.
 //  ② 양쪽이 같은 화살표: "phi: 날다←날다" → "날다" (본뜻과 같으면 화살표가 무의미)
+//  ⑤ [화면 전용, hideAddedNote] '뜻·한자어♪'의 덧붙인 한자어♪를 뗌: "느끼다·감수♪" → "느끼다" (2026-10-11)
+//  ⑥ 덩어리 뜻 줄의 ♪는 지움: "**môi trường**: 환경·환경♪" → "환경" (♪는 괄호 안 단어 풀이 전용)
 //  ④ 부품끼리 같은 말인 〈〉는 지움: "khó khăn: 어렵다〈어렵다·어렵다〉" → "어렵다" (2026-10-11)
 //  ③ 〔⚡표현: 뜻〕 안의 꼬리표·여러 뜻: "〔⚡vãi chưởng: 존나/개–(강한 감탄·강조)〕" → "〔⚡vãi chưởng: 존나〕"
 //     (괄호 꼬리표 제거 → '/' 나열은 첫 뜻만 → 끝의 ·슬랭/·비속어 제거)
@@ -92,7 +94,7 @@ const tidyFlash = (tail) => tail.replace(/〔⚡([^:：〕]+)([:：])\s*([^〕]*
     let v = mean.replace(/\s*\([^()]*\)/g, '').split('/')[0].replace(FLASH_LABEL, '').replace(/[\s–—\-·]+$/, '').trim();
     return v ? `〔⚡${expr}${colon} ${v}〕` : m;
 });
-const tidyGloss = (part) => {
+const tidyGloss = (part, hideAddedNote) => {
     const m = part.match(/^(\s*[^:]+:\s*)(.*?)(\s*)$/s);
     if (!m) return part;
     let mean = m[2];
@@ -100,6 +102,16 @@ const tidyGloss = (part) => {
     if (arrow && arrow[1].trim() === arrow[2].trim()) mean = arrow[1].trim();
     const note = mean.match(/^(.*)·([^·]+)♪$/);
     if (note && note[1].trim().startsWith(note[2].trim())) mean = note[1].trim() + '♪';
+    // ⑤ [화면 전용] 덧붙인 한자어♪ 떼기: "cảm thấy: 느끼다·감수♪" → "느끼다", "xuất hiện: 나타나다·출현♪" → "나타나다"
+    //    AI가 자연스러운 뜻과 별도로 '소리 닮은 한자어'를 짐작해 덧붙인 모양이 틀린 ♪의 대부분이었다
+    //    (Circle K 2.5 Flash 저장본: '뜻·한자어♪' 42개 중 약 22개가 틀린 소리·낯선 말, '한자어♪' 단독 12개는 전부 맞음).
+    //    맞는 것(나타나다·출현♪)도 같이 빠지는 대가를 사용자가 알고 택함(2026-10-11). 저장본엔 남겨 두어 되돌릴 수 있게
+    //    표시 단계(TranscriptItem·parseChunks)에서만 켠다 — stage2Parser는 끈 채로 부른다.
+    //    같은 말 정리(①) 뒤에 이어서 적용 — "오락·해소·오락♪" → ① "오락·해소♪" → ⑤ "오락" (실측 giải trí, Flash)
+    if (hideAddedNote) {
+        const added = mean.match(/^(.*)·[^·]+♪$/);
+        if (added && added[1].trim()) mean = added[1].trim();
+    }
     // ④ 부품끼리 같은 말인 〈〉: "khó khăn: 어렵다〈어렵다·어렵다〉" → "어렵다", "màu sắc: 색깔〈색·색깔〉" → "색깔"
     //    (부품이 서로 같거나 한쪽이 다른 쪽에 들어 있으면 배울 게 없다. "닭다리〈다리·닭〉"처럼 부품이 다르면 그대로)
     const pm = mean.match(/^(.*?)〈([^〉]*)〉(.*)$/);
@@ -110,13 +122,21 @@ const tidyGloss = (part) => {
     }
     return m[1] + mean + m[3];
 };
-export function tidyGlosses(line) {
-    const [main, group, tail] = splitBreakdown(line);
+// ⑥ 덩어리 뜻(굵은 청크 바로 뒤)의 ♪는 뗀다 — ♪는 괄호 안 단어 풀이 전용(규칙 5). 화살표(stripMainArrow)와 같은 취지.
+//    실측(2026-10-11, 영상 1번 2.5 Flash 169문장 중 1줄): "**môi trường**: 환경·환경♪ (môi trường: 환경♪)" → "**môi trường**: 환경 (…)"
+const stripMainNote = (main) => {
+    const m = main.match(/^(\s*\*\*.+?\*\*\s*:\s*)(.*)$/s);
+    if (!m || !m[2].includes('♪')) return main;
+    return m[1] + m[2].replace(/·[^·\s()]+♪/g, '').replace(/♪/g, '');
+};
+export function tidyGlosses(line, { hideAddedNote = false } = {}) {
+    const [rawMain, group, tail] = splitBreakdown(line);
+    const main = stripMainNote(rawMain);
     const t = tail ? tidyFlash(tail) : tail;
     if (!group) return main + t;
     const g = group.replace(/\s+$/, '');
     const ws = group.slice(g.length);
-    const inner = g.slice(1, -1).split(/(\s\+\s)/).map((x, i) => (i % 2 ? x : tidyGloss(x))).join('');
+    const inner = g.slice(1, -1).split(/(\s\+\s)/).map((x, i) => (i % 2 ? x : tidyGloss(x, hideAddedNote))).join('');
     return main + '(' + inner + ')' + ws + t;
 }
 
@@ -125,7 +145,7 @@ export function parseChunks(item) {
     return item.analysis.split('\n')
         .map(raw => {
             // 혹시 남아있을 수 있는 [분석]/분석] 접두 제거
-            const line = tidyGlosses(raw.replace(/^\s*\[?\s*분석\s*\]?\s*/, ''));
+            const line = tidyGlosses(raw.replace(/^\s*\[?\s*분석\s*\]?\s*/, ''), { hideAddedNote: true });
             const m = line.match(/^\s*\*\*(.+?)\*\*\s*:?\s*(.*)$/);
             if (!m) return null;
             const chunk = m[1].trim();

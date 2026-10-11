@@ -121,6 +121,25 @@ describe('표기 정리 안전망(tidyGlosses)', () => {
         const old = '**Đàn ông**: 남자 (Đàn ông: 남자 (사내 단 + 사내 웅))';
         expect(tidyGlosses(old)).toBe(old);
     });
+    it('[화면 전용] 덧붙인 한자어♪는 hideAddedNote일 때만 뗀다 (저장 단계는 그대로)', () => {
+        const line = '**Mình cảm thấy xuất hiện**: 나는 나타난다고 느낀다 (Mình: 나 + cảm thấy: 느끼다·감수♪ + xuất hiện: 나타나다·출현♪ + từ thiện: 자선♪ + công viên: 공원·공원♪ + đứa: 명·아이 세는 말)';
+        expect(tidyGlosses(line, { hideAddedNote: true }))
+            .toBe('**Mình cảm thấy xuất hiện**: 나는 나타난다고 느낀다 (Mình: 나 + cảm thấy: 느끼다 + xuất hiện: 나타나다 + từ thiện: 자선♪ + công viên: 공원♪ + đứa: 명·아이 세는 말)');
+        expect(tidyGlosses(line))
+            .toBe('**Mình cảm thấy xuất hiện**: 나는 나타난다고 느낀다 (Mình: 나 + cảm thấy: 느끼다·감수♪ + xuất hiện: 나타나다·출현♪ + từ thiện: 자선♪ + công viên: 공원♪ + đứa: 명·아이 세는 말)');
+    });
+    it('같은 말 정리 뒤에도 덧붙인 한자어♪가 남지 않는다 (giải trí: 오락·해소·오락♪)', () => {
+        expect(tidyGlosses('**giải trí**: 오락 (giải trí: 오락·해소·오락♪)', { hideAddedNote: true })).toBe('**giải trí**: 오락 (giải trí: 오락)');
+        expect(tidyGlosses('**giải trí**: 오락 (giải trí: 오락·해소·오락♪)')).toBe('**giải trí**: 오락 (giải trí: 오락·해소♪)');
+    });
+    it('덩어리 뜻 줄의 ♪는 저장·화면 모두 뗀다 (괄호 안 풀이의 ♪는 그대로)', () => {
+        expect(tidyGlosses('**môi trường**: 환경·환경♪ (môi trường: 환경♪)')).toBe('**môi trường**: 환경 (môi trường: 환경♪)');
+        expect(tidyGlosses('**quỹ từ thiện**: 자선♪ 기금 (quỹ: 기금 + từ thiện: 자선♪)')).toBe('**quỹ từ thiện**: 자선 기금 (quỹ: 기금 + từ thiện: 자선♪)');
+    });
+    it('가리기 학습(parseChunks)의 뜻에서도 덧붙인 한자어♪를 뗀다', () => {
+        const [c] = parseChunks({ isAnalyzed: true, analysis: '**xuất hiện**: 나타나다 (xuất hiện: 나타나다·출현♪)' });
+        expect(c.meaning).toBe('나타나다 (xuất hiện: 나타나다)');
+    });
     it('가리기 학습(parseChunks)의 뜻에도 정리된 모양이 쓰인다', () => {
         const [c] = parseChunks({ isAnalyzed: true, analysis: '**công viên**: 공원 (công viên: 공원·공원♪)' });
         expect(c).toEqual({ chunk: 'công viên', meaning: '공원 (công viên: 공원♪)' });

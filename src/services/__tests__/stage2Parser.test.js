@@ -179,4 +179,10 @@ describe('파서가 표기 정리 안전망을 거친다', () => {
             [{ index: 2 }]);
         expect(res[0].analysis).toBe('**phi ra công viên**: 공원으로 달려 (phi: 날다 + ra: 나가다 + công viên: 공원♪) 〔⚡phi: 질주하다〕');
     });
+    it('덧붙인 한자어♪(나타나다·출현♪)는 저장본에 그대로 남긴다 — 화면에서만 뗀다', () => {
+        const res = parseStage2Response(
+            '--- [INDEX: 4] START ---\n[번역] 나타나\n[분석] **xuất hiện**: 나타나다 (xuất hiện: 나타나다·출현♪)\n--- [INDEX: 4] END ---',
+            [{ index: 4 }]);
+        expect(res[0].analysis).toBe('**xuất hiện**: 나타나다 (xuất hiện: 나타나다·출현♪)');
+    });
 });
