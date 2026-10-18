@@ -290,6 +290,13 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 - **접근성**: `TranscriptItem` 문장 본문·풀이 토글·선택 덮개에 `role=button tabIndex=0` + Enter/Space(`onKeyActivate`), aria-label('00:04.50부터 재생', '단어 풀이 펼치기/접기' + aria-expanded, '이 문장 선택'). `Toast`에 role=status/alert + aria-live. `index.css`에 전역 `:focus-visible` 2px 인디고 링(키보드일 때만).
 - 검증: 테스트 378, 브라우저 33개(라이트·다크 + PC: 배지·'저장됨' 없음·전부 지우기 실제 삭제·도구 칩·? 숨김/PC 보임·기록 창·고치기 줄 순서/라벨·확인창 문구·role/tabindex·Enter 이동·초점 링·Space 펼침) + 터치 19 + 마무리 묶음 38 + 툴바 폭 289px 통과.
 
+### 사용자 피드백 3건 (2026-10-18 밤, 가지 `fix5`)
+
+- **도구 칩의 점은 가리기·오답만일 때만** — '대사만'은 설정처럼 유지되는 값이라 넣으면 점이 늘 떠 뜻이 없다(사용자: "오렌지색 원이 왜 떠 있지"). 화면을 바꾸는 모드만 센다(`App.jsx` toolbarModesOn).
+- **'다시 전사' 창 맨 위에 문장 미리보기**(`SentenceEditDialogs.jsx#SentencePreview`, 대사 끝 맞추기 창과 같은 부품): 1개면 시각+문장, 여러 개면 첫·마지막 + '… 사이 N문장 …'(고른 문장 기준). 구간을 ±0.5초로 맞추는 동안 어느 문장인지 보이게(사용자 제안).
+- **TimeAdjuster 시각 숫자 `whitespace-nowrap`** — Inter로 바꾼 뒤 휴대폰에서 `03:33.2 / 0`으로 두 줄로 꺾였다(사용자 캡처). 15px.
+- 검증: 브라우저 10개(대사만 켜도 점 없음·가리기 켜면 점·미리보기 1개/3개·시각 한 줄 136×23) + 터치 19 + 다크 묶음 12 통과.
+
 ### Keyboard Shortcuts (구현: `hooks/useKeyboardShortcuts.js`, 표시: `components/ShortcutsHelp.jsx`)
 
 Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문장 이동(**오답 모드에선 오답만 순회**), ↑/↓: 5초 탐색, `[`/`]`: 배속 -/+, `?`: 도움말 토글. **단축키를 추가하면 `ShortcutsHelp.jsx`의 목록도 함께 갱신할 것**(둘이 따로 관리됨). ←/→는 App의 `goPrev`/`goNext`에 위임(모드 인식).

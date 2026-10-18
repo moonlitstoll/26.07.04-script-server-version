@@ -59,8 +59,34 @@ const TimeAdjuster = ({ label, value, onChange, min, max }) => {
         <div className="flex items-center gap-1">
             <span className="w-8 shrink-0 text-xs font-bold text-slate-500 dark:text-slate-400">{label}</span>
             {STEPS.map(d => <StepButton key={-d} delta={-d} {...p} />)}
-            <span className="flex-1 min-w-0 text-center font-mono text-base font-bold text-slate-800 dark:text-slate-200 tabular-nums">{formatStamp(value)}</span>
+            {/* nowrap: 글꼴을 Inter로 바꾼 뒤 휴대폰에서 "03:33.2 / 0"으로 두 줄로 꺾였다(사용자 캡처) */}
+            <span className="flex-1 min-w-0 text-center font-mono text-[15px] font-bold text-slate-800 dark:text-slate-200 tabular-nums whitespace-nowrap">{formatStamp(value)}</span>
             {[...STEPS].reverse().map(d => <StepButton key={d} delta={d} {...p} />)}
+        </div>
+    );
+};
+
+// 창 맨 위에 '지금 다루는 문장' — 구간을 ±0.5초로 맞추는 동안 어느 문장인지 보여야 한다(대사 끝 맞추기 창과 같은 모양).
+// 여러 문장이면 첫 문장 + 마지막 문장만(사이는 개수로).
+const SentencePreview = ({ items }) => {
+    if (!items || items.length === 0) return null;
+    const first = items[0], last = items[items.length - 1];
+    const between = items.length - 2;
+    return (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 space-y-1">
+            <div>
+                <span className="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatStamp(first.seconds)}</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200 leading-snug">{first.text}</p>
+            </div>
+            {items.length > 1 && (
+                <>
+                    {between > 0 && <p className="text-xs text-slate-500 dark:text-slate-400">… 사이 {between}문장 …</p>}
+                    <div>
+                        <span className="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatStamp(last.seconds)}</span>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 leading-snug">{last.text}</p>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
@@ -108,6 +134,7 @@ export function RetranscribeDialog({ data, selectedIdxs, duration, mediaUrl, pla
                 </button>
             </>}
         >
+            <SentencePreview items={idxs.map(i => data[i]).filter(Boolean)} />
             <ModeOption checked={mode === 'sentence'} onClick={() => setMode('sentence')}
                 title="문장별로 다시"
                 desc={`선택한 ${idxs.length}개 문장을 하나씩 다시 듣고 전사합니다. 나머지 문장·타임라인은 그대로.`} />
@@ -168,10 +195,7 @@ export function SpeechEndDialog({ data, idx, duration, mediaUrl, playbackRate, o
                 </button>
             </>}
         >
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2">
-                <span className="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatStamp(item.seconds)}</span>
-                <p className="font-bold text-slate-800 dark:text-slate-200 leading-snug">{item.text}</p>
-            </div>
+            <SentencePreview items={[item]} />
             <ModeOption checked={mode === 'manual'} onClick={() => setMode('manual')}
                 title="직접 맞추기 (무료)"
                 desc="들어 보면서 대사가 끝나는 시각을 직접 정합니다." />

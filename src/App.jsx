@@ -906,8 +906,9 @@ const App = () => {
         // 툴바를 그릴 수 있을 때만 버튼을 보인다. 선택 모드 중엔 편집 버튼 줄이 툴바 자리라 늘 열려 있다.
         onToggleToolbar={toolbarAvailable && !selectMode ? toggleToolbar : null}
         toolbarOpen={toolbarOpen}
-        // 숨긴 채 화면을 바꾸는 모드가 켜져 있으면 버튼에 점 — '왜 대본이 가려졌지/줄었지'를 알 수 있게
-        toolbarModesOn={drillMode || mistakeOnly || !!(config.speechOnlyEnabled && hasSpeechEnds)}
+        // 숨긴 채 '화면을 바꾸는' 모드(가리기·오답만)가 켜져 있으면 버튼에 점 — '왜 대본이 가려졌지/줄었지'를 알 수 있게.
+        // 대사만은 재생만 바꾸고 화면은 그대로라 뺐다(설정처럼 유지되는 값이라 넣으면 점이 늘 떠 뜻이 없어진다 — 사용자 지적).
+        toolbarModesOn={drillMode || mistakeOnly}
       />
 
       {/* [자동 업데이트] 새 번들 배포 감지 → 새로고침 안내 (모바일 stale 번들 방지) */}
