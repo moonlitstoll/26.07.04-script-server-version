@@ -1,6 +1,6 @@
-import { Home, Settings, FileVideo, FileAudio, HelpCircle } from 'lucide-react';
+import { Home, Settings, FileVideo, FileAudio, HelpCircle, SlidersHorizontal } from 'lucide-react';
 
-// 작업 화면 상단 헤더: 홈 버튼 · 현재 파일명(클릭 시 히스토리) · 도움말 · 설정 버튼
+// 작업 화면 상단 헤더: 홈 버튼 · 현재 파일명(클릭 시 히스토리) · 툴바 열기 · 도움말 · 설정 버튼
 const WorkspaceHeader = ({
     activeFile,
     isAnalyzing,
@@ -9,6 +9,9 @@ const WorkspaceHeader = ({
     onOpenHistory,
     onOpenSettings,
     onShowShortcuts,
+    onToggleToolbar,
+    toolbarOpen,
+    toolbarModesOn,
 }) => {
     const busy = isAnalyzing || isSwitchingFile;
 
@@ -54,6 +57,26 @@ const WorkspaceHeader = ({
             </div>
 
             <div className="flex items-center">
+                {/* 툴바(가리기·묶음·대사만·오답·⋯) 열고 닫기 — 평소 숨김. 숨긴 채 가리기·오답만·대사만이
+                    켜져 있으면 오른쪽 위 점으로 알린다 */}
+                {onToggleToolbar && (
+                    <button
+                        onClick={onToggleToolbar}
+                        aria-pressed={!!toolbarOpen}
+                        aria-label={toolbarOpen ? '도구 줄 숨기기' : '도구 줄 열기'}
+                        title={toolbarOpen ? '도구 줄 숨기기' : '도구 줄 열기 (가리기·묶음·대사만·고치기)'}
+                        className={`relative p-1.5 rounded-lg transition-all ${toolbarOpen
+                            ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
+                            : 'text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'}`}
+                    >
+                        <SlidersHorizontal size={18} />
+                        {!toolbarOpen && toolbarModesOn && (
+                            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400">
+                                <span className="sr-only">켜진 모드 있음</span>
+                            </span>
+                        )}
+                    </button>
+                )}
                 {onShowShortcuts && (
                     <button
                         onClick={onShowShortcuts}

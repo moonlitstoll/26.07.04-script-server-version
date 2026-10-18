@@ -184,6 +184,8 @@ const App = () => {
   const isAnalyzing = activeFile?.isAnalyzing || false;
   // 분석/전환 중이 아니라 본문 콘텐츠를 보여줄 준비가 됐는지 (배너·툴바 게이팅 공통 조건)
   const contentReady = !isAnalyzing && !isSwitchingFile;
+  // 툴바(가리기·묶음·대사만·오답·⋯)를 그릴 수 있는 상태인가 — 실제로 보이는지는 toolbarOpen/selectMode
+  const toolbarAvailable = !!activeFile && contentReady && !activeFile.error && transcriptData.length > 0;
 
   // [캐시 버저닝] 활성 파일의 분석이 옛 규칙(낮은 version)으로 만들어졌는지 판정 → 재분석 권장 배너.
   //  분석 진행 정도(analyzedCount)가 바뀔 때만 캐시 메타를 다시 읽어 반응(재분석하면 배너 사라짐).
@@ -235,6 +237,10 @@ const App = () => {
   // 툴바 팝오버(한 번에 하나): null=닫힘, { kind: 'loop'|'drill'|'fix', anchor: 누른 칩 좌표(열 때 1회 스냅샷) }
   const [toolbarPopover, setToolbarPopover] = useState(null);
   const closeToolbarPopover = useCallback(() => setToolbarPopover(null), []);
+  // 툴바(칩 줄)는 평소 숨김 — 제목 줄 버튼으로 연다(사용자 결정: 작은 화면에 대본 한 줄이라도 더).
+  // 일부러 저장하지 않는다: 한 번 열어 두고 잊으면 '평소 숨김'이 깨진다. 앱을 새로 열면 다시 숨김.
+  const [toolbarOpen, setToolbarOpen] = useState(false);
+  const toggleToolbar = useCallback(() => setToolbarOpen(o => !o), []);
 
   // [대사만 재생] 이 파일에 대사 끝 시각(speechEnd) 데이터가 하나라도 있는가
   // (없으면 칩 탭 = 감지 실행, 있으면 칩 탭 = 켜기/끄기 토글. 엔진은 문장별로 알아서 폴백)
@@ -892,6 +898,11 @@ const App = () => {
         onOpenHistory={() => setShowCacheHistory(true)}
         onOpenSettings={() => setShowSettings(true)}
         onShowShortcuts={() => setShowShortcuts(true)}
+        // 툴바를 그릴 수 있을 때만 버튼을 보인다. 선택 모드 중엔 편집 버튼 줄이 툴바 자리라 늘 열려 있다.
+        onToggleToolbar={toolbarAvailable && !selectMode ? toggleToolbar : null}
+        toolbarOpen={toolbarOpen}
+        // 숨긴 채 화면을 바꾸는 모드가 켜져 있으면 버튼에 점 — '왜 대본이 가려졌지/줄었지'를 알 수 있게
+        toolbarModesOn={drillMode || mistakeOnly || !!(config.speechOnlyEnabled && hasSpeechEnds)}
       />
 
       {/* [자동 업데이트] 새 번들 배포 감지 → 새로고침 안내 (모바일 stale 번들 방지) */}
@@ -935,7 +946,7 @@ const App = () => {
         {activeFile ? (
           <div className="flex flex-col h-full">
             {/* 구간 다시 전사 툴바 */}
-            {contentReady && !activeFile.error && transcriptData.length > 0 && (
+            {toolbarAvailable && (toolbarOpen || selectMode) && (
               <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto px-3 md:px-6 py-0.5 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
