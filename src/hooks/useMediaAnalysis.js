@@ -225,7 +225,13 @@ export const useMediaAnalysis = ({
 
         // [진행 표시] 백그라운드 분석 시작 — 상단 배너용 (전체 스피너가 없는 재분석/이어서분석에서 노출)
         const myRun = ++stage2RunIdRef.current;
-        setStage2Progress({ fileId, done: 0, total: pendingIndices.length });
+        setStage2Progress({ fileId, done: 0, total: pendingIndices.length, startedAt: Date.now(), note: '' });
+        // 띠의 두 번째 줄 — 재시도·자동 교정처럼 숫자가 안 오르는 동안 '지금 뭘 하는지'. 묶음이 끝나면 비운다.
+        const setNote = (note) => setStage2Progress(p => (p && p.fileId === fileId ? { ...p, note } : p));
+        const onBatchStatus = (st) => {
+            if (st.phase === 'wait') setNote(`재시도 ${st.attempt}/${st.maxAttempts} · ${st.reason} (${Math.max(1, Math.round(st.waitMs / 1000))}초 뒤)`);
+            else if (st.attempt > 1) setNote(`재시도 ${st.attempt}/${st.maxAttempts} 요청 중`);
+        };
 
         const BATCH_SIZE = 25;
         const CONCURRENCY = getStage2Concurrency(currentModelId);
@@ -261,7 +267,7 @@ export const useMediaAnalysis = ({
                 .slice(0, 40) // 폭주 방지 상한
                 .map(idx => ({ index: idx, text: workingData[idx].text }));
             try {
-                const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, contextItems);
+                const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, contextItems, false, true, onBatchStatus);
                 noteFailReason(results);
                 if (results && !signal.aborted) {
                     let groupSuccess = 0;
@@ -279,7 +285,7 @@ export const useMediaAnalysis = ({
                     });
                     totalSuccessCount += groupSuccess;
                     updateGlobalState(workingData);
-                    setStage2Progress({ fileId, done: totalSuccessCount, total: pendingIndices.length });
+                    setStage2Progress(p => ({ ...(p || {}), fileId, done: totalSuccessCount, total: pendingIndices.length, note: '' }));
                     // 상태는 묶음 수가 아니라 실제 분석된 문장으로 — 예전엔 0문장 성공 묶음도 성공으로 세어, 마지막 묶음 뒤
                     // 마무리 저장까지(점검 실측 약 33초) 빈 문장이 있는데도 'completed'로 저장돼 있었다(그사이 중단되면 그대로 남음)
                     persistCache(fileInfo, workingData, saveStatusOf(workingData));
@@ -312,6 +318,7 @@ export const useMediaAnalysis = ({
             if (lumped.length === 0) break;
             didRetry = true;
             console.log(`[Stage 2] 뭉침 ${lumped.length}개 (라운드 ${round + 1}/${MAX_SPLIT_RETRIES}) → 강제 분할 재분석(배치)`);
+            setNote(`뭉친 문장 ${lumped.length}개 다시 분석 (${round + 1}/${MAX_SPLIT_RETRIES})`);
 
             // [비용 절감] 뭉친 문장을 문장당 개별 호출하지 않고 BATCH_SIZE 단위로 묶어 forceSplit 재분석
             //  → 대형 프롬프트 프리픽스 재전송이 L회 → ⌈L/BATCH_SIZE⌉회로 감소. 파싱은 INDEX별 독립,
@@ -324,7 +331,7 @@ export const useMediaAnalysis = ({
                 const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
                     // 문맥 생략(속도) + forceSplit=true 로 강제 분할 요청
-                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], true);
+                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], true, true, onBatchStatus);
                     if (results && !signal.aborted) {
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
@@ -370,13 +377,14 @@ export const useMediaAnalysis = ({
             if (missingIdx.length === 0) break;
             didRetry = true;
             console.log(`[Stage 2] 누락 ${missingIdx.length}개 (라운드 ${round + 1}/${MAX_MISSING_RETRIES}) → 재분석(배치)`);
+            setNote(`빠진 단어 ${missingIdx.length}문장 다시 분석 (${round + 1}/${MAX_MISSING_RETRIES})`);
             const missBatches = [];
             for (let i = 0; i < missingIdx.length; i += BATCH_SIZE) missBatches.push(missingIdx.slice(i, i + BATCH_SIZE));
             let missCursor = 0;
             const processMissBatch = async (idxGroup) => {
                 const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
-                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], false);
+                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], false, true, onBatchStatus);
                     if (results && !signal.aborted) {
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {

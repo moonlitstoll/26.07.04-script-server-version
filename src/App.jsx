@@ -17,6 +17,21 @@ import { useEscapeToClose } from './hooks/useEscapeToClose';
 const CHIP = 'shrink-0 whitespace-nowrap inline-flex items-center gap-[min(0.9vw,4px)] px-[min(1.8vw,8px)] py-0.5 rounded-lg text-[min(2.9vw,12px)] font-bold border transition-colors';
 const CHIP_ICON = 'w-[min(3vw,13px)] h-[min(3vw,13px)] shrink-0';
 
+// 분석 진행 띠의 글 — 지난 시간과 '지금 뭘 하는지'(재시도·자동 교정). 숫자만 있으면 묶음 하나가 재시도 중일 때
+// 몇 분씩 멈춘 것처럼 보여 사용자가 고장으로 오해했다(2026-10-18 휴대폰 보고: 230/255에서 한참 그대로).
+const Stage2ProgressText = ({ progress }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const sec = Math.max(0, Math.floor((now - (progress.startedAt || now)) / 1000));
+  const elapsed = sec >= 60 ? `${Math.floor(sec / 60)}분 ${sec % 60}초` : `${sec}초`;
+  return (
+    <span className="flex-1 min-w-0 truncate font-medium">
+      분석 중… {progress.done}/{progress.total} · {elapsed}
+      {progress.note && <span className="ml-2 font-normal opacity-80">{progress.note}</span>}
+    </span>
+  );
+};
+
 // 묶음 반복 문장 수 프리셋 — 숫자를 탭하면 −/+ 연타 없이 바로 고른다 (1↔20 왕복이 탭 1번).
 const LOOP_PRESETS = [1, 2, 3, 5, 10, 15, 20];
 
@@ -918,9 +933,7 @@ const App = () => {
       {stage2Progress && stage2Progress.fileId === activeFileId && contentReady && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm">
           <div className="w-3.5 h-3.5 shrink-0 border-2 border-emerald-300 dark:border-emerald-700 border-t-emerald-600 rounded-full animate-spin" />
-          <span className="flex-1 min-w-0 truncate font-medium">
-            분석 중… {stage2Progress.done}/{stage2Progress.total}
-          </span>
+          <Stage2ProgressText progress={stage2Progress} />
         </div>
       )}
 

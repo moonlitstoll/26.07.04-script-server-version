@@ -1227,6 +1227,20 @@ function linkAbort(target, source) {
     return () => source.removeEventListener('abort', onAbort);
 }
 
+// 재시도 사유를 사람 말로 — 상단 진행 띠에 "재시도 2/5 · 서버 혼잡"처럼 보인다(예전엔 콘솔에만 남아
+// 휴대폰에선 '분석 중…' 숫자만 멈춰 보였다). 판정은 isRetryableStage2Error와 같은 상태코드 규칙.
+export function stage2RetryReason(err, timedOut = false) {
+    if (timedOut) return '응답 없음';
+    const msg = String(err?.message || err || '');
+    const m = msg.match(/\[(\d{3})/);
+    const status = (typeof err?.status === 'number') ? err.status : (m ? Number(m[1]) : 0);
+    if (status === 429) return '요청 한도';
+    if (status === 503 || /overloaded|UNAVAILABLE/i.test(msg)) return '서버 혼잡';
+    if (status >= 500) return `서버 오류 ${status}`;
+    if (status === 0 && /fetch|network|Failed to fetch|NetworkError/i.test(msg)) return '네트워크';
+    return status ? `오류 ${status}` : '오류';
+}
+
 // 429/5xx/네트워크·타임아웃만 재시도. 4xx(400 키오류 등)는 재시도 무의미.
 function isRetryableStage2Error(err) {
     const msg = String(err?.message || err || '');
@@ -1283,7 +1297,8 @@ export function claudeFailureMessage(err) {
 // formatRetry: 응답은 왔는데 마커가 없어 실패한 문장(형식 실패)을 한 번 더 요청할지. 재요청 안에서는 false(무한 반복 방지).
 // apiKey: 고른 모델의 공급자 키 — Gemini 모델이면 Gemini 키, Claude 모델이면 Claude 키(호출부 runStage2가 고른다).
 // 실패 결과 { index, failed: true, errorMessage? } — errorMessage는 Claude의 키·크레딧처럼 사용자가 조치할 사유가 있을 때만.
-export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false, formatRetry = true) {
+// onStatus(선택): 재시도 상황을 화면에 알리는 콜백 — { phase:'request'|'wait', attempt(1부터), maxAttempts, waitMs?, reason? }
+export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false, formatRetry = true, onStatus = null) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
     const useClaude = isClaudeModel(modelId);
@@ -1337,6 +1352,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         const unlink1 = linkAbort(combo, signal);
         const unlink2 = linkAbort(combo, timeoutCtrl.signal);
         const timer = setTimeout(() => timeoutCtrl.abort(), attemptTimeoutMs);
+        try { onStatus?.({ phase: 'request', attempt: attempt + 1, maxAttempts: STAGE2_MAX_RETRIES + 1 }); } catch { /* 표시용 */ }
         try {
             let responseText, finishReason;
             if (useClaude) {
@@ -1361,7 +1377,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
             const failedItems = items.filter(it => parsed.find(p => p.index === it.index)?.failed);
             if (!formatRetry || failedItems.length === 0) return parsed;
             console.warn(`[Stage 2] 형식 실패 ${failedItems.length}문장 → 그 문장만 한 번 더 요청`);
-            const retried = await analyzeBatchSentences(failedItems, apiKey, modelId, signal, contextItems, forceSplit, false);
+            const retried = await analyzeBatchSentences(failedItems, apiKey, modelId, signal, contextItems, forceSplit, false, onStatus);
             const byIndex = new Map(retried.filter(r => !r.failed).map(r => [r.index, r]));
             return parsed.map(p => (p.failed && byIndex.has(p.index) ? byIndex.get(p.index) : p));
         } catch (error) {
@@ -1373,6 +1389,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
                 //  attempt 0~3: ~1.5s,3s,6s,12s (+최대 2.5s 지터) → 재시도 창 ~22~32s
                 const wait = Math.min(20000, 1500 * 2 ** attempt) + Math.floor(Math.random() * 2500);
                 console.warn(`[Stage 2] ${timedOut ? '타임아웃' : '오류'} → ${wait}ms 후 재시도 (${attempt + 1}/${STAGE2_MAX_RETRIES})`, error?.message || error);
+                try { onStatus?.({ phase: 'wait', attempt: attempt + 1, maxAttempts: STAGE2_MAX_RETRIES + 1, waitMs: wait, reason: stage2RetryReason(error, timedOut) }); } catch { /* 표시용 */ }
                 try { await abortableSleep(wait, signal); } catch { throw new DOMException('Aborted', 'AbortError'); }
                 continue;
             }
