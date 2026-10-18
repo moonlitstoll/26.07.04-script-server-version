@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { loadFromStorage } from '../useSettings';
 import { SPEECH_TAIL_PAD, TAIL_PAD_MIN, TAIL_PAD_MAX } from '../../utils/speechSegments';
-import { MODEL_IDS } from '../../constants/models';
+import { MODEL_IDS, modelIdsForStage } from '../../constants/models';
 
 // node 환경에는 localStorage가 없으므로 최소 스텁을 깐다.
 const store = new Map();
@@ -105,9 +105,9 @@ describe('저장값이 오염됐을 때 — 조용히 안전값으로', () => {
 
 describe('모델 선택 — 목록에서 빠진 모델이 남지 않게', () => {
     const STAGES = [
-        ['stage1Model', 'miniapp_stage1_model'],
-        ['stage2Model', 'miniapp_stage2_model'],
-        ['stage3Model', 'miniapp_stage3_model'],
+        ['stage1Model', 'miniapp_stage1_model', 'stage1'],
+        ['stage2Model', 'miniapp_stage2_model', 'stage2'],
+        ['stage3Model', 'miniapp_stage3_model', 'stage3'],
     ];
 
     // 기본값 자체가 목록 밖이면, 아래 '빠진 모델 → 기본값' 폴백이 목록 밖 값을 돌려준다.
@@ -126,13 +126,38 @@ describe('모델 선택 — 목록에서 빠진 모델이 남지 않게', () => 
         }
     });
 
-    it('목록에 있는 모델을 골라 두면 그대로 유지된다', () => {
-        for (const [field, key] of STAGES) {
-            for (const id of MODEL_IDS) {
+    it('그 단계 목록에 있는 모델을 골라 두면 그대로 유지된다', () => {
+        for (const [field, key, stage] of STAGES) {
+            for (const id of modelIdsForStage(stage)) {
                 store.set(key, id);
                 expect(loadFromStorage()[field]).toBe(id);
             }
         }
+    });
+
+    // Claude는 소리를 못 받아 2단계(분석)에만 있다. 1·3단계에 Claude가 저장돼 있으면(옛 저장값·조작) 기본 Gemini로 —
+    // 안 그러면 전사가 Claude ID를 들고 구글에 가서 404가 난다.
+    it('Claude는 2단계에만 유지되고 1·3단계에선 기본값으로 돌아간다', () => {
+        store.set('miniapp_stage2_model', 'claude-sonnet-5-5');
+        expect(loadFromStorage().stage2Model).toBe('claude-sonnet-5-5');
+        for (const key of ['miniapp_stage1_model', 'miniapp_stage3_model']) {
+            store.set(key, 'claude-sonnet-5-5');
+        }
+        const cfg = loadFromStorage();
+        expect(cfg.stage1Model).toBe('gemini-2.5-flash');
+        expect(cfg.stage3Model).toBe('gemini-2.5-flash');
+        expect(MODEL_IDS).toContain('claude-sonnet-5-5'); // 전체 목록엔 있어야 설정창이 이름을 그린다
+    });
+});
+
+describe('Claude 키', () => {
+    it('없으면 빈 문자열, 저장돼 있으면 그대로 (Gemini 키와 별개 칸)', () => {
+        expect(loadFromStorage().claudeApiKey).toBe('');
+        store.set('miniapp_claude_key', 'sk-ant-abc');
+        store.set('miniapp_gemini_key', 'AIza-xyz');
+        const cfg = loadFromStorage();
+        expect(cfg.claudeApiKey).toBe('sk-ant-abc');
+        expect(cfg.apiKey).toBe('AIza-xyz');
     });
 });
 

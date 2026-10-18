@@ -13,8 +13,10 @@ import { clipWindowForDetection } from "../utils/speechSegments";
 import { isLeakedFrom, formatStamp } from "../utils/sentenceEdit";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
-import { MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID, getThinkingLevel } from "../constants/models";
+import Anthropic from "@anthropic-ai/sdk";
+import { GEMINI_MODEL_IDS as VALID_MODELS, DEFAULT_MODEL_ID, getThinkingLevel, isClaudeModel } from "../constants/models";
 
+// 소리를 보내는 경로(전사·재전사·감지)의 모델 확정. Claude ID는 목록에 없어 기본 Gemini로 폴백된다.
 const resolveModel = (modelId) =>
     VALID_MODELS.find(m => m === modelId) || DEFAULT_MODEL_ID;
 
@@ -1244,13 +1246,49 @@ function abortableSleep(ms, signal) {
     });
 }
 
+// ─── Claude(2단계 분석 전용) ───
+// 지시문·마커 형식·파서는 Gemini와 완전히 같다(2026-10-17 비교 시험에서 같은 지시문으로 36회 실패 0).
+// 생각 단계는 끈다 — Sonnet 5.5는 thinking 'disabled'가 400이라 'between_tools'(도구 없는 요청에선 곧 끔).
+// temperature·topP는 보내지 않는다(기본값이 아닌 샘플링 값은 400). 재시도는 아래 공용 루프가 하므로 SDK 재시도는 0.
+const CLAUDE_STAGE2_MAX_TOKENS = 32000; // 25문장 출력 실측 3~9천 토큰. 비스트리밍은 timeout을 꼭 넘겨야 SDK가 '10분 초과' 오류를 안 낸다.
+async function claudeStage2Request(apiKey, modelId, prompt, { signal, timeout, itemCount, forceSplit }) {
+    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0 });
+    const msg = await client.messages.create({
+        model: modelId,
+        max_tokens: CLAUDE_STAGE2_MAX_TOKENS,
+        thinking: { type: 'between_tools' },
+        messages: [{ role: 'user', content: prompt }],
+    }, { signal, timeout });
+    const text = (msg.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    const u = msg.usage || {};
+    console.log(`[Stage2 tokens] ${modelId} in=${u.input_tokens} out=${u.output_tokens} cached=${u.cache_read_input_tokens ?? 0} think=0 (${itemCount}문장${forceSplit ? ', 강제분할' : ''})`);
+    // 파서는 Gemini의 finishReason 이름('STOP'/'MAX_TOKENS')을 본다 — Claude의 stop_reason을 같은 이름으로.
+    const finishReason = msg.stop_reason === 'end_turn' ? 'STOP' : String(msg.stop_reason || '').toUpperCase();
+    return { text, finishReason };
+}
+
+// Claude 실패를 사용자 문구로. 키·크레딧처럼 '다시 시도해도 같은' 사유는 설정으로 안내하고, Gemini로 몰래 바꾸지 않는다(사용자 결정).
+// 크레딧 소진은 400 invalid_request_error "Your credit balance is too low…"로 온다. 모르는 사유면 ''(호출부가 일반 문구).
+export function claudeFailureMessage(err) {
+    const status = Number(err?.status) || 0;
+    const msg = String(err?.message || err || '');
+    if (status === 401) return 'Claude 키가 잘못됐어요. 설정에서 Claude 키를 확인해 주세요.';
+    if (status === 400 && /credit/i.test(msg)) return 'Claude 크레딧이 다 떨어졌어요. 설정에서 2단계 모델을 Gemini로 바꿔 주세요.';
+    if (status === 403) return 'Claude 키에 권한이 없어요. 설정에서 Claude 키를 확인해 주세요.';
+    if (status === 429) return 'Claude 요청 한도에 걸렸어요. 잠시 후 다시 시도해 주세요.';
+    if (status >= 500) return 'Claude 서버가 붐벼요. 잠시 후 다시 시도해 주세요.';
+    return '';
+}
+
 // formatRetry: 응답은 왔는데 마커가 없어 실패한 문장(형식 실패)을 한 번 더 요청할지. 재요청 안에서는 false(무한 반복 방지).
+// apiKey: 고른 모델의 공급자 키 — Gemini 모델이면 Gemini 키, Claude 모델이면 Claude 키(호출부 runStage2가 고른다).
+// 실패 결과 { index, failed: true, errorMessage? } — errorMessage는 Claude의 키·크레딧처럼 사용자가 조치할 사유가 있을 때만.
 export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false, formatRetry = true) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const resolvedModel = modelId || DEFAULT_MODEL_ID;
-    const model = genAI.getGenerativeModel({
+    const useClaude = isClaudeModel(modelId);
+    const resolvedModel = useClaude ? modelId : (modelId || DEFAULT_MODEL_ID);
+    const model = useClaude ? null : new GoogleGenerativeAI(apiKey).getGenerativeModel({
         model: resolvedModel,
         generationConfig: {
             temperature: 0.3,
@@ -1300,15 +1338,23 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         const unlink2 = linkAbort(combo, timeoutCtrl.signal);
         const timer = setTimeout(() => timeoutCtrl.abort(), attemptTimeoutMs);
         try {
-            const result = await model.generateContent({
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-            }, { signal: combo.signal });
-            const response = await result.response;
-            // [토큰 회계] 실제 입력/출력/캐시적중/생각 토큰 로깅(읽기 전용, 동작 무영향).
-            //  cached>0 이면 암시적 캐싱(프리픽스 75% 할인) 적중 중, think>0 이면 Pro thinking 청구.
-            const u = response.usageMetadata;
-            if (u) console.log(`[Stage2 tokens] ${resolvedModel} in=${u.promptTokenCount} out=${u.candidatesTokenCount} cached=${u.cachedContentTokenCount ?? 0} think=${u.thoughtsTokenCount ?? 0} (${items.length}문장${forceSplit ? ', 강제분할' : ''})`);
-            const parsed = parseStage2Response(response.text(), items, { finishReason: response.candidates?.[0]?.finishReason });
+            let responseText, finishReason;
+            if (useClaude) {
+                ({ text: responseText, finishReason } = await claudeStage2Request(apiKey, resolvedModel, prompt,
+                    { signal: combo.signal, timeout: attemptTimeoutMs, itemCount: items.length, forceSplit }));
+            } else {
+                const result = await model.generateContent({
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                }, { signal: combo.signal });
+                const response = await result.response;
+                // [토큰 회계] 실제 입력/출력/캐시적중/생각 토큰 로깅(읽기 전용, 동작 무영향).
+                //  cached>0 이면 암시적 캐싱(프리픽스 75% 할인) 적중 중, think>0 이면 Pro thinking 청구.
+                const u = response.usageMetadata;
+                if (u) console.log(`[Stage2 tokens] ${resolvedModel} in=${u.promptTokenCount} out=${u.candidatesTokenCount} cached=${u.cachedContentTokenCount ?? 0} think=${u.thoughtsTokenCount ?? 0} (${items.length}문장${forceSplit ? ', 강제분할' : ''})`);
+                responseText = response.text();
+                finishReason = response.candidates?.[0]?.finishReason;
+            }
+            const parsed = parseStage2Response(responseText, items, { finishReason });
             // [형식 실패 재요청] 응답은 정상으로 왔는데 일부 문장의 마커가 없어 failed가 된 경우(START 누락,
             // 토큰 상한에 잘린 마지막 블록 등). 예전엔 오류가 아니라서 재시도 없이 그대로 '분석 실패' 카드가 됐다.
             // 실패한 문장만 같은 문맥으로 한 번 더 요청해 채운다(재요청 안에서는 다시 하지 않음).
@@ -1331,7 +1377,7 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
                 continue;
             }
             console.error(`[Stage 2] Batch analysis failed: `, error);
-            return items.map(item => ({ index: item.index, failed: true }));
+            return failedResults(items, useClaude ? claudeFailureMessage(error) : '');
         } finally {
             clearTimeout(timer);
             unlink1();
@@ -1339,8 +1385,11 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
         }
     }
     console.error(`[Stage 2] Batch analysis failed after retries: `, lastError);
-    return items.map(item => ({ index: item.index, failed: true }));
+    return failedResults(items, useClaude ? claudeFailureMessage(lastError) : '');
 }
+
+const failedResults = (items, errorMessage) =>
+    items.map(item => ({ index: item.index, failed: true, ...(errorMessage ? { errorMessage } : {}) }));
 
 // ─────────────────────────────────────────────────────────────
 // [대사 끝 시각 감지] Speech-End Detection — '대사만 재생' 모드의 데이터 공급 패스.

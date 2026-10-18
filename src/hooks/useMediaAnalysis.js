@@ -7,7 +7,7 @@ import { saveStatusOf } from '../utils/cacheStatus';
 import { touchRecent } from '../utils/recentOpen';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
-import { getStage2Concurrency } from '../constants/models';
+import { getStage2Concurrency, isClaudeModel } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd } from '../utils/speechSegments';
 import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds } from '../utils/speechEndMerge';
@@ -43,6 +43,7 @@ export const useMediaAnalysis = ({
     resetPlayerState,
     refreshCacheKeys,
     apiKey,
+    claudeApiKey, // 2단계 모델이 Claude일 때만 쓰는 키(없으면 분석을 시작하지 않고 안내)
     stage1Model,
     stage2Model,
     stage3Model, // 재전사/재분석 전용 모델
@@ -203,6 +204,25 @@ export const useMediaAnalysis = ({
 
         if (pendingIndices.length === 0) return { total: 0, success: 0, failedIndices: [] };
 
+        // [Claude 2단계] 호출부는 늘 Gemini 키를 넘긴다(1단계가 Gemini라 항상 있음). 고른 모델이 Claude면 여기서 Claude 키로
+        // 바꿔 끼운다 — 키가 없으면 요청을 하나도 보내지 않고 실패 카드+안내(Gemini로 몰래 바꾸지 않는다, 사용자 결정 Q5).
+        const useClaude = isClaudeModel(currentModelId);
+        if (useClaude && !claudeApiKey) {
+            const failed = JSON.parse(JSON.stringify(transcript));
+            pendingIndices.forEach(idx => { failed[idx] = { ...failed[idx], analysisFailed: true }; });
+            updateGlobalState(failed);
+            persistCache(fileInfo, failed, 'partial');
+            if (showToast) showToast({ message: '2단계 모델이 Claude인데 Claude 키가 없어요. 설정에서 키를 넣거나 2단계를 Gemini로 바꿔 주세요.', type: 'error', duration: 10000 });
+            return { total: pendingIndices.length, success: 0, failedIndices: pendingIndices, aborted: false, data: failed };
+        }
+        const keyForModel = useClaude ? claudeApiKey : currentApiKey;
+        // 묶음이 사유를 달고 실패하면(Claude 키·크레딧) 마지막 사유를 안내 문구에 쓴다
+        let failReason = '';
+        const noteFailReason = (results) => {
+            const r = (results || []).find(x => x?.failed && x.errorMessage);
+            if (r) failReason = r.errorMessage;
+        };
+
         // [진행 표시] 백그라운드 분석 시작 — 상단 배너용 (전체 스피너가 없는 재분석/이어서분석에서 노출)
         const myRun = ++stage2RunIdRef.current;
         setStage2Progress({ fileId, done: 0, total: pendingIndices.length });
@@ -241,7 +261,8 @@ export const useMediaAnalysis = ({
                 .slice(0, 40) // 폭주 방지 상한
                 .map(idx => ({ index: idx, text: workingData[idx].text }));
             try {
-                const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, contextItems);
+                const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, contextItems);
+                noteFailReason(results);
                 if (results && !signal.aborted) {
                     let groupSuccess = 0;
                     results.forEach(res => {
@@ -303,7 +324,7 @@ export const useMediaAnalysis = ({
                 const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
                     // 문맥 생략(속도) + forceSplit=true 로 강제 분할 요청
-                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, [], true);
+                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], true);
                     if (results && !signal.aborted) {
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
@@ -355,7 +376,7 @@ export const useMediaAnalysis = ({
             const processMissBatch = async (idxGroup) => {
                 const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
-                    const results = await analyzeBatchSentences(batchItems, currentApiKey, currentModelId, signal, [], false);
+                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], false);
                     if (results && !signal.aborted) {
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
@@ -413,16 +434,21 @@ export const useMediaAnalysis = ({
             console.error('[Stage 2] All batches failed.');
             // 원인은 오류 응답만이 아니다 — 응답 형식이 깨져도(마커 없음) 여기로 온다. 예전 문구 'API 오류… 모델을 확인'은
             // 그런 경우 엉뚱한 안내였다(점검 #20). 사실만 알리고 다시 시도 버튼을 준다.
+            // Claude 키·크레딧처럼 조치할 사유가 있으면 그 문구를 앞세운다(다시 시도는 재분석 모델=3단계로 돌아 Gemini면 성공할 수 있다)
             if (showToast) showToast({
-                message: `${failedIndices.length || pendingIndices.length}개 문장을 분석하지 못했어요. 잠시 후 다시 시도해 주세요.`,
+                message: failReason
+                    ? `${failReason} (${failedIndices.length || pendingIndices.length}개 문장 분석 안 됨)`
+                    : `${failedIndices.length || pendingIndices.length}개 문장을 분석하지 못했어요. 잠시 후 다시 시도해 주세요.`,
                 type: 'error',
                 ...(failedIndices.length ? { action: { label: '다시 시도', onClick: () => reanalyzeSentences(fileId, failedIndices) } } : {}),
-                duration: 8000,
+                duration: failReason ? 12000 : 8000,
             });
         } else if (!signal.aborted && reportPartialFail && failedIndices.length > 0 && totalSuccessCount > 0) {
             // [부분 실패 알림] 일부 배치만 실패 → 조용히 두지 말고 개수 표시 + 재시도 제공
             if (showToast) showToast({
-                message: `${failedIndices.length}개 문장 분석 실패. 나머지는 완료됐어요.`,
+                message: failReason
+                    ? `${failReason} (${failedIndices.length}개 문장 분석 안 됨, 나머지는 완료)`
+                    : `${failedIndices.length}개 문장 분석 실패. 나머지는 완료됐어요.`,
                 type: 'error',
                 action: { label: '실패분 재시도', onClick: () => reanalyzeSentences(fileId, failedIndices) },
                 duration: 8000,
@@ -498,6 +524,8 @@ export const useMediaAnalysis = ({
     //  - syncCloud: 원본 영상 업로드 + 대본 저장 (다른 기기 열람용)
     const runFullAnalysis = async (fileId, sourceFile, { saveMedia = false, syncCloud = false, awaitStage2 = false } = {}) => {
         if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
+        // 2단계가 Claude인데 키가 없으면 전사(비용)부터 쓰지 말고 여기서 멈춘다
+        if (isClaudeModel(stage2Model) && !claudeApiKey) throw new Error("2단계 모델이 Claude인데 Claude 키가 없어요. 설정에서 Claude 키를 넣거나 2단계를 Gemini로 바꿔 주세요.");
 
         // 전사(분석)용으로만 파일을 메모리에 적재 시도 (클라우드/온디맨드 파일 대응).
         // 재생 URL과 state의 원본 file은 그대로 유지 → 재생은 원본으로 정상 동작. 실패 시 원본 폴백.

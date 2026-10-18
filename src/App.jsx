@@ -415,7 +415,7 @@ const App = () => {
   const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
-    apiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
+    apiKey, claudeApiKey: config.claudeApiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
     showToast,
     onTrashChange: () => setTrashNonce(n => n + 1),
     onRevealSentence: (fileId, idx) => revealSentenceRef.current && revealSentenceRef.current(fileId, idx),

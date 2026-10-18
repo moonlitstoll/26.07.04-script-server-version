@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     Settings, X, Check, Info, Lock, HardDrive, Trash2
 } from 'lucide-react';
-import { MODELS } from '../constants/models';
+import { MODELS, modelsForStage, isClaudeModel } from '../constants/models';
 import { SPEECH_TAIL_PAD, TAIL_PAD_MIN, TAIL_PAD_MAX } from '../utils/speechSegments';
 import { mediaStore } from '../utils/MediaStore';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
@@ -67,11 +67,12 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
         refreshUsage();
     };
 
-    const renderModelSelector = (label, colorClass, field) => (
+    // stage: 'stage1'|'stage2'|'stage3' — 단계마다 고를 수 있는 모델이 다르다(Claude는 2단계 분석만, models.js의 stages)
+    const renderModelSelector = (label, colorClass, field, stage) => (
         <div className="space-y-2">
             <label className={`text-sm font-bold ${colorClass}`}>{label}</label>
             <div className="grid grid-cols-1 gap-1.5">
-                {MODELS.map(m => (
+                {modelsForStage(stage).map(m => (
                     <button
                         key={m.id}
                         onClick={() => updateField(field, m.id)}
@@ -91,6 +92,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                     m.badge === '대량처리' ? 'bg-amber-100 text-amber-600' :
                                     m.badge === '최신' ? 'bg-purple-100 text-purple-600' :
                                     m.badge === '저렴' ? 'bg-sky-100 text-sky-600' :
+                                    m.badge === '크레딧' ? 'bg-orange-100 text-orange-600' :
                                     'bg-slate-100 text-slate-500'
                                 }`}>{m.badge}</span>
                             )}
@@ -199,7 +201,8 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         {renderModelSelector(
                             'Stage 1 — 음성 전사',
                             'text-indigo-700',
-                            'stage1Model'
+                            'stage1Model',
+                            'stage1'
                         )}
                     </div>
 
@@ -208,7 +211,32 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         {renderModelSelector(
                             'Stage 2 — 번역/분석',
                             'text-purple-700',
-                            'stage2Model'
+                            'stage2Model',
+                            'stage2'
+                        )}
+                        {/* Claude를 고르면 그 자리에 Claude 키 칸 — Gemini 키처럼 이 기기 브라우저에만 저장된다 */}
+                        {isClaudeModel(config.stage2Model) && (
+                            <div className="space-y-2 pt-1">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-bold text-slate-700">Claude API Key</label>
+                                    <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener" className="text-xs text-indigo-600 hover:underline flex items-center gap-1">
+                                        Get Key <X size={10} className="rotate-45" />
+                                    </a>
+                                </div>
+                                <div className="relative group">
+                                    <input
+                                        type="password"
+                                        value={config.claudeApiKey || ''}
+                                        onChange={(e) => updateField('claudeApiKey', e.target.value.trim())}
+                                        placeholder="sk-ant-..."
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
+                                    />
+                                    <Check className={`absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 transition-all ${(config.claudeApiKey || '').startsWith('sk-ant-') ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} size={18} />
+                                </div>
+                                <p className="text-[10px] text-slate-400 leading-relaxed">
+                                    새 영상의 번역·풀이(2단계)만 Claude가 합니다. 전사·재전사·재분석·대사 감지는 그대로 Gemini. 크레딧이 떨어지면 분석이 멈추고 안내가 뜹니다(Gemini로 자동 전환하지 않음). 키는 이 기기에만 저장됩니다.
+                                </p>
+                            </div>
                         )}
                     </div>
 
@@ -217,7 +245,8 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         {renderModelSelector(
                             'Stage 3 — 재전사 · 재분석',
                             'text-rose-700',
-                            'stage3Model'
+                            'stage3Model',
+                            'stage3'
                         )}
                         <p className="text-[11px] text-slate-400 leading-relaxed px-1">
                             구간 선택 후 <span className="font-bold text-slate-500">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 기본은 2.5 Flash이고, 그래도 안 고쳐지는 문장에만 2.5 Pro를 쓰면 요금을 아낄 수 있습니다.

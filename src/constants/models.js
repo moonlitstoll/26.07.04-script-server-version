@@ -1,9 +1,13 @@
-// 지원 Gemini 모델의 단일 출처(Single Source of Truth).
+// 지원 모델의 단일 출처(Single Source of Truth) — Gemini + Claude.
 // 화면 표시(SettingsModal), Stage 2 동시성(useMediaAnalysis),
-// 유효성 검사(gemini.js)가 모두 이 목록을 참조한다. 모델 추가/변경 시 여기만 수정.
+// 유효성 검사(gemini.js·useSettings)가 모두 이 목록을 참조한다. 모델 추가/변경 시 여기만 수정.
 //
 // 필드:
-//  - id: Gemini API 모델 ID
+//  - id: API 모델 ID (Gemini 또는 Claude)
+//  - provider: 'gemini'(기본) | 'claude'. Claude는 소리를 못 받아(2026-10-17 실측: audio/document/image 블록·
+//    파일 API 참조 전부 400, 코드 실행 상자엔 받아쓰기 프로그램 없음+인터넷 차단) 글자만 다루는 2단계 분석 전용.
+//  - stages: 이 모델을 고를 수 있는 단계 목록. 없으면 전 단계(stage1·stage2·stage3). Claude는 ['stage2']만 —
+//    3단계(재전사·재분석)는 한 칸이 소리(재전사)와 글자(재분석)를 겸해서 Gemini로 둔다.
 //  - name: 셀렉터에 표시되는 전체 이름
 //  - shortName: 비교표에 표시되는 짧은 이름
 //  - badge: 셀렉터 뱃지 라벨 ('' 이면 없음)
@@ -57,10 +61,38 @@ export const MODELS = [
         thinkingLevel: 'minimal', // 실측: minimal에서 생각 토큰 0, 400 오류 없음
         info: { s1: 'A', s2: 'A', rpm: '?', rpd: '?', desc: '시작 시각 가장 정확. 전사 요금 2.5 Flash의 약 절반' },
     },
+    {
+        // [2026-10-17 비교 시험] Circle K 25문장 + Gara 25문장 × 3회, 지시문 동일: 실패 0, 빠진 단어 0, 뭉침 0,
+        // 풀이 누락 0, 슬랭(cành=천 동) 정답+⚡. Haiku는 뭉침 47/150·슬랭 오역, Opus는 2.4배 비싸고 전사의심만
+        // 더 많음, Fable은 6배 비싸고 뭉침 10 → Sonnet 하나만 넣었다. 영상 1개(165문장) 약 $0.47(Flash $0.06).
+        // 생각 단계는 끈다(thinking between_tools — 'disabled'는 400). temperature 등 샘플링 값은 보내지 않는다
+        // (기본값이 아니면 400). 요금은 매달 받는 Max 요금제 API 크레딧에서 나간다.
+        id: 'claude-sonnet-5-5',
+        provider: 'claude',
+        stages: ['stage2'],
+        name: 'Claude Sonnet 5.5',
+        shortName: 'Sonnet 5.5',
+        badge: '크레딧',
+        notice: '분석만 · 2.5 Flash의 8배',
+        stage2Concurrency: 2, // 새 계정은 분당 요청 한도가 낮을 수 있어 Gemini(3)보다 하나 적게
+        info: { s1: '-', s2: 'S', rpm: '50', rpd: '-', desc: '2단계 분석 전용. 단어 빠짐·뭉침 0(시험). 전사·재전사 불가' },
+    },
 ];
 
-// gemini.js 유효성 검사용 ID 목록
+// 유효성 검사용 ID 목록(전체). 단계별 목록은 modelsForStage / modelIdsForStage.
 export const MODEL_IDS = MODELS.map(m => m.id);
+
+export const providerOf = (modelId) => MODELS.find(m => m.id === modelId)?.provider || 'gemini';
+export const isClaudeModel = (modelId) => providerOf(modelId) === 'claude';
+
+// gemini.js가 Gemini API에 넘길 수 있는 ID만 — Claude ID가 전사 경로로 새어 들면 404가 난다
+export const GEMINI_MODEL_IDS = MODELS.filter(m => m.provider !== 'claude').map(m => m.id);
+
+// 단계('stage1'|'stage2'|'stage3')에서 고를 수 있는 모델 목록. stages가 없는 모델은 전 단계.
+export function modelsForStage(stage) {
+    return MODELS.filter(m => !m.stages || m.stages.includes(stage));
+}
+export const modelIdsForStage = (stage) => modelsForStage(stage).map(m => m.id);
 
 // 잘못된/미지정 모델일 때의 기본값
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash';

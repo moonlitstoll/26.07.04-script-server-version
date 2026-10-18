@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import { clampLoopGroupSize } from '../utils/loopGroups';
 import { SPEECH_TAIL_PAD, clampTailPad } from '../utils/speechSegments';
-import { MODEL_IDS } from '../constants/models';
+import { modelIdsForStage } from '../constants/models';
 
 const DEFAULTS = {
     apiKey: '',
+    claudeApiKey: '', // Claude 키(2단계에서 Claude 모델을 골랐을 때만 쓴다). Gemini 키처럼 이 기기 브라우저에만 저장.
     // 전사(+대사 감지). 2026-09 반복 실측에서 3회 모두 안정(문장 분리·시각). 3.6 Flash를 잠시 기본값으로
     // 했다가 문장 뭉침·없는 말 지어내기가 반복돼 되돌렸다. 한 번 돌린 결과로 기본값을 바꾸지 말 것.
     stage1Model: 'gemini-2.5-flash',
@@ -39,6 +40,7 @@ const DIFFICULTIES = ['easy', 'mid', 'hard', 'recall'];
 
 const STORAGE_KEYS = {
     apiKey: 'miniapp_gemini_key',
+    claudeApiKey: 'miniapp_claude_key',
     stage1Model: 'miniapp_stage1_model',
     stage2Model: 'miniapp_stage2_model',
     stage3Model: 'miniapp_stage3_model',
@@ -65,14 +67,16 @@ const STORAGE_KEYS = {
 // 앱 코드에서는 useSettings 초기화에만 쓴다.
 // 목록에서 빠진 모델(예: 서비스 종료된 gemini-2-flash)이 저장돼 있으면 기본값으로.
 // 안 그러면 설정창에 아무 모델도 선택 안 된 채로 보인다(호출은 gemini.js가 기본값으로 폴백).
-const validModel = (saved, fallback) => (MODEL_IDS.includes(saved) ? saved : fallback);
+// 단계별로 목록이 다르다 — Claude는 2단계에만 있어서, 1·3단계에 Claude가 저장돼 있으면(옛 저장값·조작) 기본값으로.
+const validModel = (saved, fallback, stage) => (modelIdsForStage(stage).includes(saved) ? saved : fallback);
 
 export function loadFromStorage() {
     return {
         apiKey: localStorage.getItem(STORAGE_KEYS.apiKey) || import.meta.env.VITE_GEMINI_API_KEY || DEFAULTS.apiKey,
-        stage1Model: validModel(localStorage.getItem(STORAGE_KEYS.stage1Model), DEFAULTS.stage1Model),
-        stage2Model: validModel(localStorage.getItem(STORAGE_KEYS.stage2Model), DEFAULTS.stage2Model),
-        stage3Model: validModel(localStorage.getItem(STORAGE_KEYS.stage3Model), DEFAULTS.stage3Model),
+        claudeApiKey: localStorage.getItem(STORAGE_KEYS.claudeApiKey) || DEFAULTS.claudeApiKey,
+        stage1Model: validModel(localStorage.getItem(STORAGE_KEYS.stage1Model), DEFAULTS.stage1Model, 'stage1'),
+        stage2Model: validModel(localStorage.getItem(STORAGE_KEYS.stage2Model), DEFAULTS.stage2Model, 'stage2'),
+        stage3Model: validModel(localStorage.getItem(STORAGE_KEYS.stage3Model), DEFAULTS.stage3Model, 'stage3'),
         // parseFloat(...) || DEFAULT 패턴은 저장값 0을 falsy로 삼켜 기본값으로 되돌린다.
         // Number.isFinite로 검사해 유효한 0(예: bufferTime 0 = 여유 없이 시작)을 존중한다.
         bufferTime: (() => { const n = parseFloat(localStorage.getItem(STORAGE_KEYS.bufferTime)); return Number.isFinite(n) ? n : DEFAULTS.bufferTime; })(),
