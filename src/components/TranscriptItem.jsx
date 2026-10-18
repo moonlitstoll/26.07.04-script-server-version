@@ -250,7 +250,7 @@ const TranscriptItem = memo(({
                             {onRetryAnalysis && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onRetryAnalysis(idx); }}
-                                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 transition-colors"
+                                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 transition-colors"
                                 >
                                     <RotateCcw size={13} /> 다시 시도
                                 </button>

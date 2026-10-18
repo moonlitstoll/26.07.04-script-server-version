@@ -926,7 +926,7 @@ const App = () => {
           <span className="flex-1 min-w-0 truncate font-medium">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
           <button
             onClick={confirmReanalyzeAll}
-            className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold transition-colors"
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 font-bold transition-colors"
           >
             전체 재분석
           </button>
@@ -1035,7 +1035,7 @@ const App = () => {
                         <button
                           onClick={toggleMistakeOnly}
                           aria-pressed={mistakeOnly}
-                          className={`${CHIP} ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800'}`}
+                          className={`${CHIP} ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500 dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-500' : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800'}`}
                         >
                           <AlertTriangle className={CHIP_ICON} /> 오답 {wrongIndices.length}
                         </button>

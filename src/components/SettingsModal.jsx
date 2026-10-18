@@ -87,7 +87,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
                             <span className="text-sm whitespace-nowrap">{m.name}</span>
                             {m.badge && (
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight whitespace-nowrap ${
+                                <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold whitespace-nowrap ${
                                     m.badge === '추천' ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400' :
                                     m.badge === '최고품질' ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400' :
                                     m.badge === '대량처리' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400' :
@@ -585,7 +585,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                     type="button"
                                     onClick={handleClearVideoCache}
                                     disabled={clearing}
-                                    className="flex-[2] px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold rounded-xl transition-all"
+                                    className="flex-[2] px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 font-bold rounded-xl transition-all"
                                 >
                                     {clearing ? '비우는 중...' : '정말 비우기 (되돌릴 수 없음)'}
                                 </button>

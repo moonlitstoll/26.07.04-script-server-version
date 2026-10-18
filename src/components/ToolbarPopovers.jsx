@@ -73,7 +73,7 @@ export const LoopPopover = ({ anchor, current, onPick, onClose }) => (
           key={v}
           onClick={() => { onPick(v); onClose(); }}
           aria-label={`묶음 ${v}문장`}
-          className={`w-10 h-10 rounded-lg text-[13px] font-black tabular-nums transition-colors ${v === current ? 'bg-amber-500 text-white' : 'text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
+          className={`w-10 h-10 rounded-lg text-[13px] font-black tabular-nums transition-colors ${v === current ? 'bg-amber-500 text-white dark:bg-amber-500/30 dark:text-amber-100 dark:ring-1 dark:ring-amber-500' : 'text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
         >
           {v}
         </button>

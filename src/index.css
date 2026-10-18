@@ -22,6 +22,14 @@
     }
 }
 
+/* 기기의 '움직임 줄이기' 설정을 따른다 — 깜박임(pulse)·튀기(bounce)는 멈추고,
+   돌아가는 스피너(spin)는 '진행 중'을 알리는 유일한 표시라 그대로 둔다. */
+@media (prefers-reduced-motion: reduce) {
+    .animate-pulse, .animate-bounce {
+        animation: none;
+    }
+}
+
 /* Custom Scrollbar for Webkit */
 ::-webkit-scrollbar {
     width: 8px;

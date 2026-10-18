@@ -315,7 +315,7 @@ const PlayerControls = ({
                                 {/* 묶음 수 배지: absolute라 버튼의 min-content 폭에 1px도 기여하지 않는다.
                                     (하단 바는 폭 여유가 9px뿐이라 인라인으로 넣으면 반복 버튼이 잘린다) */}
                                 {loopGroupSize > 1 && (
-                                    <span className="pointer-events-none absolute -top-1 -right-1 min-w-[13px] h-[13px] px-[2px] rounded-full bg-amber-500 text-white text-[9px] font-black leading-[13px] text-center shadow-sm">
+                                    <span className="pointer-events-none absolute -top-1 -right-1 min-w-[13px] h-[13px] px-[2px] rounded-full bg-amber-500 text-white dark:bg-amber-600 dark:text-amber-50 text-[9px] font-black leading-[13px] text-center shadow-sm">
                                         {loopGroupSize}
                                     </span>
                                 )}
