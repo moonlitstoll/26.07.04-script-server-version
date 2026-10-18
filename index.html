@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8fafc" />
     <title>media-analyzer</title>
+    <script>
+      // 테마를 React보다 먼저 <html>에 붙인다 — 다크로 쓰는 사람에게 첫 화면이 희게 번쩍이지 않게.
+      // 규칙은 src/utils/theme.js(resolveTheme)와 같다: 저장값 'dark' | 'light' | 그 외는 기기 설정.
+      (function () {
+        try {
+          var p = localStorage.getItem('miniapp_theme');
+          var dark = p === 'dark' || (p !== 'light' && !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches));
+          var el = document.documentElement;
+          if (dark) el.classList.add('dark');
+          el.style.colorScheme = dark ? 'dark' : 'light';
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', dark ? '#0f172a' : '#f8fafc');
+        } catch (e) { /* 저장소 접근 불가 — 라이트로 시작 */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

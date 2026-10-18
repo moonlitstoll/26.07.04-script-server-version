@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { clampLoopGroupSize } from '../utils/loopGroups';
 import { SPEECH_TAIL_PAD, clampTailPad } from '../utils/speechSegments';
 import { modelIdsForStage } from '../constants/models';
+import { normalizeThemePref, DEFAULT_THEME } from '../utils/theme';
 
 const DEFAULTS = {
     apiKey: '',
@@ -31,6 +32,8 @@ const DEFAULTS = {
     difficulty: 'easy',   // 가리기 난이도. 학습자의 실력 수준이라 안정적 선호값이다.
     showAnalysis: true,   // 번역/분석 표시. 끈 채로 열려도 원문은 보이므로 혼란이 없다.
     showBreakdown: false, // 분석의 괄호 속 요소 풀이 펼침. 기본은 접힘 — 휴대폰에서 문장 하나가 한 화면에 들어오게(2026-09).
+    // 화면 테마: 'system'(기기 설정 따라감, 기본) | 'light' | 'dark'. 설정창에서만 바꾼다(툴바 버튼 없음).
+    theme: DEFAULT_THEME,
     drillRound: 0,        // 빈칸 섞기 시드. 화면에 드러나지 않지만, 리셋되면 '새 문제'를
                           // 다시 눌러야 하고 그 버튼이 오답 기록까지 지운다(강제 교환).
 };
@@ -61,6 +64,7 @@ const STORAGE_KEYS = {
     showAnalysis: 'miniapp_show_analysis',
     showBreakdown: 'miniapp_show_breakdown',
     drillRound: 'miniapp_drill_round',
+    theme: 'miniapp_theme',
 };
 
 // export: 저장값 파싱 규칙(기본값·화이트리스트·범위)을 테스트가 직접 검증하기 위함.
@@ -115,6 +119,8 @@ export function loadFromStorage() {
             ? localStorage.getItem(STORAGE_KEYS.showAnalysis) === 'true'
             : DEFAULTS.showAnalysis,
         showBreakdown: localStorage.getItem(STORAGE_KEYS.showBreakdown) === 'true',
+        // 세 값 외의 오염값은 'system'. index.html의 인라인 스크립트도 같은 키를 읽는다(첫 화면 번쩍임 방지).
+        theme: normalizeThemePref(localStorage.getItem(STORAGE_KEYS.theme)),
         drillRound: (() => {
             const n = parseInt(localStorage.getItem(STORAGE_KEYS.drillRound), 10);
             return Number.isFinite(n) && n >= 0 ? n : DEFAULTS.drillRound;

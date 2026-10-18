@@ -34,7 +34,7 @@ const LoopPresetPopover = ({ anchor, current, onPick, onClose }) => {
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
       <div
-        className="fixed z-[61] -translate-x-1/2 flex flex-wrap justify-center items-center gap-1 p-1.5 max-w-[calc(100vw-16px)] rounded-xl bg-white border border-slate-200 shadow-lg"
+        className="fixed z-[61] -translate-x-1/2 flex flex-wrap justify-center items-center gap-1 p-1.5 max-w-[calc(100vw-16px)] rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg"
         style={{ left, top: anchor.y + 6 }}
       >
         {LOOP_PRESETS.map((v) => (
@@ -42,7 +42,7 @@ const LoopPresetPopover = ({ anchor, current, onPick, onClose }) => {
             key={v}
             onClick={() => { onPick(v); onClose(); }}
             aria-label={`묶음 ${v}문장`}
-            className={`w-[30px] h-[30px] rounded-lg text-[13px] font-black tabular-nums transition-colors ${v === current ? 'bg-amber-500 text-white' : 'text-slate-600 bg-slate-50 hover:bg-amber-50'}`}
+            className={`w-[30px] h-[30px] rounded-lg text-[13px] font-black tabular-nums transition-colors ${v === current ? 'bg-amber-500 text-white' : 'text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
           >
             {v}
           </button>
@@ -53,6 +53,7 @@ const LoopPresetPopover = ({ anchor, current, onPick, onClose }) => {
   );
 };
 import { useSettings } from './hooks/useSettings';
+import { useTheme } from './hooks/useTheme';
 import { useMediaAnalysis } from './hooks/useMediaAnalysis';
 import { useMediaCache } from './hooks/useMediaCache';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
@@ -85,6 +86,8 @@ import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
 
 const App = () => {
   const { config, updateField } = useSettings();
+  // 라이트/다크: 설정값을 <html>의 dark 클래스로 반영(시스템 모드면 기기 설정 변화도 따라감)
+  useTheme(config.theme);
 
   // 기기 간 동기화용 비밀 암호
   const [passphrase, setPassphraseState] = useState(() => getPassphrase());
@@ -789,7 +792,7 @@ const App = () => {
         />
       )}
       {cloudDownload && (
-        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-5 py-3 bg-slate-900/90 text-white rounded-2xl shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-5 py-3 bg-slate-900/90 dark:bg-slate-700/95 text-white rounded-2xl shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           <span className="text-sm font-bold whitespace-nowrap">
             영상 받는 중{cloudDownload.percent != null ? ` ${cloudDownload.percent}%` : '...'}
@@ -863,12 +866,12 @@ const App = () => {
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className="flex flex-col h-screen bg-[#F8FAFC] text-slate-800 overflow-hidden font-sans animate-in fade-in duration-700 relative"
+      className="flex flex-col h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-800 dark:text-slate-200 overflow-hidden font-sans animate-in fade-in duration-700 relative"
     >
       {/* Drag Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-indigo-500/10 backdrop-blur-sm flex items-center justify-center p-10 border-4 border-indigo-500 border-dashed m-4 rounded-3xl pointer-events-none">
-          <h2 className="text-4xl font-bold text-indigo-600 animate-bounce">Drop to Add Files</h2>
+          <h2 className="text-4xl font-bold text-indigo-600 dark:text-indigo-400 animate-bounce">Drop to Add Files</h2>
         </div>
       )}
 
@@ -899,7 +902,7 @@ const App = () => {
 
       {/* [캐시 버저닝] 옛 규칙으로 분석된 파일 → 최신 규칙으로 재분석 권장 배너 */}
       {isStaleAnalysis && contentReady && (
-        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs sm:text-sm">
+        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
           <span className="flex-1 min-w-0 truncate font-medium">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
           <button
@@ -913,8 +916,8 @@ const App = () => {
 
       {/* [재분석 진행] 전체 스피너가 없는 백그라운드 분석(재분석·이어서분석) 중 상단에 진행률 표시 */}
       {stage2Progress && stage2Progress.fileId === activeFileId && contentReady && (
-        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs sm:text-sm">
-          <div className="w-3.5 h-3.5 shrink-0 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
+        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm">
+          <div className="w-3.5 h-3.5 shrink-0 border-2 border-emerald-300 dark:border-emerald-700 border-t-emerald-600 rounded-full animate-spin" />
           <span className="flex-1 min-w-0 truncate font-medium">
             분석 중… {stage2Progress.done}/{stage2Progress.total}
           </span>
@@ -927,7 +930,7 @@ const App = () => {
           <div className="flex flex-col h-full">
             {/* 구간 다시 전사 툴바 */}
             {contentReady && !activeFile.error && transcriptData.length > 0 && (
-              <div className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+              <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto px-3 md:px-6 py-1 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
                     /* 줄바꿈 금지(한 줄 고정) + 칩은 vw 비례 축소. 기본 칩 4개는 240~430px 전 구간에서
@@ -935,14 +938,14 @@ const App = () => {
                     <div className="flex items-center gap-[min(1.2vw,6px)] overflow-x-auto min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <button
                         onClick={() => setSelectMode(true)}
-                        className={`${CHIP} text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100`}
+                        className={`${CHIP} text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border-indigo-100 dark:border-indigo-900`}
                       >
                         <Wand2 className={CHIP_ICON} /> 재전사/분석
                       </button>
                       <button
                         onClick={() => setShowTrash(true)}
                         title="삭제한 문장 복구 (휴지통)"
-                        className={`${CHIP} text-slate-500 bg-white hover:bg-slate-50 border-slate-200`}
+                        className={`${CHIP} text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
                       >
                         <Trash2 className={CHIP_ICON} /> 휴지통{trashItems.length > 0 ? ` (${trashItems.length})` : ''}
                       </button>
@@ -950,19 +953,19 @@ const App = () => {
                       {/* 🙈 가리기 학습 (클로즈) */}
                       <button
                         onClick={() => setDrillMode(d => !d)}
-                        className={`${CHIP} ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-100'}`}
+                        className={`${CHIP} ${drillMode ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border-indigo-100 dark:border-indigo-900'}`}
                       >
                         <EyeOff className={CHIP_ICON} /> 가리기
                       </button>
 
                       {drillMode && (
                         <>
-                          <div className="shrink-0 inline-flex rounded-lg border border-slate-200 overflow-hidden">
+                          <div className="shrink-0 inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                             {[['easy', '초급'], ['mid', '중급'], ['hard', '고급'], ['recall', '회상']].map(([v, label]) => (
                               <button
                                 key={v}
                                 onClick={() => updateField('difficulty', v)}
-                                className={`whitespace-nowrap px-[min(1.8vw,8px)] py-0.5 text-[min(2.9vw,12px)] font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                                className={`whitespace-nowrap px-[min(1.8vw,8px)] py-0.5 text-[min(2.9vw,12px)] font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                               >
                                 {label}
                               </button>
@@ -971,7 +974,7 @@ const App = () => {
                           <button
                             onClick={() => { updateField('drillRound', r => r + 1); clearLearnProgress(); }}
                             title="빈칸을 새로 섞고 이 영상의 오답 표시를 초기화합니다"
-                            className={`${CHIP} text-slate-500 bg-white hover:bg-slate-50 border-slate-200`}
+                            className={`${CHIP} text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
                           >
                             <Shuffle className={CHIP_ICON} /> 새 문제
                           </button>
@@ -984,18 +987,18 @@ const App = () => {
                           ? '오답 복습 중에는 한 문장씩 반복합니다 (숨긴 문장 소리가 새지 않도록)'
                           : '반복을 켰을 때 한 번에 반복할 문장 수'}
                         className={`shrink-0 whitespace-nowrap inline-flex items-center gap-[min(0.5vw,2px)] rounded-lg border px-[min(1.4vw,6px)] py-0.5 transition-colors ${mistakeOnly
-                          ? 'bg-slate-50 border-slate-200 opacity-50'
+                          ? 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 opacity-50'
                           : effLoopN > 1
-                            ? 'bg-amber-50 border-amber-200'
-                            : 'bg-white border-slate-200'}`}
+                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
                       >
-                        <Repeat className={`${CHIP_ICON} ${effLoopN > 1 && !mistakeOnly ? 'text-amber-600' : 'text-slate-400'}`} />
-                        <span className="text-[min(2.9vw,12px)] font-bold text-slate-500 mr-0.5">묶음</span>
+                        <Repeat className={`${CHIP_ICON} ${effLoopN > 1 && !mistakeOnly ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                        <span className="text-[min(2.9vw,12px)] font-bold text-slate-500 dark:text-slate-400 mr-0.5">묶음</span>
                         <button
                           onClick={() => changeLoopGroupSize(effLoopN - 1)}
                           disabled={mistakeOnly || effLoopN <= LOOP_GROUP_MIN}
                           aria-label="묶음 문장 수 줄이기"
-                          className="w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] rounded flex items-center justify-center text-[min(3.3vw,14px)] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                          className="w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] rounded flex items-center justify-center text-[min(3.3vw,14px)] font-black text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           −
                         </button>
@@ -1008,7 +1011,7 @@ const App = () => {
                           disabled={mistakeOnly}
                           title="탭하면 자주 쓰는 문장 수를 바로 고를 수 있어요"
                           aria-label="묶음 문장 수 바로 선택"
-                          className={`min-w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] px-0.5 rounded flex items-center justify-center text-[min(2.9vw,12px)] font-black tabular-nums hover:bg-slate-100 disabled:hover:bg-transparent ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700' : 'text-slate-600'}`}
+                          className={`min-w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] px-0.5 rounded flex items-center justify-center text-[min(2.9vw,12px)] font-black tabular-nums hover:bg-slate-100 dark:hover:bg-slate-700 disabled:hover:bg-transparent ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}
                         >
                           {effLoopN}
                         </button>
@@ -1016,7 +1019,7 @@ const App = () => {
                           onClick={() => changeLoopGroupSize(effLoopN + 1)}
                           disabled={mistakeOnly || effLoopN >= LOOP_GROUP_MAX}
                           aria-label="묶음 문장 수 늘리기"
-                          className="w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] rounded flex items-center justify-center text-[min(3.3vw,14px)] font-black text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                          className="w-[min(4.6vw,20px)] h-[min(4.6vw,20px)] rounded flex items-center justify-center text-[min(3.3vw,14px)] font-black text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent"
                         >
                           +
                         </button>
@@ -1037,8 +1040,8 @@ const App = () => {
                         className={`${CHIP} ${config.speechOnlyEnabled && hasSpeechEnds
                           ? 'bg-emerald-600 text-white border-emerald-600'
                           : hasSpeechEnds
-                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
-                            : 'text-slate-500 bg-white hover:bg-slate-50 border-slate-200'}`}
+                            ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800'
+                            : 'text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}
                       >
                         {speechDetectBusy === activeFileId
                           ? <Loader2 className={`${CHIP_ICON} animate-spin`} />
@@ -1048,7 +1051,7 @@ const App = () => {
                           <span
                             onClick={(e) => { e.stopPropagation(); handleDetectMissing(); }}
                             title={`${missingSpeechEnds}개 문장 미감지 — 탭하면 그 문장들만 재감지`}
-                            className="ml-0.5 px-1 rounded bg-amber-100 text-amber-700 text-[9px] font-black"
+                            className="ml-0.5 px-1 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[9px] font-black"
                           >
                             !{missingSpeechEnds}
                           </span>
@@ -1059,7 +1062,7 @@ const App = () => {
                       {(wrongIndices.length > 0 || mistakeOnly) && (
                         <button
                           onClick={toggleMistakeOnly}
-                          className={`${CHIP} ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'}`}
+                          className={`${CHIP} ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500' : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800'}`}
                         >
                           <AlertTriangle className={CHIP_ICON} /> 오답 ({wrongIndices.length})
                         </button>
@@ -1067,7 +1070,7 @@ const App = () => {
                     </div>
                   ) : (
                     <>
-                      <span className="text-xs font-bold text-slate-600 shrink min-w-0 truncate">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink min-w-0 truncate">
                         {selectedIdxs.size > 0
                           ? `${selectedIdxs.size}개 선택`
                           : '문장 선택'}
@@ -1075,7 +1078,7 @@ const App = () => {
                       <div className="flex items-center gap-1 overflow-x-auto">
                         <button
                           onClick={exitSelectMode}
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                         >
                           <X size={14} /> 취소
                         </button>
@@ -1083,7 +1086,7 @@ const App = () => {
                           onClick={confirmDelete}
                           disabled={selectedIdxs.size === 0}
                           title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
@@ -1091,7 +1094,7 @@ const App = () => {
                           <button
                             onClick={confirmSplit}
                             title="문장을 단어 사이에서 나눠 앞/뒷부분만 지우거나 두 문장으로 만들기"
-                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-rose-600 bg-white hover:bg-rose-50 border border-rose-200 transition-colors"
+                            className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors"
                           >
                             <Scissors size={14} /> 나누기
                           </button>
@@ -1100,7 +1103,7 @@ const App = () => {
                           onClick={confirmRecover}
                           disabled={selectedIdxs.size !== 1}
                           title="문장 1개 선택 후 사용 — 그 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (선택 문장 유지·자동 분석)"
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <LifeBuoy size={14} /> 복구
                         </button>
@@ -1108,7 +1111,7 @@ const App = () => {
                           onClick={confirmReanalyze}
                           disabled={selectedIdxs.size === 0}
                           title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <Languages size={14} /> 분석
                         </button>
@@ -1116,7 +1119,7 @@ const App = () => {
                           onClick={confirmDetectSpeech}
                           disabled={selectedIdxs.size === 0 || speechDetectBusy === activeFileId}
                           title="선택 문장의 '대사 끝나는 지점'만 다시 감지 — 대사만이 안 넘어가는 문장 교정 (글자·분석 그대로, 그 구간 오디오만 전송)"
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         >
                           <FastForward size={14} /> 대사만
                         </button>
@@ -1124,7 +1127,7 @@ const App = () => {
                           onClick={confirmRetranscribe}
                           disabled={selectedIdxs.size === 0}
                           title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
-                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm"
+                          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors shadow-sm"
                         >
                           <Check size={14} /> 전사
                         </button>
@@ -1134,17 +1137,17 @@ const App = () => {
                 </div>
               </div>
             )}
-            <div ref={scrollContainerRef} onScroll={onTranscriptScroll} className="flex-1 w-full overflow-y-auto bg-[#F8FAFC]" onClick={() => { setShowSpeedMenu(false); }}>
+            <div ref={scrollContainerRef} onScroll={onTranscriptScroll} className="flex-1 w-full overflow-y-auto bg-[#F8FAFC] dark:bg-slate-900" onClick={() => { setShowSpeedMenu(false); }}>
               <div className="max-w-6xl mx-auto px-2 md:px-6 pb-32">
                 {isAnalyzing || isSwitchingFile ? (
                   <div className="flex flex-col items-center justify-center py-20 space-y-6">
                     <div className="relative w-20 h-20">
-                      <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900 rounded-full"></div>
                       <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
                     </div>
                     <div className="text-center">
-                      <h3 className="text-lg font-bold text-slate-900">Analyzing {activeFile.file.name}...</h3>
-                      <p className="text-slate-500">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Analyzing {activeFile.file.name}...</h3>
+                      <p className="text-slate-500 dark:text-slate-400">
                         {/* isAnalyzing = 전사(Stage 1) 중. 받은 문장 수는 스트리밍으로 늘어난다 */}
                         {!isAnalyzing
                           ? '대본 여는 중...'
@@ -1157,27 +1160,27 @@ const App = () => {
                     {isAnalyzing && (
                       <button
                         onClick={() => cancelStage1(activeFile.id)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-500 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 transition-all"
                       >
                         <X size={16} /> 전사 중단
                       </button>
                     )}
                   </div>
                 ) : activeFile.error ? (
-                  <div className="max-w-xl mx-auto p-6 bg-red-50 text-red-600 rounded-2xl border border-red-100 text-center">
-                    <AlertCircle size={32} className="mx-auto mb-3 text-red-500" />
+                  <div className="max-w-xl mx-auto p-6 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded-2xl border border-red-100 dark:border-red-900 text-center">
+                    <AlertCircle size={32} className="mx-auto mb-3 text-red-500 dark:text-red-400" />
                     <h3 className="font-bold text-lg mb-1">Analysis Failed</h3>
                     <p>{activeFile.error}</p>
                     <button
                       onClick={() => retryAnalysis(activeFile.id)}
-                      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100"
+                      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40"
                     >
                       <RotateCcw size={16} />
                       다시 시도
                     </button>
                   </div>
                 ) : transcriptData.length === 0 ? (
-                  <div className="text-center py-20 text-slate-400">
+                  <div className="text-center py-20 text-slate-400 dark:text-slate-500">
                     <p>Analysis complete but no text found.</p>
                   </div>
                 ) : (
@@ -1186,10 +1189,10 @@ const App = () => {
                       {mistakeOnly && wrongIndices.length === 0 ? (
                         <div className="text-center py-20">
                           <div className="text-4xl mb-3">🎉</div>
-                          <p className="text-slate-600 font-bold">이 영상의 오답을 다 맞혔어요!</p>
+                          <p className="text-slate-600 dark:text-slate-300 font-bold">이 영상의 오답을 다 맞혔어요!</p>
                           <button
                             onClick={toggleMistakeOnly}
-                            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100"
+                            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40"
                           >
                             전체 대본으로 돌아가기
                           </button>

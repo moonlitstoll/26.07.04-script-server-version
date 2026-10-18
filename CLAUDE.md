@@ -251,6 +251,14 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 
 Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문장 이동(**오답 모드에선 오답만 순회**), ↑/↓: 5초 탐색, `[`/`]`: 배속 -/+, `?`: 도움말 토글. **단축키를 추가하면 `ShortcutsHelp.jsx`의 목록도 함께 갱신할 것**(둘이 따로 관리됨). ←/→는 App의 `goPrev`/`goNext`에 위임(모드 인식).
 
+### 라이트/다크 모드 (2026-10-18, 가지 `dark`)
+
+- **설정창 '화면 테마' = 시스템(기본) / 라이트 / 다크.** 값은 `config.theme`(`miniapp_theme`), 규칙은 `utils/theme.js`(순수, 테스트 有): `resolveTheme(pref, 기기다크)` → `applyResolvedTheme(document, …)`가 `<html>`에 `dark` 클래스·`color-scheme`·`meta theme-color`(라이트 `#f8fafc`, 다크 `#0f172a`)를 맞춘다. `hooks/useTheme.js`가 App에서 이걸 돌리고, '시스템'이면 `matchMedia('(prefers-color-scheme: dark)')`의 change를 구독한다. 툴바 버튼은 일부러 없다(사용자 결정).
+- **Tailwind v4라 `dark:`는 기기 설정이 아니라 `.dark` 클래스를 본다** — `index.css`의 `@custom-variant dark (&:where(.dark, .dark *))`. 이게 없으면 '라이트/다크 고정'이 안 된다. `index.html`의 인라인 스크립트가 React보다 먼저 같은 규칙으로 클래스를 붙인다(첫 화면 흰 번쩍임 방지) — **`theme.js`의 규칙을 바꾸면 거기도 같이 바꿀 것.**
+- **색은 라이트 클래스 옆에 `dark:` 짝을 붙이는 방식**(715곳, 스크립트로 일괄 + 손질). 라이트 클래스는 한 글자도 안 바꿨다 — 라이트 화면 픽셀 동일이 기준이었고, 35개 화면(휴대폰 폭 30 + PC 5: 대본·배지·가리기·오답·설정·기록·휴지통·확인창·토스트·편집 창 3종·팝오버·속도 메뉴·옛 대본 안내 줄·드래그 덮개)을 전후 캡처해 설정 창 4장(새 '화면 테마' 줄) 외 31장 0px 차이 확인. 다크는 같은 35장에서 흰 조각 0.
+- **짝 규칙**(새 화면을 만들 때 따라 쓸 것): 바탕 `bg-slate-50`/`bg-[#F8FAFC]`→`dark:bg-slate-900`, 카드 `bg-white`→`dark:bg-slate-800`, 칩 `bg-slate-100`→`dark:bg-slate-700`, 글자 `text-slate-900/800/700/600/500/400`→`dark:text-slate-100/200/300/300/400/500`, 선 `border-slate-100/200`→`dark:border-slate-700`, 강조 연한 바탕 `bg-indigo-50`·`bg-amber-50`·`bg-emerald-50`·`bg-red-50`·`bg-sky-50`→`dark:bg-<색>-950/40`, 강조 글자 `text-<색>-600/700`→`dark:text-<색>-400/300`, 현재 문장 `bg-purple-100 text-purple-700`→`dark:bg-purple-900/50 dark:text-purple-200`, `text-black`→`dark:text-white`, 모달 배경 `bg-slate-900/40`→`dark:bg-black/60`, hover `hover:bg-slate-50`→`dark:hover:bg-slate-700`(다크에선 살짝 밝아지게). **그대로 두는 것**: 진한 단색 버튼(`bg-indigo-600 text-white`, `bg-amber-500`, 토스트 `bg-emerald-600/red-600`), 영상 박스 `bg-black`, 새 버전 안내 줄의 흰 버튼(보라 띠 위). 화자 배지는 뒤집는다(`bg-slate-800 text-slate-200`→`dark:bg-slate-200 dark:text-slate-800`).
+- **검증**: `theme.test.js`(규칙 변이 4개 — system이 기기 무시·오염값 통과·light 복귀 때 클래스 안 뗌·meta 색 고정 — 각각 실패 확인) + `useSettings.test.js`(저장값 정리 생략 1건). 브라우저 실측(Playwright, 개발 서버): 기기 light/dark × 저장 없음/dark/light 조합 8건에서 React 전 인라인 스크립트가 맞는 클래스를 붙임, 설정창 다크→라이트→Cancel 복귀→저장 유지, 시스템 모드에서 기기 설정 변경 추종, 라이트 고정은 기기 dark여도 라이트, 새로고침 뒤 유지 — 전부 통과.
+
 ## Configuration
 
 - 모든 설정은 `useSettings` 훅에서 `config` 객체로 통합 관리

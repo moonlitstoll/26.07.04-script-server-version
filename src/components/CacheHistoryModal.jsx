@@ -67,7 +67,7 @@ const CacheHistoryModal = ({
         return (
             <button
                 onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
-                className={`p-1.5 rounded-lg transition-all ${fav ? 'text-amber-400 hover:bg-amber-50' : 'text-slate-300 hover:text-amber-400 hover:bg-amber-50'}`}
+                className={`p-1.5 rounded-lg transition-all ${fav ? 'text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
                 title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
             >
                 <Star size={17} className={fav ? 'fill-current' : ''} />
@@ -91,17 +91,17 @@ const CacheHistoryModal = ({
         } else {
             const done = rec.cloudItem.status === 'completed';
             statusText = done ? '분석 완료' : '전사 완료';
-            statusCls = done ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600';
+            statusCls = done ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400';
         }
 
         const open = () => { if (rec.localKey) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); };
 
         // 테두리: 활성 > 로컬(초록) > 기본
         const borderCls = isActive
-            ? 'bg-indigo-50 border-indigo-300 shadow-md shadow-indigo-100'
+            ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 shadow-md shadow-indigo-100 dark:shadow-black/40'
             : localHere
-                ? 'bg-white border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50/30'
-                : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50';
+                ? 'bg-white dark:bg-slate-800 border-emerald-300 dark:border-emerald-700 hover:border-emerald-400 dark:hover:border-emerald-600 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/25'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700';
 
         const recForDelete = { displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem };
 
@@ -112,17 +112,17 @@ const CacheHistoryModal = ({
                 className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all mb-1.5 ${borderCls}`}
             >
                 {/* 아이콘 */}
-                <div className={`shrink-0 p-2 rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`shrink-0 p-2 rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
                     {isActive ? <Check size={17} /> : <BookOpen size={17} />}
                 </div>
                 {/* 제목 + 상태 뱃지 */}
                 <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-bold break-words leading-snug ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{display}</p>
+                    <p className={`text-sm font-bold break-words leading-snug ${isActive ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>{display}</p>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         <span className={`px-1.5 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
-                        {progressText && <span className="text-[10px] font-medium text-slate-400">{progressText}</span>}
+                        {progressText && <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">{progressText}</span>}
                         {localHere && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] tracking-tight bg-emerald-50 text-emerald-600">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] tracking-tight bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
                                 <HardDrive size={10} /> 저장됨
                             </span>
                         )}
@@ -134,7 +134,7 @@ const CacheHistoryModal = ({
                     {localHere && (
                         <button
                             onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
-                            className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
                             title="이 기기에서 삭제 (로컬 캐시)"
                         >
                             <HardDrive size={16} />
@@ -143,7 +143,7 @@ const CacheHistoryModal = ({
                     {hasCloud && (
                         <button
                             onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
-                            className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
                             title="서버에서 삭제 (모든 기기)"
                         >
                             <Cloud size={16} />
@@ -155,30 +155,30 @@ const CacheHistoryModal = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-3 px-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white z-10">
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="p-3 px-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0 bg-white dark:bg-slate-800 z-10">
                     <div className="flex items-center gap-2">
                         <button
                             onClick={clearLocalCache}
                             aria-label="이 기기 캐시 비우기"
-                            className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors text-sm font-bold"
+                            className="flex items-center gap-2 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors text-sm font-bold"
                         >
                             <HardDrive size={16} /> 이 기기 캐시 비우기
                         </button>
                     </div>
-                    <button onClick={onClose} aria-label="닫기" className="p-2 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors">
-                        <X size={24} className="text-slate-400 hover:text-red-500" />
+                    <button onClick={onClose} aria-label="닫기" className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500 dark:hover:text-red-400 rounded-xl transition-colors">
+                        <X size={24} className="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50">
+                <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
                     {/* Controls Area */}
                     <div className="p-3 sm:p-4 space-y-3">
                         <div className="relative">
                             <label
                                 htmlFor="manager-file-upload"
-                                className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl cursor-pointer shadow-md shadow-indigo-200 transition-all group"
+                                className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl cursor-pointer shadow-md shadow-indigo-200 dark:shadow-black/40 transition-all group"
                             >
                                 <Upload size={18} className="group-hover:scale-110 transition-transform" />
                                 <span className="text-sm font-bold">파일 업로드 (Upload New File)</span>
@@ -201,19 +201,19 @@ const CacheHistoryModal = ({
                         </div>
 
                         <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
                             <input
                                 type="text"
                                 placeholder="Search analysis history..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-12 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                                className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
                             />
                         </div>
                     </div>
 
                     {analyzingFiles.length === 0 && records.length === 0 ? (
-                        <div className="text-center py-20 text-slate-400">
+                        <div className="text-center py-20 text-slate-400 dark:text-slate-500">
                             <Clock size={48} className="mx-auto mb-4 opacity-20" />
                             <p className="text-lg font-medium">No history found</p>
                             <p className="text-sm">Upload a file to start analyzing</p>
@@ -228,16 +228,16 @@ const CacheHistoryModal = ({
                                         key={f.id}
                                         onClick={() => { setActiveFileId(f.id); onClose(); }}
                                         className={`group flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${isActive
-                                            ? 'bg-indigo-100 border-indigo-300 shadow-md'
-                                            : 'bg-indigo-50/50 border-indigo-200 hover:bg-indigo-100/50 hover:border-indigo-300'}`}
+                                            ? 'bg-indigo-100 dark:bg-indigo-900/50 border-indigo-300 dark:border-indigo-700 shadow-md'
+                                            : 'bg-indigo-50/50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100/50 dark:hover:bg-indigo-900/30 hover:border-indigo-300 dark:hover:border-indigo-700'}`}
                                     >
                                         <div className="flex items-center gap-4 min-w-0 flex-1">
-                                            <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-600'} animate-pulse`}>
+                                            <div className={`p-2.5 rounded-xl ${isActive ? 'bg-indigo-600 text-white' : 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'} animate-pulse`}>
                                                 <FileVideo size={20} />
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-[15px] font-bold break-words leading-snug text-indigo-900">{stripExt(f.file.name)}</p>
-                                                <p className={`text-xs font-medium mt-0.5 animate-pulse ${isActive ? 'text-indigo-700' : 'text-indigo-600'}`}>
+                                                <p className="text-[15px] font-bold break-words leading-snug text-indigo-900 dark:text-indigo-100">{stripExt(f.file.name)}</p>
+                                                <p className={`text-xs font-medium mt-0.5 animate-pulse ${isActive ? 'text-indigo-700 dark:text-indigo-300' : 'text-indigo-600 dark:text-indigo-400'}`}>
                                                     {f.data && f.data.length > 0
                                                         ? `Analyzing (${f.data.filter(d => d.isAnalyzed).length}/${f.data.length})...`
                                                         : "Extracting Transcript..."
@@ -245,14 +245,14 @@ const CacheHistoryModal = ({
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 pl-4 border-l border-indigo-100 ml-4">
+                                        <div className="flex items-center gap-2 pl-4 border-l border-indigo-100 dark:border-indigo-900 ml-4">
                                             <div className="hidden sm:flex items-center gap-2 mr-2">
                                                 <div className={`w-2 h-2 rounded-full animate-ping ${isActive ? 'bg-indigo-700' : 'bg-indigo-500'}`} />
-                                                <span className={`text-xs font-bold ${isActive ? 'text-indigo-700' : 'text-indigo-500'}`}>Processing</span>
+                                                <span className={`text-xs font-bold ${isActive ? 'text-indigo-700 dark:text-indigo-300' : 'text-indigo-500 dark:text-indigo-400'}`}>Processing</span>
                                             </div>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); removeFile(f.id, e); }}
-                                                className="p-2.5 text-indigo-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                className="p-2.5 text-indigo-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all"
                                                 title="Cancel Analysis"
                                             >
                                                 <X size={20} />
@@ -265,7 +265,7 @@ const CacheHistoryModal = ({
                             {/* 2. 즐겨찾기 */}
                             {favRecords.length > 0 && (
                                 <div className="pt-3 pb-1">
-                                    <div className="flex items-center gap-2 px-1 text-amber-500">
+                                    <div className="flex items-center gap-2 px-1 text-amber-500 dark:text-amber-400">
                                         <Star size={14} className="fill-current" />
                                         <span className="text-[11px] font-bold uppercase tracking-wider">즐겨찾기</span>
                                     </div>
@@ -276,7 +276,7 @@ const CacheHistoryModal = ({
                             {/* 3. 라이브러리 (즐겨찾기 제외) */}
                             {favRecords.length > 0 && restRecords.length > 0 && (
                                 <div className="pt-3 pb-1">
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">라이브러리</span>
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">라이브러리</span>
                                 </div>
                             )}
                             {restRecords.map(renderRecordRow)}

@@ -161,6 +161,24 @@ describe('Claude 키', () => {
     });
 });
 
+describe('화면 테마', () => {
+    it('없으면 system(기기 설정 따라감)', () => {
+        expect(loadFromStorage().theme).toBe('system');
+    });
+    it('고른 값은 그대로 유지된다', () => {
+        for (const v of ['light', 'dark', 'system']) {
+            store.set('miniapp_theme', v);
+            expect(loadFromStorage().theme).toBe(v);
+        }
+    });
+    it('오염값은 system으로 (index.html 인라인 스크립트와 같은 규칙)', () => {
+        for (const bad of ['auto', 'DARK', '', 'true']) {
+            store.set('miniapp_theme', bad);
+            expect(loadFromStorage().theme, `입력=${JSON.stringify(bad)}`).toBe('system');
+        }
+    });
+});
+
 describe('유지하지 않기로 한 것들은 config에 없다', () => {
     // 이것들은 저장하면 앱이 이상한 화면으로 시작한다(대본이 사라지거나 파괴적 모드 진입).
     // 실수로 추가되는 것을 막기 위해 명시적으로 단정한다 — 근거는 CLAUDE.md 참고.

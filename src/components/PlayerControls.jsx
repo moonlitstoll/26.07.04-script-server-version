@@ -92,7 +92,7 @@ const PlayerControls = ({
     }, [currentTime]);
 
     return (
-        <div className="flex-none bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 shadow-lg pb-safe">
+        <div className="flex-none bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 z-50 shadow-lg pb-safe">
             <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
 
                 {/* 사운드+클럭 드라이버: 오디오 요소(화면 꺼져도 자동정지 안 됨).
@@ -141,7 +141,7 @@ const PlayerControls = ({
                     ) : (
                         <div className="flex flex-col items-center justify-center p-1 text-center gap-1">
                             <AlertCircle className={`${ICON_SM} text-red-400`} />
-                            <div className="text-[9px] font-bold text-slate-300 leading-tight">
+                            <div className="text-[9px] font-bold text-slate-300 dark:text-slate-600 leading-tight">
                                 원본 파일 없음
                             </div>
                             <label className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold rounded cursor-pointer transition-colors">
@@ -153,16 +153,16 @@ const PlayerControls = ({
                 </div>
 
                 {/* Right: Controls Column (진행바 + 버튼) */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center border-l border-slate-100">
+                <div className="flex-1 min-w-0 flex flex-col justify-center border-l border-slate-100 dark:border-slate-700">
 
                     {/* Row 1: Progress Bar */}
-                    <div className="w-full px-2 sm:px-3 pt-2 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500">
-                        <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 text-right">
+                    <div className="w-full px-2 sm:px-3 pt-2 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                        <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 dark:text-indigo-400 text-right">
                             {formatClock(currentTime)}
                         </span>
 
                         <div
-                            className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden cursor-pointer group relative"
+                            className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden cursor-pointer group relative"
                             onClick={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 if (duration) {
@@ -170,7 +170,7 @@ const PlayerControls = ({
                                 }
                             }}
                         >
-                            <div className="absolute inset-0 w-full h-full hover:bg-slate-200/40 transition-colors" />
+                            <div className="absolute inset-0 w-full h-full hover:bg-slate-200/40 dark:hover:bg-slate-600/40 transition-colors" />
                             <div
                                 className="h-full bg-indigo-500 rounded-full relative group-hover:bg-indigo-600 transition-all duration-300 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
                                 style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
@@ -193,19 +193,19 @@ const PlayerControls = ({
                                     className={`
                     flex items-center justify-center gap-0.5 px-[min(1.5vw,6px)] rounded-lg font-bold transition-all border
                     text-[min(2.9vw,11px)] min-w-[min(9vw,44px)] min-h-[min(11vw,44px)]
-                    ${showSpeedMenu ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}
+                    ${showSpeedMenu ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}
                   `}
                                 >
                                     {playbackRate.toFixed(1)}x
                                 </button>
                                 {showSpeedMenu && (
-                                    <div className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-slate-100 p-2 z-[60] w-48">
+                                    <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 p-2 z-[60] w-48">
                                         <div className="grid grid-cols-4 gap-1">
                                             {PLAYBACK_RATES.map(rate => (
                                                 <button
                                                     key={rate}
                                                     onClick={(e) => { e.stopPropagation(); handleRateChange(rate); setShowSpeedMenu(false); }}
-                                                    className={`py-1.5 rounded text-[10px] font-bold ${Math.abs(playbackRate - rate) < 0.01 ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                                                    className={`py-1.5 rounded text-[10px] font-bold ${Math.abs(playbackRate - rate) < 0.01 ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                                 >
                                                     {rate.toFixed(1)}
                                                 </button>
@@ -220,7 +220,7 @@ const PlayerControls = ({
                                 onClick={() => (onCycleAnalysis ? onCycleAnalysis() : setShowAnalysis(!showAnalysis))}
                                 title={!showAnalysis ? '번역/분석 숨김 — 탭하면 다시 보기' : showBreakdown ? '단어 풀이 펼침 — 탭하면 번역/분석 숨기기' : '단어 풀이 접힘 — 탭하면 풀이 펼치기'}
                                 aria-label={!showAnalysis ? '번역/분석 보기' : showBreakdown ? '번역/분석 숨기기' : '단어 풀이 펼치기'}
-                                className={`flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${!showAnalysis ? 'bg-white text-slate-400 border-slate-200' : showBreakdown ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}
+                                className={`flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${!showAnalysis ? 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700' : showBreakdown ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900'}`}
                             >
                                 {!showAnalysis ? <EyeOff className={ICON_SM} /> : showBreakdown ? <BookOpen className={ICON_SM} /> : <Eye className={ICON_SM} />}
                             </button>
@@ -228,21 +228,21 @@ const PlayerControls = ({
 
                         {/* Main Controls */}
                         <div className="flex items-center gap-[min(1.2vw,6px)]">
-                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] text-slate-400 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => handlePrev(currentSentenceIdx)} aria-label="이전 문장" className="flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                                 <SkipBack className={`${ICON_MD} fill-current`} />
                             </button>
 
                             <button
                                 onClick={togglePlay}
                                 aria-label={isPlaying ? '일시정지' : '재생'}
-                                className="w-[min(10vw,44px)] h-[min(10vw,44px)] shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 transition-transform active:scale-95"
+                                className="w-[min(10vw,44px)] h-[min(10vw,44px)] shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 dark:shadow-black/40 transition-transform active:scale-95"
                             >
                                 {isPlaying
                                     ? <Pause className={ICON_LG} fill="currentColor" />
                                     : <Play className={`${ICON_LG} ml-0.5`} fill="currentColor" />}
                             </button>
 
-                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] text-slate-400 hover:text-indigo-600 transition-colors">
+                            <button onClick={() => handleNext(currentSentenceIdx)} aria-label="다음 문장" className="flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                                 <SkipForward className={`${ICON_MD} fill-current`} />
                             </button>
                         </div>
@@ -255,7 +255,7 @@ const PlayerControls = ({
                                     ? `문장 반복 끄기${loopGroupSize > 1 ? ` (${loopGroupSize}문장 묶음)` : ''}`
                                     : '문장 반복 켜기'}
                                 aria-pressed={isGlobalLoopActive}
-                                className={`relative flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white text-slate-400 border-slate-200'}`}
+                                className={`relative flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${isGlobalLoopActive ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700'}`}
                                 title={loopGroupSize > 1 ? `${loopGroupSize}문장 묶음 반복` : 'Toggle Global Sentence Loop'}
                             >
                                 <Repeat className={`${ICON_SM} ${isGlobalLoopActive ? 'animate-pulse' : ''}`} />

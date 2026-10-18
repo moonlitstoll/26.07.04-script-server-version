@@ -19,8 +19,8 @@ const Toast = ({ message, type = 'success', onClose, duration = 2500, action = n
         <div onClick={onClose} className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] cursor-pointer animate-in slide-in-from-bottom-4 fade-in duration-300">
             <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl font-bold text-sm ${
                 type === 'success'
-                    ? 'bg-emerald-600 text-white shadow-emerald-200'
-                    : 'bg-red-600 text-white shadow-red-200'
+                    ? 'bg-emerald-600 text-white shadow-emerald-200 dark:shadow-black/40'
+                    : 'bg-red-600 text-white shadow-red-200 dark:shadow-black/40'
             }`}>
                 <div className="flex items-center gap-2">
                     {type === 'success'

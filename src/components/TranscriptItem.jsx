@@ -9,7 +9,7 @@ import { splitBreakdown, tidyGlosses } from '../utils/analysisParser';
 // **굵게** 표시 → 초록 굵은 청크
 const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
     part.startsWith('**') && part.endsWith('**') && part.length > 4
-        ? <strong key={`${keyPrefix}-${i}`} className="text-emerald-800 font-extrabold">{part.slice(2, -2)}</strong>
+        ? <strong key={`${keyPrefix}-${i}`} className="text-emerald-800 dark:text-emerald-300 font-extrabold">{part.slice(2, -2)}</strong>
         : part
 );
 
@@ -104,12 +104,12 @@ const TranscriptItem = memo(({
             className={`
         group relative transition-all duration-300 ease-out mb-1 rounded-xl border border-l-[4px] p-2 sm:px-4 sm:py-3
         ${isSelected
-                    ? 'bg-indigo-50 border-l-indigo-500 border-t-indigo-200 border-r-indigo-200 border-b-indigo-200 ring-2 ring-indigo-300 shadow-md z-10'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 border-l-indigo-500 border-t-indigo-200 dark:border-t-indigo-800 border-r-indigo-200 dark:border-r-indigo-800 border-b-indigo-200 dark:border-b-indigo-800 ring-2 ring-indigo-300 dark:ring-indigo-600 shadow-md z-10'
                     : isActive
-                        ? 'bg-transparent border-l-purple-700 border-t-slate-100 border-r-slate-100 border-b-slate-100 shadow-md z-10'
+                        ? 'bg-transparent border-l-purple-700 dark:border-l-purple-400 border-t-slate-100 dark:border-t-slate-700 border-r-slate-100 dark:border-r-slate-700 border-b-slate-100 dark:border-b-slate-700 shadow-md z-10'
                         : inLoopGroup
-                            ? 'bg-amber-50/40 border-l-amber-400 border-t-amber-100 border-r-amber-100 border-b-amber-100'
-                            : 'bg-white border-slate-100 opacity-90'}
+                            ? 'bg-amber-50/40 dark:bg-amber-950/25 border-l-amber-400 border-t-amber-100 dark:border-t-amber-900 border-r-amber-100 dark:border-r-amber-900 border-b-amber-100 dark:border-b-amber-900'
+                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 opacity-90'}
       `}
         >
             {/* 선택 모드: 카드 전체를 탭하면 선택/해제 (내부 버튼 클릭 차단) */}
@@ -120,7 +120,7 @@ const TranscriptItem = memo(({
                     role="button"
                     aria-pressed={isSelected}
                 >
-                    <div className={`absolute top-2 right-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}>
+                    <div className={`absolute top-2 right-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'}`}>
                         {isSelected && <Check size={14} className="stroke-[3]" />}
                     </div>
                 </div>
@@ -128,7 +128,7 @@ const TranscriptItem = memo(({
 
             {/* 재전사 진행 오버레이 */}
             {item.isRetranscribing && (
-                <div className="absolute inset-0 z-40 rounded-xl bg-white/70 backdrop-blur-[1px] flex items-center justify-center">
+                <div className="absolute inset-0 z-40 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-[1px] flex items-center justify-center">
                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold shadow">
                         <Loader2 size={14} className="animate-spin" /> 다시 전사 중...
                     </div>
@@ -140,7 +140,7 @@ const TranscriptItem = memo(({
                 <div className="flex flex-wrap items-center justify-between gap-1.5 mb-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                         {isWrong && (
-                            <span title="이 문장을 몰랐어요 (오답)" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-600 border border-amber-300 text-[10px] font-black">
+                            <span title="이 문장을 몰랐어요 (오답)" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 text-[10px] font-black">
                                 !
                             </span>
                         )}
@@ -151,7 +151,7 @@ const TranscriptItem = memo(({
                             onClick={() => (groupLoopOn ? jumpToSentence(idx) : seekTo(item.seconds))}
                             className={`
                   flex items-center gap-1 px-1.5 py-0 leading-4 rounded-full text-[10px] font-bold font-mono tracking-wide transition-all
-                  ${isActive ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}
+                  ${isActive ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
                 `}
                         >
                             <Play size={8} fill="currentColor" /> {item.timestamp}
@@ -159,8 +159,8 @@ const TranscriptItem = memo(({
 
                         {item.speaker && (
                             <span className={`px-1.5 py-0 leading-4 rounded-lg text-[9px] font-black uppercase tracking-tighter border ${isActive
-                                ? 'bg-purple-600 text-white border-purple-700 shadow-sm'
-                                : 'bg-slate-800 text-slate-200 border-slate-900 opacity-80'
+                                ? 'bg-purple-600 text-white border-purple-700 dark:border-purple-400 shadow-sm'
+                                : 'bg-slate-800 dark:bg-slate-200 text-slate-200 dark:text-slate-800 border-slate-900 dark:border-slate-300 opacity-80'
                                 }`}>
                                 {item.speaker}
                             </span>
@@ -171,7 +171,7 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onCoverageRetry && onCoverageRetry(idx); }}
                                 title={coverageTitle(coverage)}
-                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 transition-colors"
+                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
                             >
                                 <AlertTriangle size={9} />
                                 {coverage.kind === 'no-chunks' ? '분석 깨짐' : coverage.missing.length > 0 ? `누락 ${coverage.missing.length}` : coverage.oversplit ? '과분할' : '뭉침'}
@@ -182,7 +182,7 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onRetranscribe && onRetranscribe(idx); }}
                                 title={`전사(받아쓰기) 오류 의심: ${item.transcriptSuspect} — 탭하면 이 구간만 다시 전사`}
-                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 transition-colors"
+                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
                             >
                                 <Volume2 size={9} /> 전사의심
                             </button>
@@ -192,7 +192,7 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onSpeechEndFix && onSpeechEndFix(idx); }}
                                 title="'대사만'에서 이 문장의 대사 끝을 몰라 뒤를 건너뛰지 않습니다 — 탭하면 직접 맞추기"
-                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 transition-colors"
+                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
                             >
                                 <FastForward size={9} /> 대사 끝 없음
                             </button>
@@ -200,7 +200,7 @@ const TranscriptItem = memo(({
                     </div>
 
                     {isLooping && (
-                        <div title="반복 중" aria-label="반복 중" className={`flex items-center px-1 py-0.5 rounded-md animate-pulse border z-10 ${isActive ? 'bg-purple-50/50 text-purple-600 border-purple-100' : 'bg-amber-50/50 text-amber-600 border-amber-100'}`}>
+                        <div title="반복 중" aria-label="반복 중" className={`flex items-center px-1 py-0.5 rounded-md animate-pulse border z-10 ${isActive ? 'bg-purple-50/50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 border-purple-100 dark:border-purple-900' : 'bg-amber-50/50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900'}`}>
                             <Repeat size={10} className="stroke-[3]" />
                         </div>
                     )}
@@ -221,7 +221,7 @@ const TranscriptItem = memo(({
                     onClick={() => jumpToSentence(idx)}
                     className={`
             text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-0.5 px-1 font-bold
-            ${isActive ? 'text-black' : 'text-slate-900'}
+            ${isActive ? 'text-black dark:text-white' : 'text-slate-900 dark:text-slate-100'}
           `}
                 >
                     {item.text.split(/(?<=[.!?])\s+/).filter(Boolean).map((segment, i, arr) => (
@@ -233,13 +233,13 @@ const TranscriptItem = memo(({
                 </div>
 
                 {/* Detailed Analysis Section */}
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
+                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100 dark:border-slate-700' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
 
                     {/* Stage 2 실패 상태: 분석이 끝났는데도 실패로 남은 문장 → 다시 시도 */}
                     {!item.isAnalyzed && item.analysisFailed ? (
-                        <div className="py-3 px-3 my-1 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 text-amber-700 min-w-0">
-                                <AlertTriangle size={15} className="shrink-0 text-amber-500" />
+                        <div className="py-3 px-3 my-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 min-w-0">
+                                <AlertTriangle size={15} className="shrink-0 text-amber-500 dark:text-amber-400" />
                                 <span className="text-[13px] font-bold leading-tight">이 문장 분석에 실패했어요</span>
                             </div>
                             {onRetryAnalysis && (
@@ -254,12 +254,12 @@ const TranscriptItem = memo(({
                     ) : !item.isAnalyzed ? (
                         /* Stage 2 Loading State */
                         <div className="py-4 px-2 space-y-3 animate-pulse">
-                            <div className="h-4 bg-slate-100 rounded-md w-3/4" />
+                            <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded-md w-3/4" />
                             <div className="space-y-2">
-                                <div className="h-3 bg-slate-50 rounded-md w-full" />
-                                <div className="h-3 bg-slate-50 rounded-md w-5/6" />
+                                <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-md w-full" />
+                                <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-md w-5/6" />
                             </div>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
                                 <Clock size={12} className="animate-spin" /> Analyzing Sentence Details...
                             </div>
                         </div>
@@ -269,9 +269,9 @@ const TranscriptItem = memo(({
                     {showAnalysis && item.translation && (
                         <div
                             onClick={() => jumpToSentence(idx)}
-                            className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 border-indigo-100 cursor-pointer"
+                            className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
                         >
-                            <p className="text-slate-700 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
+                            <p className="text-slate-700 dark:text-slate-300 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
                                 {item.translation?.replace(/\\n/g, '\n')}
                             </p>
                         </div>
@@ -284,18 +284,18 @@ const TranscriptItem = memo(({
                         <div
                             onClick={hasBreakdown ? () => setFlipped(f => !f) : undefined}
                             title={hasBreakdown ? (breakdownOpen ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
-                            className={`px-1 space-y-0.5 text-slate-800 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer' : ''}`}
+                            className={`px-1 space-y-0.5 text-slate-800 dark:text-slate-200 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer' : ''}`}
                         >
                             {analysisLines.map(([main, breakdown, tail], li) => (
                                 <p key={li} className="font-medium">
                                     {renderBold(main, `m${li}`)}
                                     {breakdown && breakdownOpen && (
-                                        <span className="text-slate-500 font-normal">{renderBold(breakdown, `b${li}`)}</span>
+                                        <span className="text-slate-500 dark:text-slate-400 font-normal">{renderBold(breakdown, `b${li}`)}</span>
                                     )}
                                     {tail}
                                     {/* 화살표는 마지막 줄 오른쪽 끝에 띄운다 — 따로 한 줄을 차지하면 카드마다 빈 행이 생긴다 */}
                                     {hasBreakdown && li === analysisLines.length - 1 && (
-                                        <span aria-hidden="true" className="float-right mt-1 text-slate-300">
+                                        <span aria-hidden="true" className="float-right mt-1 text-slate-300 dark:text-slate-600">
                                             {breakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                         </span>
                                     )}

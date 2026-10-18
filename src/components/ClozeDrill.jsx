@@ -13,7 +13,7 @@ const BlankChunk = ({ text, title, label, onReveal }) => (
         onClick={(e) => { e.stopPropagation(); onReveal(); }}
         title={title}
         aria-label={label}
-        className="align-baseline mx-0.5 px-1.5 rounded-md bg-amber-50 hover:bg-amber-100 transition-colors inline-flex flex-wrap gap-x-1.5 max-w-full"
+        className="align-baseline mx-0.5 px-1.5 rounded-md bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors inline-flex flex-wrap gap-x-1.5 max-w-full"
     >
         {text.split(/\s+/).filter(Boolean).map((w, j) => (
             <span key={j} className="border-b-2 border-amber-400 text-transparent select-none">
@@ -38,9 +38,9 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
     // 분석 안 된(청크 0개) 문장 → 드릴 불가, 원문만 표시 (탭하면 점프)
     if (!drill.ok) {
         return (
-            <div onClick={onJump} className="text-lg sm:text-xl leading-snug px-1 font-bold text-slate-400 cursor-pointer">
+            <div onClick={onJump} className="text-lg sm:text-xl leading-snug px-1 font-bold text-slate-400 dark:text-slate-500 cursor-pointer">
                 {item.text}
-                <span className="ml-2 text-[11px] font-medium text-slate-300">(분석 전 — 가리기 불가)</span>
+                <span className="ml-2 text-[11px] font-medium text-slate-300 dark:text-slate-600">(분석 전 — 가리기 불가)</span>
             </div>
         );
     }
@@ -66,21 +66,21 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
                 item.translation ? (
                     <div
                         onClick={(e) => e.stopPropagation()}
-                        className="mb-2 rounded-xl px-3 py-1.5 border bg-indigo-50/80 border-indigo-100 cursor-default"
+                        className="mb-2 rounded-xl px-3 py-1.5 border bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-default"
                     >
-                        <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-[11px] uppercase tracking-wider mb-0.5">
+                        <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] uppercase tracking-wider mb-0.5">
                             <Languages size={12} /> 번역 단서 — 원어로 말해보세요
                         </div>
-                        <p className="text-slate-700 text-[15px] leading-snug whitespace-pre-line font-medium">
+                        <p className="text-slate-700 dark:text-slate-300 text-[15px] leading-snug whitespace-pre-line font-medium">
                             {item.translation.replace(/\\n/g, '\n')}
                         </p>
                     </div>
                 ) : (
-                    <div className="mb-1 text-[12px] text-slate-400 font-medium">(번역 없음 — 고급 가리기와 동일)</div>
+                    <div className="mb-1 text-[12px] text-slate-400 dark:text-slate-500 font-medium">(번역 없음 — 고급 가리기와 동일)</div>
                 )
             )}
             {/* 클로즈 문장 */}
-            <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 mb-2">
+            <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 dark:text-slate-100 mb-2">
                 {drill.parts.map((p, i) => {
                     if (p.type === 'text') return <span key={i}>{p.value} </span>;
                     if (revealed.has(i)) {
@@ -89,7 +89,7 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
                                 key={i}
                                 onClick={(e) => { e.stopPropagation(); if (drill.wholeSentence) clearReveals(); else hideOne(i); }}
                                 title="다시 가리기"
-                                className="align-baseline text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded px-1 transition-colors"
+                                className="align-baseline text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded px-1 transition-colors"
                             >
                                 {p.answer}{' '}
                             </button>
@@ -112,9 +112,9 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
             {allRevealed && (
                 <div className="mb-2 space-y-0.5">
                     {drill.parts.filter(p => p.type === 'blank').map((p, i) => (
-                        <div key={i} className="text-[13px] text-slate-600">
-                            <span className="font-bold text-emerald-700">{p.answer}</span>
-                            {p.meaning ? <span className="text-slate-500"> — {p.meaning}</span> : null}
+                        <div key={i} className="text-[13px] text-slate-600 dark:text-slate-300">
+                            <span className="font-bold text-emerald-700 dark:text-emerald-300">{p.answer}</span>
+                            {p.meaning ? <span className="text-slate-500 dark:text-slate-400"> — {p.meaning}</span> : null}
                         </div>
                     ))}
                 </div>
@@ -124,16 +124,16 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
                 선택하면 숨겨 화면 절약(몰랐음은 문장 앞 ❗배지로 남음). 청크 다시 가렸다 열면 marked 리셋돼 재등장. */}
             {allRevealed && marked === null && (
                 <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-slate-400">알았나요?</span>
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">알았나요?</span>
                     <button
                         onClick={(e) => { e.stopPropagation(); mark(true); }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
                     >
                         <Check size={13} /> 알았음
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); mark(false); }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
                     >
                         <X size={13} /> 몰랐음
                     </button>

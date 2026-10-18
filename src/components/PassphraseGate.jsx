@@ -14,18 +14,18 @@ const PassphraseGate = ({ onSubmit }) => {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC] p-6">
+        <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC] dark:bg-slate-900 p-6">
             <form
                 onSubmit={submit}
-                className="w-full max-w-sm bg-white rounded-3xl shadow-xl border border-slate-100 p-8 space-y-6 animate-in zoom-in-95 duration-200"
+                className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 p-8 space-y-6 animate-in zoom-in-95 duration-200"
             >
                 <div className="text-center space-y-3">
-                    <div className="inline-flex p-4 bg-indigo-50 rounded-2xl text-indigo-600">
+                    <div className="inline-flex p-4 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl text-indigo-600 dark:text-indigo-400">
                         <Lock size={28} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900">보관함 열기</h1>
-                        <p className="text-sm text-slate-500 mt-1">
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">보관함 열기</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                             비밀 암호를 입력하면 어느 기기서든<br />같은 대본 목록을 볼 수 있어요.
                         </p>
                     </div>
@@ -38,9 +38,9 @@ const PassphraseGate = ({ onSubmit }) => {
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         placeholder="비밀 암호 (4자 이상)"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-center font-bold tracking-wide"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-center font-bold tracking-wide"
                     />
-                    <p className="text-[11px] text-slate-400 text-center px-2">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center px-2">
                         같은 암호를 다른 기기·친구가 넣으면 같은 보관함을 공유합니다.<br />
                         나만 쓰려면 남이 모를 암호를 정하세요.
                     </p>
@@ -49,7 +49,7 @@ const PassphraseGate = ({ onSubmit }) => {
                 <button
                     type="submit"
                     disabled={value.trim().length < 4}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 dark:disabled:bg-slate-600 disabled:text-slate-400 dark:disabled:text-slate-500 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40"
                 >
                     보관함 열기 <ArrowRight size={18} />
                 </button>
