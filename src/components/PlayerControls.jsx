@@ -17,11 +17,18 @@ const ICON_SM = 'w-[min(4.2vw,16px)] h-[min(4.2vw,16px)]';
 const ICON_MD = 'w-[min(4.8vw,18px)] h-[min(4.8vw,18px)]';
 const ICON_LG = 'w-[min(5.3vw,20px)] h-[min(5.3vw,20px)]';
 
+// 바 높이. 평소 56px = 버튼 43px + 위아래 여백. 진행바는 바 맨 위 가장자리의 띠라 줄을 차지하지 않는다.
+// 예전 85px(진행바 줄 ≈27px + 버튼 줄)보다 29px 얇다 — 사용자 결정: 작은 화면에 대본 한 줄이라도 더.
+const BAR_H = 56;
+// 영상 칸을 탭해 키웠을 때 바의 상한. 박스 높이 = min(이 값, 폭상한 ÷ 비율)이라
+// 가로 영상은 폭상한(아래)에 먼저 걸려 74px쯤에서 멈추고, 세로 영상만 여기까지 큰다.
+const BAR_H_EXPANDED = 140;
+// 작은 상태에서 영상 칸이 보장할 최소 폭(탭해서 키우는 자리). 세로 영상은 56px 높이에서
+// 폭이 31px뿐이라 비율을 이 폭까지 끌어올린다(좌우에 검은 띠, 키우면 제 비율로 돌아간다).
+const PREVIEW_MIN_W = 44;
+
 // 영상 프리뷰 박스의 가로세로비. 박스를 영상 비율에 맞춰야 object-contain의
 // 검은 띠가 사라지고 남는 자리를 전부 그림에 쓸 수 있다.
-// 하한 0.52: 바 높이 85px에서 박스 폭 44px(최소 터치 폭)을 보장하는 값.
-// 세로 영상(9:16 = 0.5625)은 하한에 걸리지 않으므로 제 비율 그대로 선다.
-const PREVIEW_ASPECT_MIN = 0.52;
 const PREVIEW_ASPECT_MAX = 16 / 9;
 
 // 영상 박스가 가져갈 수 있는 최대 폭.
@@ -50,17 +57,32 @@ const PlayerControls = ({
     // 프리뷰 박스 비율: 영상 메타데이터를 읽어 실제 비율로 맞춘다.
     // 파일이 바뀌면 렌더 중에 기본값으로 되돌린다(effect+setState 대신 React 권장 패턴).
     const [previewAspect, setPreviewAspect] = useState(PREVIEW_ASPECT_MAX);
+    // 그림이 있는 파일(영상)인가 — 소리만 있는 파일은 칸을 탭하면 예전처럼 재생/정지, 영상은 크게/작게
+    const [hasPicture, setHasPicture] = useState(false);
+    // 영상 칸 크게 보기(탭 토글). 파일이 바뀌면 작게로 되돌린다.
+    const [expanded, setExpanded] = useState(false);
     const [aspectSrc, setAspectSrc] = useState(mediaUrl);
     if (aspectSrc !== mediaUrl) {
         setAspectSrc(mediaUrl);
         setPreviewAspect(PREVIEW_ASPECT_MAX);
+        setHasPicture(false);
+        setExpanded(false);
     }
     const handleLoadedMetadata = (e) => {
         const v = e.currentTarget;
         if (!v.videoWidth || !v.videoHeight) return;   // 오디오 전용 파일
-        const ratio = v.videoWidth / v.videoHeight;
-        setPreviewAspect(Math.min(PREVIEW_ASPECT_MAX, Math.max(PREVIEW_ASPECT_MIN, ratio)));
+        setHasPicture(true);
+        setPreviewAspect(Math.min(PREVIEW_ASPECT_MAX, v.videoWidth / v.videoHeight));
     };
+    const isExpanded = expanded && hasPicture;
+    // 작은 상태에선 최소 탭 폭을 보장하는 비율로(세로 영상은 좌우 검은 띠), 키우면 제 비율
+    const boxAspect = isExpanded ? previewAspect : Math.max(previewAspect, PREVIEW_MIN_W / BAR_H);
+    // 바 높이: 평소 고정, 키우면 영상 비율이 허락하는 만큼(폭상한 ÷ 비율)까지 — 가로 영상은 폭에 먼저 걸린다
+    const barHeight = isExpanded
+        ? `max(${BAR_H}px, min(${BAR_H_EXPANDED}px, calc(${PREVIEW_MAX_W} / ${previewAspect})))`
+        : `${BAR_H}px`;
+    // 영상 칸 아래 시각 표시에 총 길이까지 넣을 폭이 되는가(≈90px↑). 작은 상태는 높이 56 × 비율, 키운 상태는 폭상한 ÷ 비율 기준
+    const boxWide = isExpanded ? previewAspect >= 0.7 : boxAspect >= 1.5;
 
     // 뮤트 프리뷰 영상: 재생/정지 따라감 (백그라운드에선 재생 안 함)
     useEffect(() => {
@@ -113,8 +135,34 @@ const PlayerControls = ({
     }, [currentTime]);
 
     return (
-        <div className="flex-none bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 z-50 shadow-lg pb-safe">
-            <div className="max-w-5xl mx-auto flex flex-row items-stretch h-[85px] sm:h-[100px]">
+        <div className="relative flex-none bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 z-50 shadow-lg pb-safe">
+
+            {/* 진행바 = 바 맨 위 가장자리의 6px 띠(전체 폭). 예전엔 시각 글자와 한 줄(≈27px)을 차지했다 —
+                시각은 영상 칸 아래에 겹쳐 적는다. 누르는 자리 24px: 띠 위로 14px은 대본 영역 끝에 겹치고(바가 z-50이라
+                띠가 이긴다), 아래 4px은 버튼 줄 여백. touch-none: 끄는 동안 화면이 안 밀리게 */}
+            <div
+                role="slider"
+                aria-label="재생 위치"
+                aria-valuemin={0}
+                aria-valuemax={Math.round(duration || 0)}
+                aria-valuenow={Math.round(shownTime || 0)}
+                aria-valuetext={formatClock(shownTime)}
+                className="absolute inset-x-0 -top-[14px] h-6 pb-1 z-10 flex items-end cursor-pointer group touch-none select-none"
+                onPointerDown={onSeekDown}
+                onPointerMove={onSeekMove}
+                onPointerUp={onSeekUp}
+                onPointerCancel={() => setDragRatio(null)}
+            >
+                <div className="relative w-full h-1.5 bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                    <div className="absolute inset-0 w-full h-full group-hover:bg-slate-200/40 dark:group-hover:bg-slate-600/40 transition-colors" />
+                    <div
+                        className={`h-full bg-indigo-500 relative group-hover:bg-indigo-600 shadow-[0_0_8px_rgba(99,102,241,0.5)] ${dragRatio !== null ? '' : 'transition-all duration-300'}`}
+                        style={{ width: `${duration ? (shownTime / duration) * 100 : 0}%` }}
+                    />
+                </div>
+            </div>
+
+            <div className="max-w-5xl mx-auto flex flex-row items-stretch" style={{ height: barHeight }}>
 
                 {/* 사운드+클럭 드라이버: 오디오 요소(화면 꺼져도 자동정지 안 됨).
                     display:none은 피하고 sr-only로 렌더 트리에 유지. */}
@@ -133,12 +181,19 @@ const PlayerControls = ({
                     (h-full로만 두면 가로 영상이 폭상한에 걸려 위아래 검은 띠가 다시 생긴다.)
                     테두리(border)는 오른쪽 컨트롤 열이 border-l로 그린다 — 여기에 border를 주면
                     box-sizing:border-box 때문에 aspect-ratio가 테두리 포함 폭에 걸려
-                    안쪽 그림이 1px 깎이고, 그 순간 세로 영상이 폭 지배로 뒤집혀 높이까지 손해다. */}
+                    안쪽 그림이 1px 깎이고, 그 순간 세로 영상이 폭 지배로 뒤집혀 높이까지 손해다.
+
+                    탭: 영상이면 크게/작게(바 높이까지 같이 큰다), 소리만이면 예전처럼 재생/정지.
+                    소리만 있는 파일의 검은 칸은 사용자 결정으로 그대로 두되, 아래에 시각(지금/전체)을 적어 쓸모를 준다
+                    — 진행바를 띠로 올리면서 시각 글자가 갈 자리가 여기뿐이다. */}
                 <div
-                    className={`relative bg-black self-center shrink-0 overflow-hidden group flex items-center justify-center ${mediaUrl ? '' : 'w-[min(26vw,120px)] h-full'}`}
+                    role={mediaUrl ? 'button' : undefined}
+                    aria-label={mediaUrl ? (hasPicture ? (isExpanded ? '영상 작게' : '영상 크게') : (isPlaying ? '일시정지 (소리 칸)' : '재생 (소리 칸)')) : undefined}
+                    onClick={mediaUrl ? (hasPicture ? () => setExpanded(x => !x) : togglePlay) : undefined}
+                    className={`relative bg-black self-center shrink-0 overflow-hidden group flex items-center justify-center ${mediaUrl ? 'cursor-pointer' : 'w-[min(26vw,120px)] h-full'}`}
                     style={mediaUrl ? {
-                        aspectRatio: previewAspect,
-                        height: `min(100%, calc(${PREVIEW_MAX_W} / ${previewAspect}))`,
+                        aspectRatio: boxAspect,
+                        height: `min(100%, calc(${PREVIEW_MAX_W} / ${boxAspect}))`,
                         maxWidth: PREVIEW_MAX_W,
                     } : undefined}
                 >
@@ -148,7 +203,6 @@ const PlayerControls = ({
                                 ref={visualVideoRef}
                                 src={mediaUrl}
                                 className="w-full h-full object-contain"
-                                onClick={togglePlay}
                                 onLoadedMetadata={handleLoadedMetadata}
                                 playsInline
                                 muted
@@ -158,12 +212,15 @@ const PlayerControls = ({
                                     <Play className={`${ICON_LG} text-white ml-0.5`} fill="white" />
                                 </div>
                             )}
+                            {/* 시각: 끄는 동안은 손가락 위치의 시각. 칸이 좁으면(세로 영상) 지금 시각만 */}
+                            <div className="absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white text-[9px] font-mono font-bold leading-[13px] text-center tabular-nums whitespace-nowrap pointer-events-none">
+                                {formatClock(shownTime)}{boxWide && ` / ${duration ? formatClock(duration) : '00:00'}`}
+                            </div>
                         </>
                     ) : (
                         <div className="flex flex-col items-center justify-center p-1 text-center gap-1">
-                            <AlertCircle className={`${ICON_SM} text-red-400`} />
-                            <div className="text-[9px] font-bold text-slate-300 dark:text-slate-600 leading-tight">
-                                원본 파일 없음
+                            <div className="flex items-center gap-0.5 text-[9px] font-bold text-slate-300 dark:text-slate-600 leading-tight whitespace-nowrap">
+                                <AlertCircle className="w-3 h-3 shrink-0 text-red-400" /> 원본 없음
                             </div>
                             <label className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold rounded cursor-pointer transition-colors">
                                 연결하기
@@ -173,43 +230,10 @@ const PlayerControls = ({
                     )}
                 </div>
 
-                {/* Right: Controls Column (진행바 + 버튼) */}
+                {/* Right: Controls Column (버튼 줄 — 진행바는 바 맨 위 띠로 올라갔다) */}
                 <div className="flex-1 min-w-0 flex flex-col justify-center border-l border-slate-100 dark:border-slate-700">
 
-                    {/* Row 1: Progress Bar */}
-                    <div className="w-full px-2 sm:px-3 pt-2 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
-                        <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 dark:text-indigo-400 text-right">
-                            {formatClock(shownTime)}
-                        </span>
-
-                        {/* 누르는 영역은 24px(h-6), 보이는 막대는 6px. 음수 여백으로 줄 높이는 예전(6px)과 같게 둔다
-                            — 바 전체 높이 85px 안에 버튼 줄이 빠듯하게 들어가 있다. touch-none: 끄는 동안 화면이 안 밀리게 */}
-                        <div
-                            role="slider"
-                            aria-label="재생 위치"
-                            aria-valuemin={0}
-                            aria-valuemax={Math.round(duration || 0)}
-                            aria-valuenow={Math.round(shownTime || 0)}
-                            aria-valuetext={formatClock(shownTime)}
-                            className="flex-1 h-6 -my-[9px] flex items-center cursor-pointer group touch-none select-none"
-                            onPointerDown={onSeekDown}
-                            onPointerMove={onSeekMove}
-                            onPointerUp={onSeekUp}
-                            onPointerCancel={() => setDragRatio(null)}
-                        >
-                            <div className="relative w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div className="absolute inset-0 w-full h-full group-hover:bg-slate-200/40 dark:group-hover:bg-slate-600/40 transition-colors" />
-                                <div
-                                    className={`h-full bg-indigo-500 rounded-full relative group-hover:bg-indigo-600 shadow-[0_0_8px_rgba(99,102,241,0.5)] ${dragRatio !== null ? '' : 'transition-all duration-300'}`}
-                                    style={{ width: `${duration ? (shownTime / duration) * 100 : 0}%` }}
-                                />
-                            </div>
-                        </div>
-
-                        <span className="w-[min(9.5vw,36px)] shrink-0 text-left">{duration ? formatClock(duration) : "00:00"}</span>
-                    </div>
-
-                    {/* Row 2: Control Buttons */}
+                    {/* Control Buttons */}
                     <div className="flex items-center justify-between px-2 pl-1 py-1 gap-[min(1vw,4px)]">
 
                         {/* Speed & Analysis */}
