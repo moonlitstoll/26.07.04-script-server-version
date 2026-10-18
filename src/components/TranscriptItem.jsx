@@ -36,6 +36,10 @@ const dedupeSentenceInAnalysis = (analysis, sentence) => {
 // 휴대폰 탭 영역: 보이는 크기는 그대로 두고 투명한 가상요소로 위아래를 넓힌다(카드 높이가 안 늘게).
 // 타임스탬프 16px + 위아래 12px = 40px, 배지 16px + 위아래 10px = 36px.
 const HIT_TS = "relative before:content-[''] before:absolute before:-inset-x-1 before:-inset-y-3";
+// div에 role=button을 줄 때 키보드(Enter·Space)도 탭처럼 — 화면 읽기 기능·키보드만 쓰는 사용자용
+const onKeyActivate = (fn) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); }
+};
 const HIT_BADGE = "relative before:content-[''] before:absolute before:-inset-x-0.5 before:-inset-y-2.5";
 
 const TranscriptItem = memo(({
@@ -121,8 +125,11 @@ const TranscriptItem = memo(({
             {selectMode && (
                 <div
                     onClick={() => onToggleSelect && onToggleSelect(idx)}
+                    onKeyDown={onKeyActivate(() => onToggleSelect && onToggleSelect(idx))}
                     className="absolute inset-0 z-30 cursor-pointer rounded-xl"
                     role="button"
+                    tabIndex={0}
+                    aria-label={isSelected ? '이 문장 선택 해제' : '이 문장 선택'}
                     aria-pressed={isSelected}
                 >
                     <div className={`absolute top-2 right-2 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600'}`}>
@@ -224,6 +231,10 @@ const TranscriptItem = memo(({
                 <>
                 <div
                     onClick={() => jumpToSentence(idx)}
+                    onKeyDown={onKeyActivate(() => jumpToSentence(idx))}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${item.timestamp}부터 재생`}
                     className={`
             text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-0.5 px-1 font-bold
             ${isActive ? 'text-black dark:text-white' : 'text-slate-900 dark:text-slate-100'}
@@ -288,6 +299,11 @@ const TranscriptItem = memo(({
                     {analysisLines.length > 0 && (
                         <div
                             onClick={hasBreakdown ? () => setFlipped(f => !f) : undefined}
+                            onKeyDown={hasBreakdown ? onKeyActivate(() => setFlipped(f => !f)) : undefined}
+                            role={hasBreakdown ? 'button' : undefined}
+                            tabIndex={hasBreakdown ? 0 : undefined}
+                            aria-expanded={hasBreakdown ? breakdownOpen : undefined}
+                            aria-label={hasBreakdown ? (breakdownOpen ? '단어 풀이 접기' : '단어 풀이 펼치기') : undefined}
                             title={hasBreakdown ? (breakdownOpen ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
                             className={`px-1 space-y-0.5 text-slate-800 dark:text-slate-200 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer' : ''}`}
                         >

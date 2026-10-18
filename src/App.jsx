@@ -1059,10 +1059,10 @@ const App = () => {
                     </>
                   ) : (
                     <>
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink min-w-0 truncate">
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0 whitespace-nowrap tabular-nums">
                         {selectedIdxs.size > 0
-                          ? `${selectedIdxs.size}개 선택`
-                          : '문장 선택'}
+                          ? `${selectedIdxs.size}개`
+                          : '문장 탭'}
                       </span>
                       <div className="flex items-center gap-1 overflow-x-auto">
                         <button
@@ -1071,23 +1071,6 @@ const App = () => {
                         >
                           <X size={14} /> 취소
                         </button>
-                        <button
-                          onClick={confirmDelete}
-                          disabled={selectedIdxs.size === 0}
-                          title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className={`${SEL_BTN} text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
-                        >
-                          <Trash2 size={14} /> 삭제
-                        </button>
-                        {selectedIdxs.size === 1 && (
-                          <button
-                            onClick={confirmSplit}
-                            title="문장을 단어 사이에서 나눠 앞/뒷부분만 지우거나 두 문장으로 만들기"
-                            className={`${SEL_BTN} text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors`}
-                          >
-                            <Scissors size={14} /> 나누기
-                          </button>
-                        )}
                         <button
                           onClick={confirmRecover}
                           disabled={selectedIdxs.size !== 1}
@@ -1119,6 +1102,25 @@ const App = () => {
                           className={`${SEL_BTN} text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors shadow-sm`}
                         >
                           <Check size={14} /> 전사
+                        </button>
+                        {/* 지우는 동작(나누기·삭제)은 오른쪽 끝 묶음 — 예전엔 '취소' 바로 옆이 빨간 '삭제'였다 */}
+                        <span aria-hidden="true" className="shrink-0 w-px h-4 mx-0.5 bg-slate-200 dark:bg-slate-700" />
+                        {selectedIdxs.size === 1 && (
+                          <button
+                            onClick={confirmSplit}
+                            title="문장을 단어 사이에서 나눠 앞/뒷부분만 지우거나 두 문장으로 만들기"
+                            className={`${SEL_BTN} text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors`}
+                          >
+                            <Scissors size={14} /> 나누기
+                          </button>
+                        )}
+                        <button
+                          onClick={confirmDelete}
+                          disabled={selectedIdxs.size === 0}
+                          title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
+                          className={`${SEL_BTN} text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
+                        >
+                          <Trash2 size={14} /> 삭제
                         </button>
                       </div>
                     </>

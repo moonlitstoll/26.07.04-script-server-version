@@ -4,7 +4,7 @@
 // 끝났는데 실패가 남았으면 '일부 실패', 멈췄으면 '멈춤'(둘 다 열면 남은 문장을 이어서 분석한다).
 export function cacheStatusOf(cachedData, { running = false } = {}) {
     let statusText = "분석 전";
-    let badgeColor = "bg-gray-100 text-gray-600";
+    let badgeColor = "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300";
     let progressText = "";
     if (!cachedData || !Array.isArray(cachedData.data)) return { statusText, badgeColor, progressText };
 
@@ -14,19 +14,19 @@ export function cacheStatusOf(cachedData, { running = false } = {}) {
 
     if (total > 0 && analyzed === total) {
         statusText = "완료";
-        badgeColor = "bg-emerald-100 text-emerald-700 font-black";
+        badgeColor = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-black";
     } else if (running) {
         statusText = "분석 중";
-        badgeColor = "bg-sky-100 text-sky-700 animate-pulse font-bold";
+        badgeColor = "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 animate-pulse font-bold";
     } else if (cachedData.metadata?.status === 'partial') {
         statusText = "일부 실패";
-        badgeColor = "bg-amber-100 text-amber-700 font-bold";
+        badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold";
     } else if (analyzed > 0) {
         statusText = "멈춤";
-        badgeColor = "bg-amber-100 text-amber-700 font-bold";
+        badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold";
     } else if (cachedData.metadata?.status === 'extracted') {
         statusText = "분석 전";
-        badgeColor = "bg-amber-100 text-amber-700 font-bold";
+        badgeColor = "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold";
     }
     return { statusText, badgeColor, progressText };
 }
@@ -47,6 +47,21 @@ export function saveStatusOf(data) {
     if (!Array.isArray(data) || data.length === 0) return 'extracted';
     return data.every(d => d.isAnalyzed) ? 'completed' : 'analyzing';
 }
+
+// 클라우드 전용 항목(이 기기에 저장본 없음)의 배지 — 기록 창과 첫 화면이 같은 모양(TranscriptRow)
+export function cloudStatusOf(item) {
+    const done = item?.status === 'completed';
+    return {
+        statusText: done ? '완료' : '분석 전',
+        badgeColor: done
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-black'
+            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-bold',
+        progressText: '',
+    };
+}
+
+// 목록 줄 아이콘용: 파일 이름 확장자로 영상/소리 구분
+export const isVideoName = (n) => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(n || '');
 
 export function getCacheDisplayName(cacheKey) {
     return cacheKey.replace('gemini_analysis_', '').replace(/_\d+$/, '');

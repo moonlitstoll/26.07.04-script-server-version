@@ -1,14 +1,13 @@
 import {
-    Upload, Volume2, Settings, Star, Cloud, Trash2, FileAudio, FileVideo, BookOpen
+    Upload, Volume2, Settings, Star, Cloud, Trash2, BookOpen
 } from 'lucide-react';
 import SettingsModal from './SettingsModal';
-import { getCacheDisplayName } from '../utils/cacheStatus';
+import TranscriptRow from './TranscriptRow';
+import { getCacheDisplayName, getCacheStatus, isVideoName, cloudStatusOf } from '../utils/cacheStatus';
 import { readRecent, sortByRecent } from '../utils/recentOpen';
 
 const favIdFromKey = (key) => key.replace('gemini_analysis_', '');
 const favIdFromItem = (item) => `${item.name}_${item.size}`;
-// 목록 줄 아이콘: 영상/소리 구분(예전 스피커 아이콘은 뜻이 없었다)
-const isVideoName = (n) => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(n || '');
 
 const EmptyState = ({
     isDragging, onDragOver, onDragLeave, onDrop,
@@ -34,52 +33,7 @@ const EmptyState = ({
     // id → 클라우드 항목 (로컬 행에서 서버 삭제 버튼 표시 여부 판단)
     const cloudById = new Map((cloudItems || []).map(it => [favIdFromItem(it), it]));
 
-    // 로컬/서버 삭제 버튼 (카드 우측 인라인 — 아이콘만, 컴팩트).
-    // 삭제는 휴지통 아이콘 — 예전엔 기록 창의 '저장됨' 배지와 같은 드라이브 아이콘이라 저장 표시로 읽고 눌렀다.
-    const renderDeleteButtons = (recForDelete, localHere, cloudItem) => {
-        if (!localHere && !cloudItem) return null;
-        return (
-            <div className="flex items-center gap-0.5 shrink-0">
-                {localHere && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
-                        className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
-                        title="이 기기에서 삭제"
-                        aria-label="이 기기에서 삭제"
-                    >
-                        <Trash2 size={15} />
-                    </button>
-                )}
-                {cloudItem && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
-                        className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
-                        title="서버에서 삭제 (모든 기기)"
-                        aria-label="서버에서 삭제"
-                    >
-                        <Cloud size={15} />
-                    </button>
-                )}
-            </div>
-        );
-    };
-
-    const renderStar = (id) => {
-        const fav = isFavorite(id);
-        return (
-            <button
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
-                className={`shrink-0 p-1.5 rounded-lg transition-all ${fav ? 'text-amber-500 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40' : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
-                title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                aria-label={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                aria-pressed={fav}
-            >
-                <Star size={16} className={fav ? 'fill-current' : ''} />
-            </button>
-        );
-    };
-
-    // 로컬 캐시 항목 1행 (이 기기에 저장됨 → 초록 테두리) — 1줄 컴팩트
+    // 로컬 캐시 항목 1행 — 기록 창과 같은 부품(TranscriptRow), 완료/멈춤 배지·문장 수가 여기서도 보인다
     const renderRow = (key) => {
         const id = favIdFromKey(key);
         const name = getCacheDisplayName(key);
@@ -87,43 +41,40 @@ const EmptyState = ({
         const cloudItem = cloudById.get(id) || null;
         const recForDelete = { displayName: display, localKey: key, cloudItem };
         return (
-            <div
+            <TranscriptRow
                 key={key}
-                onClick={() => loadCache(key)}
-                className="flex items-center gap-2.5 bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 px-3 py-2 rounded-xl shadow-sm hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md hover:shadow-emerald-50 dark:hover:shadow-black/40 transition-all cursor-pointer text-left"
-            >
-                <div className="shrink-0 w-7 h-7 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg flex items-center justify-center text-emerald-500 dark:text-emerald-400" title={isVideoName(name) ? '영상' : '소리'}>
-                    {isVideoName(name) ? <FileVideo size={15} /> : <FileAudio size={15} />}
-                </div>
-                <span className="flex-1 min-w-0 text-sm font-bold text-slate-700 dark:text-slate-300 break-words leading-snug">{display}</span>
-                {renderStar(id)}
-                {renderDeleteButtons(recForDelete, true, cloudItem)}
-            </div>
+                display={display}
+                kind={isVideoName(name) ? 'video' : 'audio'}
+                localHere
+                status={getCacheStatus(key)}
+                fav={isFavorite(id)}
+                onOpen={() => loadCache(key)}
+                onToggleFav={() => toggleFavorite(id)}
+                onDeleteLocal={() => deleteLocal(recForDelete)}
+                onDeleteServer={cloudItem ? () => deleteServer(recForDelete) : undefined}
+            />
         );
     };
 
-    // 클라우드 즐겨찾기 항목 1행 (다른 기기에서 별표한 것) — 1줄 컴팩트
+    // 클라우드 전용 항목 1행 (다른 기기에서 올린 것)
     const renderCloudRow = (item) => {
         const id = favIdFromItem(item);
         const display = (item.name || '이름 없음').replace(/\.[^.]+$/, '');
         const localHere = localVideoIds.has(id);
         const recForDelete = { displayName: display, localKey: null, cloudItem: item };
-        const borderCls = localHere
-            ? 'border-emerald-300 dark:border-emerald-700 hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-emerald-50 dark:hover:shadow-black/40'
-            : 'border-slate-100 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-sky-50 dark:hover:shadow-black/40';
         return (
-            <div
+            <TranscriptRow
                 key={item.folder}
-                onClick={() => loadCloud && loadCloud(item)}
-                className={`flex items-center gap-2.5 bg-white dark:bg-slate-800 border px-3 py-2 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer text-left ${borderCls}`}
-            >
-                <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${localHere ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 dark:text-emerald-400' : 'bg-sky-50 dark:bg-sky-950/40 text-sky-500 dark:text-sky-400'}`} title={localHere ? '이 기기에 있음' : '서버에만 있음 (열면 내려받음)'}>
-                    {localHere ? (isVideoName(item.name) ? <FileVideo size={15} /> : <FileAudio size={15} />) : <Cloud size={15} />}
-                </div>
-                <span className="flex-1 min-w-0 text-sm font-bold text-slate-700 dark:text-slate-300 break-words leading-snug">{display}</span>
-                {renderStar(id)}
-                {renderDeleteButtons(recForDelete, localHere, item)}
-            </div>
+                display={display}
+                kind={localHere ? (isVideoName(item.name) ? 'video' : 'audio') : 'cloud'}
+                localHere={localHere}
+                status={cloudStatusOf(item)}
+                fav={isFavorite(id)}
+                onOpen={() => loadCloud && loadCloud(item)}
+                onToggleFav={() => toggleFavorite(id)}
+                onDeleteLocal={localHere ? () => deleteLocal(recForDelete) : undefined}
+                onDeleteServer={() => deleteServer(recForDelete)}
+            />
         );
     };
 

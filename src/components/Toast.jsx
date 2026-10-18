@@ -16,7 +16,13 @@ const Toast = ({ message, type = 'success', onClose, duration = 2500, action = n
     return (
         // 탭하면 즉시 닫힘: 모바일에서 앱을 잠깐 벗어나면 백그라운드 타이머가 멈춰
         // 토스트가 한참 남아 보이는 문제의 탈출구 (action 버튼은 자체 onClick에서 닫음)
-        <div onClick={onClose} className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] cursor-pointer animate-in slide-in-from-bottom-4 fade-in duration-300">
+        <div
+            onClick={onClose}
+            // 화면 읽기 기능이 안내를 읽어 주게: 성공은 status(조용히), 오류는 alert(바로)
+            role={type === 'error' ? 'alert' : 'status'}
+            aria-live={type === 'error' ? 'assertive' : 'polite'}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] cursor-pointer animate-in slide-in-from-bottom-4 fade-in duration-300"
+        >
             <div className={`flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl font-bold text-sm ${
                 type === 'success'
                     ? 'bg-emerald-600 text-white shadow-emerald-200 dark:shadow-black/40'

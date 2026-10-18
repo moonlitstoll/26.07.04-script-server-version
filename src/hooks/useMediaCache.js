@@ -222,9 +222,10 @@ export const useMediaCache = ({
             const meta = parseCacheEntry(localKey)?.metadata;
             if (meta) { name = meta.name; size = meta.size; }
         }
-        const message = cloudItem
-            ? `"${displayName}"\uc744(\ub97c) \uc774 \uae30\uae30\uc5d0\uc11c \uc0ad\uc81c\ud560\uae4c\uc694? (\ud074\ub77c\uc6b0\ub4dc\u00b7\ub2e4\ub978 \uae30\uae30\uc5d4 \ub0a8\uc544, \ub2e4\uc2dc \uc5f4\uba74 \ubc1b\uc544\uc635\ub2c8\ub2e4)`
-            : `"${displayName}"\uc744(\ub97c) \uc774 \uae30\uae30\uc5d0\uc11c \uc0ad\uc81c\ud560\uae4c\uc694? \uc774 \ud56d\ubaa9\uc740 \ud074\ub77c\uc6b0\ub4dc\uc5d0 \uc5c6\uc5b4 \uc644\uc804\ud788 \uc0ac\ub77c\uc9d1\ub2c8\ub2e4.`;
+        // 클라우드가 꺼져 있으면(CLOUD_ENABLED=false) '클라우드' 얘기를 하지 않는다 — 꺼진 지 오래인데 문구만 남아 있었다
+        const message = (CLOUD_ENABLED && cloudItem)
+            ? `"${displayName}"을(를) 이 기기에서 삭제할까요? (서버·다른 기기엔 남아, 다시 열면 받아옵니다)`
+            : `"${displayName}"을(를) 이 기기에서 삭제할까요? 대본과 영상이 지워지고 되돌릴 수 없습니다.`;
         showConfirm({
             message,
             onConfirm: async () => {
@@ -250,19 +251,28 @@ export const useMediaCache = ({
     // \uc774 \uae30\uae30 \uce90\uc2dc \uc77c\uad04 \ube44\uc6b0\uae30 \u2014 \ud074\ub77c\uc6b0\ub4dc\uc5d0 \uc788\ub294 \ud56d\ubaa9\ub9cc \ub85c\uceec\uc5d0\uc11c \uc81c\uac70(\ubbf8\ub3d9\uae30\ud654 \ud56d\ubaa9\uc740 \ubcf4\uc874)
     const clearLocalCache = () => {
         showConfirm({
-            message: "\uc774 \uae30\uae30\uc5d0 \ubc1b\uc544\ub454 \uc601\uc0c1/\ub300\ubcf8\uc744 \ubaa8\ub450 \ube44\uc6b8\uae4c\uc694? (\ud074\ub77c\uc6b0\ub4dc\uc5d0 \uc788\ub294 \ud56d\ubaa9\uc740 \ubaa9\ub85d\uc5d0 \ub0a8\uace0, \ub2e4\uc2dc \uc5f4\uba74 \ubc1b\uc544\uc635\ub2c8\ub2e4)",
+            message: CLOUD_ENABLED
+                ? "이 기기에 받아둔 영상/대본을 모두 비울까요? (클라우드에 있는 항목은 목록에 남고, 다시 열면 받아옵니다)"
+                : "이 기기에 저장된 대본과 영상을 전부 지울까요? 되돌릴 수 없습니다.",
             onConfirm: async () => {
                 try {
+                    // 클라우드 켜짐: 서버에 있는 것만 지운다(로컬 전용은 보존). 꺼짐: 전부 — 예전엔 꺼진 상태에서
+                    // cloudIds가 비어 아무것도 안 지우고 '비웠습니다'만 떴다(2차 점검 뒤 발견).
                     const cloudIds = new Set((cloudItems || []).map(it => `${it.name}_${it.size}`));
+                    const all = !CLOUD_ENABLED;
                     const entries = await mediaStore.listEntries();
                     for (const e of entries) {
-                        if (!cloudIds.has(e.id)) continue; // \ubbf8\ub3d9\uae30\ud654(\ub85c\uceec \uc804\uc6a9)\ub294 \ubcf4\uc874
+                        if (!all && !cloudIds.has(e.id)) continue;
                         try { await mediaStore.deleteFile(e.name, e.size); } catch { /* noop */ }
                         localStorage.removeItem(`${CACHE_PREFIX}${e.id}`);
                     }
-                    setCacheKeys(prev => prev.filter(k => !cloudIds.has(k.replace(CACHE_PREFIX, ''))));
+                    if (all) {
+                        // 영상 없이 대본만 있는 항목도(localStorage에만)
+                        Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => localStorage.removeItem(k));
+                    }
+                    setCacheKeys(prev => all ? [] : prev.filter(k => !cloudIds.has(k.replace(CACHE_PREFIX, ''))));
                     await refreshLocalVideos();
-                    showToast({ message: "\uc774 \uae30\uae30 \uce90\uc2dc\ub97c \ube44\uc6e0\uc2b5\ub2c8\ub2e4 (\ud074\ub77c\uc6b0\ub4dc \uc720\uc9c0)", type: "success" });
+                    showToast({ message: CLOUD_ENABLED ? "이 기기 캐시를 비웠습니다 (클라우드 유지)" : "이 기기의 대본과 영상을 전부 지웠습니다", type: "success" });
                 } catch (e) {
                     console.warn('[Cache] \ub85c\uceec \uc77c\uad04 \ube44\uc6b0\uae30 \uc2e4\ud328:', e);
                 }

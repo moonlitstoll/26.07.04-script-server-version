@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import {
-    X, Upload, Search, FileVideo, BookOpen, Check, Clock, Star, HardDrive, Cloud, Trash2
+    X, Upload, Search, FileVideo, Clock, Star, Trash2
 } from 'lucide-react';
-import { getCacheStatus, getCacheDisplayName } from '../utils/cacheStatus';
+import TranscriptRow from './TranscriptRow';
+import { getCacheStatus, getCacheDisplayName, isVideoName, cloudStatusOf } from '../utils/cacheStatus';
 import { readRecent, sortByRecent } from '../utils/recentOpen';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
@@ -62,101 +63,30 @@ const CacheHistoryModal = ({
         ];
     }, [records, isFavorite]);
 
-    const renderStar = (id) => {
-        const fav = isFavorite(id);
-        return (
-            <button
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(id); }}
-                className={`p-1.5 rounded-lg transition-all ${fav ? 'text-amber-500 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40' : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
-                title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                aria-label={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                aria-pressed={fav}
-            >
-                <Star size={17} className={fav ? 'fill-current' : ''} />
-            </button>
-        );
-    };
-
-    // 통합 항목 1행
+    // 통합 항목 1행 — 첫 화면과 같은 부품(TranscriptRow)
     const renderRecordRow = (rec) => {
-        const hasCloud = !!rec.cloudItem;
         const display = stripExt(rec.name);
         const isActive = activeFile?.file?.name === rec.name;
         // 로컬에 영상(또는 로컬 대본)이 있으면 = 이 기기에 다운로드됨 → 초록 테두리
         const localHere = localVideoIds.has(rec.id) || !!rec.localKey;
-
-        // 상태 뱃지 (분석/전사 진행 상태)
-        let statusText, statusCls, progressText = null;
-        if (rec.localKey) {
-            const s = getCacheStatus(rec.localKey, { running: runningKeys.has(rec.localKey.replace(/^gemini_analysis_/, '')) });
-            statusText = s.statusText; statusCls = s.badgeColor; progressText = s.progressText;
-        } else {
-            const done = rec.cloudItem.status === 'completed';
-            statusText = done ? '분석 완료' : '전사 완료';
-            statusCls = done ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400';
-        }
-
-        const open = () => { if (rec.localKey) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); };
-
-        // 테두리: 활성 > 로컬(초록) > 기본
-        const borderCls = isActive
-            ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 shadow-md shadow-indigo-100 dark:shadow-black/40'
-            : localHere
-                ? 'bg-white dark:bg-slate-800 border-emerald-300 dark:border-emerald-700 hover:border-emerald-400 dark:hover:border-emerald-600 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/25'
-                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-slate-50 dark:hover:bg-slate-700';
-
+        const status = rec.localKey
+            ? getCacheStatus(rec.localKey, { running: runningKeys.has(rec.localKey.replace(/^gemini_analysis_/, '')) })
+            : cloudStatusOf(rec.cloudItem);
         const recForDelete = { displayName: display, localKey: rec.localKey, cloudItem: rec.cloudItem };
-
         return (
-            <div
+            <TranscriptRow
                 key={rec.id}
-                onClick={open}
-                className={`group flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer transition-all mb-1.5 ${borderCls}`}
-            >
-                {/* 아이콘 */}
-                <div className={`shrink-0 p-2 rounded-lg ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
-                    {isActive ? <Check size={17} /> : <BookOpen size={17} />}
-                </div>
-                {/* 제목 + 상태 뱃지 */}
-                <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-bold break-words leading-snug ${isActive ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>{display}</p>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {/* 11px·slate-500: 예전 10px·slate-400은 대비 2.4:1로 밤에 안 읽혔다(점검) */}
-                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] tracking-tight ${statusCls}`}>{statusText}</span>
-                        {progressText && <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{progressText}</span>}
-                        {localHere && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] tracking-tight bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
-                                <HardDrive size={10} /> 저장됨
-                            </span>
-                        )}
-                    </div>
-                </div>
-                {/* 우측 인라인: 즐겨찾기 + 삭제 (아이콘만).
-                    삭제는 휴지통 아이콘 — 예전엔 '저장됨' 배지와 같은 드라이브 아이콘이라 저장 표시로 읽고 눌렀다 */}
-                <div className="shrink-0 flex items-center gap-0.5">
-                    {renderStar(rec.id)}
-                    {localHere && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); deleteLocal(recForDelete); }}
-                            className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
-                            title="이 기기에서 삭제"
-                            aria-label="이 기기에서 삭제"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    )}
-                    {hasCloud && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); deleteServer(recForDelete); }}
-                            className="p-1.5 text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
-                            title="서버에서 삭제 (모든 기기)"
-                            aria-label="서버에서 삭제"
-                        >
-                            <Cloud size={16} />
-                        </button>
-                    )}
-                </div>
-            </div>
+                display={display}
+                kind={localHere ? (isVideoName(rec.name) ? 'video' : 'audio') : 'cloud'}
+                active={isActive}
+                localHere={localHere}
+                status={status}
+                fav={isFavorite(rec.id)}
+                onOpen={() => { if (rec.localKey) loadCache(rec.localKey); else loadCloud && loadCloud(rec.cloudItem); }}
+                onToggleFav={() => toggleFavorite(rec.id)}
+                onDeleteLocal={localHere ? () => deleteLocal(recForDelete) : undefined}
+                onDeleteServer={rec.cloudItem ? () => deleteServer(recForDelete) : undefined}
+            />
         );
     };
 
@@ -174,44 +104,41 @@ const CacheHistoryModal = ({
                 </div>
 
                 <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
-                    {/* Controls Area */}
-                    <div className="p-3 sm:p-4 space-y-3">
-                        <div className="relative">
-                            <label
-                                htmlFor="manager-file-upload"
-                                className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl cursor-pointer shadow-md shadow-indigo-200 dark:shadow-black/40 transition-all group"
-                            >
-                                <Upload size={18} className="group-hover:scale-110 transition-transform" />
-                                <span className="text-sm font-bold">새 파일 올리기</span>
-                            </label>
-                            <input
-                                id="manager-file-upload"
-                                type="file"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => {
-                                    const selectedFiles = e.target.files;
-                                    if (selectedFiles && selectedFiles.length > 0) {
-                                        processFiles(selectedFiles);
-                                        e.target.value = '';
-                                        onClose();
-                                    }
-                                }}
-                                accept="audio/*,video/*"
-                            />
-                        </div>
-
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
+                    {/* Controls Area — 검색이 주, 올리기는 보조(첫 화면에 큰 올리기 박스가 따로 있다). 대본 화면에서 새 파일을
+                        올릴 수 있는 유일한 길이라 없애지는 않았다 */}
+                    <div className="p-3 sm:p-4 flex items-center gap-2">
+                        <div className="relative flex-1 min-w-0">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
                             <input
                                 type="text"
                                 placeholder="대본 이름으로 찾기"
                                 aria-label="대본 이름으로 찾기"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                                className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
                             />
                         </div>
+                        <label
+                            htmlFor="manager-file-upload"
+                            className="shrink-0 inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-sm font-bold cursor-pointer transition-colors"
+                        >
+                            <Upload size={16} /> 새 파일
+                        </label>
+                        <input
+                            id="manager-file-upload"
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => {
+                                const selectedFiles = e.target.files;
+                                if (selectedFiles && selectedFiles.length > 0) {
+                                    processFiles(selectedFiles);
+                                    e.target.value = '';
+                                    onClose();
+                                }
+                            }}
+                            accept="audio/*,video/*"
+                        />
                     </div>
 
                     {analyzingFiles.length === 0 && records.length === 0 ? (
@@ -221,7 +148,7 @@ const CacheHistoryModal = ({
                             <p className="text-sm">파일을 올리면 여기에 쌓입니다</p>
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 space-y-2">
+                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 space-y-1.5">
                             {/* 1. Analyzing Files */}
                             {analyzingFiles.map(f => {
                                 const isActive = activeFileId === f.id;

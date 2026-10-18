@@ -26,6 +26,11 @@
     body {
         @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
     }
+
+    /* 키보드로 옮겨 다닐 때 지금 어디인지 보이게(마우스·터치엔 안 뜸). 예전엔 몇 곳에만 있었다 */
+    :focus-visible {
+        @apply outline-2 outline-offset-2 outline-indigo-500;
+    }
 }
 
 /* 기기의 '움직임 줄이기' 설정을 따른다 — 깜박임(pulse)·튀기(bounce)는 멈추고,
