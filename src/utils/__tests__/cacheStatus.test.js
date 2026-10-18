@@ -16,18 +16,18 @@ describe('저장 상태', () => {
 describe('기록 창 배지(cacheStatusOf)', () => {
     const doc = (analyzed, total, status) => ({ data: Array.from({ length: total }, (_, i) => ({ isAnalyzed: i < analyzed })), metadata: { status } });
     it('전부 분석이면 COMPLETED', () => {
-        expect(cacheStatusOf(doc(3, 3, 'completed')).statusText).toBe('COMPLETED');
+        expect(cacheStatusOf(doc(3, 3, 'completed')).statusText).toBe('완료');
     });
     it('덜 분석됐어도 지금 돌고 있을 때만 깜박이는 ANALYZING', () => {
         const s = cacheStatusOf(doc(233, 258, 'analyzing'), { running: true });
-        expect(s.statusText).toBe('ANALYZING');
+        expect(s.statusText).toBe('분석 중');
         expect(s.badgeColor).toMatch(/animate-pulse/);
     });
     it('실측 #13: 233/258에서 실패가 남은 채 끝나면 깜박이지 않는 "일부 실패"', () => {
         const s = cacheStatusOf(doc(233, 258, 'partial'));
         expect(s.statusText).toBe('일부 실패');
         expect(s.badgeColor).not.toMatch(/animate-pulse/);
-        expect(s.progressText).toBe('233/258 Sentences');
+        expect(s.progressText).toBe('233/258 문장');
     });
     it('중간에 멈춘 대본은 "멈춤"(깜박임 없음)', () => {
         const s = cacheStatusOf(doc(100, 258, 'analyzing'));
@@ -35,6 +35,6 @@ describe('기록 창 배지(cacheStatusOf)', () => {
         expect(s.badgeColor).not.toMatch(/animate-pulse/);
     });
     it('전사만 끝난 대본은 READY', () => {
-        expect(cacheStatusOf(doc(0, 50, 'extracted')).statusText).toBe('READY');
+        expect(cacheStatusOf(doc(0, 50, 'extracted')).statusText).toBe('분석 전');
     });
 });

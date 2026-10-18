@@ -16,6 +16,11 @@ import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
+// 저장 안내의 용량 글자. 예전 toFixed(0)은 1MB 미만이 "(0MB)"로 나와 고장처럼 읽혔다.
+const mbText = (bytes) => bytes < 1048576
+    ? `${Math.max(1, Math.round(bytes / 1024))}KB`
+    : `${(bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1 : 0)}MB`;
+
 // 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
 const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
     setFiles(prev => prev.map(p => p.id === fileId
@@ -694,12 +699,12 @@ export const useMediaAnalysis = ({
                     try {
                         const existing = await mediaStore.getFileFlexible(fItem.file.name, fItem.file.size);
                         if (existing) {
-                            if (showToast) showToast({ message: `영상 이미 저장됨 (${(fItem.file.size / 1048576).toFixed(0)}MB) — 새로고침 유지 정상`, type: 'success' });
+                            if (showToast) showToast({ message: `영상 이미 저장됨 (${mbText(fItem.file.size)}) — 새로고침 유지 정상`, type: 'success' });
                         } else if (!fItem.file.size) {
                             if (showToast) showToast({ message: '영상 저장 불가: 빈 파일(0바이트) — 온디맨드/클라우드 파일일 수 있음', type: 'error' });
                         } else {
                             await mediaStore.saveFile(fItem.file, { name: fItem.file.name, size: fItem.file.size });
-                            if (showToast) showToast({ message: `영상 저장 완료 (${(fItem.file.size / 1048576).toFixed(0)}MB) — 이제 새로고침해도 유지`, type: 'success' });
+                            if (showToast) showToast({ message: `영상 저장 완료 (${mbText(fItem.file.size)}) — 이제 새로고침해도 유지`, type: 'success' });
                         }
                     } catch (e) {
                         console.warn("캐시 히트 미디어 저장 실패:", e);
@@ -1131,7 +1136,7 @@ export const useMediaAnalysis = ({
                         message: kept > 0
                             ? `선택 ${sentences.length}개 중 ${applied}개 반영 · ${kept}개는 판단 불가로 기존값 유지`
                             : `선택한 ${sentences.length}개 문장의 대사 끝을 다시 감지했어요.`,
-                        type: 'success', duration: 6000,
+                        type: 'success', duration: 10000,
                     });
                 } else if (remaining > 0) {
                     showToast({
@@ -1328,7 +1333,7 @@ export const useMediaAnalysis = ({
         if (wasAnalyzing && stage2AbortRef.current) stage2AbortRef.current.abort();
         setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: newData } : p));
 
-        // 휴지통에 보관 (6초 실행취소가 지나도 나중에 복구 가능)
+        // 휴지통에 보관 (10초 실행취소가 지나도 나중에 복구 가능)
         if (targetFile.name) {
             addToTrash(targetFile.name, targetFile.size, deletedItems);
             if (onTrashChange) onTrashChange();
@@ -1339,7 +1344,7 @@ export const useMediaAnalysis = ({
             message: `${idxSet.size}개 문장 삭제됨`,
             type: 'success',
             action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, deletedItems, '삭제를 취소했습니다.') },
-            duration: 6000, // 되돌릴 시간 여유
+            duration: 10000, // 되돌릴 시간 여유
         });
         if (wasAnalyzing && apiKey && newData.some(d => !d.isAnalyzed && !d.analysisFailed)) {
             runStage2(fileId, targetFile, newData, apiKey, stage2Model);
@@ -1404,7 +1409,7 @@ export const useMediaAnalysis = ({
 
     /**
      * [문장 나누기] 한 문장을 단어 사이에서 나눠 앞/뒤를 지우거나 두 문장으로 만든다(utils/sentenceEdit).
-     * 남은 문장은 다시 분석하고, 지운 조각은 휴지통에 보관한다. 6초 실행취소는 원래 문장·분석을 그대로 되돌린다.
+     * 남은 문장은 다시 분석하고, 지운 조각은 휴지통에 보관한다. 10초 실행취소는 원래 문장·분석을 그대로 되돌린다.
      */
     const splitSentence = (fileId, idx, { wordIndex, mode, splitSeconds }) => {
         const base = (filesRef?.current || []).find(p => p.id === fileId);
@@ -1441,14 +1446,14 @@ export const useMediaAnalysis = ({
             message: `${label}. 다시 분석 중...`,
             type: 'success',
             action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, result.trashed, '나누기를 취소했습니다.') },
-            duration: 6000,
+            duration: 10000,
         });
         if (apiKey) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     };
 
     /**
      * [대사 끝 직접 맞추기] 선택 모드 '대사만' → 직접 맞추기. AI를 부르지 않고 사용자가 맞춘 끝 시각을 넣는다.
-     * 같은 시각의 형제 문장 전부에 넣고 판단 불가 표시를 지운다(speechEndMerge#applyManualSpeechEnd). 6초 실행취소.
+     * 같은 시각의 형제 문장 전부에 넣고 판단 불가 표시를 지운다(speechEndMerge#applyManualSpeechEnd). 10초 실행취소.
      */
     const setSpeechEndManual = (fileId, idx, se) => {
         const base = (filesRef?.current || []).find(p => p.id === fileId);
@@ -1466,7 +1471,7 @@ export const useMediaAnalysis = ({
             message: `대사 끝을 ${formatStamp(se)}로 맞췄어요.`,
             type: 'success',
             action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, [], '대사 끝 맞추기를 취소했습니다.') },
-            duration: 6000,
+            duration: 10000,
         });
         if (wasAnalyzing && apiKey && next.some(d => !d.isAnalyzed && !d.analysisFailed)) {
             runStage2(fileId, targetFile, next, apiKey, stage2Model);
@@ -1520,7 +1525,7 @@ export const useMediaAnalysis = ({
             message: `구간 재전사 완료: ${removed.length}개 → ${fresh.length}개 문장. 분석 진행 중...`,
             type: 'success',
             action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, currentData, removed, '구간 재전사를 취소했습니다.') },
-            duration: 6000,
+            duration: 10000,
         });
         runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     });

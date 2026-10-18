@@ -155,13 +155,13 @@ describe('사용자 안내 문구', () => {
         }
     });
     it('방지 모드가 꺼져 있으면 켜라고, 켜져 있으면 간격을 줄이라고 안내한다', () => {
-        expect(recitationBlockedMessage({ antiRecitation: false })).toMatch(/'RECITATION 방지 모드'를 켜고/);
+        expect(recitationBlockedMessage({ antiRecitation: false })).toMatch(/'저작권 차단 피하기'를 켜고/);
         expect(recitationBlockedMessage({ antiRecitation: true, markerInterval: 7 })).toMatch(/7단어에서 2단어로/);
         expect(recitationBlockedMessage({ antiRecitation: true, markerInterval: 2 })).toMatch(/다시 시도/);
     });
     it('안내가 가리키는 설정 이름이 설정 창에 실제로 있다', () => {
         const modal = readFileSync(new URL('../../components/SettingsModal.jsx', import.meta.url), 'utf8');
-        expect(modal).toContain('RECITATION 방지 모드');
+        expect(modal).toContain('저작권 차단 피하기');
         expect(modal).toContain('삽입 간격');
     });
 });

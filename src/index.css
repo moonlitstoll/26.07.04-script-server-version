@@ -4,17 +4,23 @@
    'system'일 땐 hooks/useTheme가 기기 설정을 읽어 같은 클래스를 붙인다. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+/* 글꼴: Inter(베트남어 성조 글자 포함) + 한글은 기기 글꼴. 예전 Outfit은 라틴만 있어
+   베트남어 한 단어 안에서 성조 글자만 다른 글꼴로 떨어졌다. --font-sans를 덮어써야
+   Tailwind의 font-sans 클래스(App 루트)도 같은 글꼴을 쓴다. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 @theme {
-    --font-outfit: 'Outfit', sans-serif;
+    --font-sans: 'Inter', 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', system-ui, sans-serif;
 }
 
 @layer base {
     html {
-        font-family: var(--font-outfit), sans-serif;
+        font-family: var(--font-sans);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        /* 한글은 단어 중간에서 줄이 끊기지 않게, 긴 영어·베트남어는 넘치지 않게 */
+        word-break: keep-all;
+        overflow-wrap: anywhere;
     }
 
     body {

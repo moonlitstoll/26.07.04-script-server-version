@@ -110,7 +110,11 @@ const App = () => {
   const [toastState, setToastState] = useState(null);
 
   const showConfirm = useCallback((opts) => setConfirmState(opts), []);
-  const showToast = useCallback((opts) => setToastState(opts), []);
+  // 토스트 자리는 하나. '실행취소' 버튼이 달린 토스트가 떠 있는 동안 뒤따르는 보통 안내(재분석 시작 등)가
+  // 그걸 덮어 실행취소 기회가 사라졌다 → 버튼 달린 토스트는 오류 안내에만 밀린다.
+  const showToast = useCallback((opts) => setToastState(prev =>
+    (prev?.action && !opts?.action && opts?.type !== 'error') ? prev : opts
+  ), []);
 
   // 보관함 잠그기: 이 기기에 저장된 암호를 지우고 암호 입력창으로 복귀 (클라우드 대본은 보존)
   const lockVault = useCallback(() => {
@@ -567,7 +571,7 @@ const App = () => {
   };
 
   // 선택 문장 삭제 (중복·불필요 정리)
-  // 확인창 없이 바로 삭제 — 6초 '실행취소' 토스트 + 휴지통으로 복구 가능하므로 별도 확인 불필요.
+  // 확인창 없이 바로 삭제 — 10초 '실행취소' 토스트 + 휴지통으로 복구 가능하므로 별도 확인 불필요.
   const confirmDelete = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     const idxs = [...selectedIdxs];
@@ -885,7 +889,7 @@ const App = () => {
       {/* Drag Overlay */}
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-indigo-500/10 backdrop-blur-sm flex items-center justify-center p-10 border-4 border-indigo-500 border-dashed m-4 rounded-3xl pointer-events-none">
-          <h2 className="text-4xl font-bold text-indigo-600 dark:text-indigo-400 animate-bounce">Drop to Add Files</h2>
+          <h2 className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">놓으면 파일이 추가됩니다</h2>
         </div>
       )}
 
@@ -909,7 +913,7 @@ const App = () => {
       {updateReady && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
-          <span className="flex-1 min-w-0 truncate font-medium">새 버전이 나왔어요. 새로고침하면 최신 기능이 적용됩니다.</span>
+          <span className="flex-1 min-w-0 font-medium leading-tight">새 버전이 나왔어요. 새로고침하면 최신 기능이 적용됩니다.</span>
           <button
             onClick={() => window.location.reload()}
             className="shrink-0 px-2.5 py-1 rounded-lg bg-white text-indigo-700 font-bold hover:bg-indigo-50 transition-colors"
@@ -923,7 +927,7 @@ const App = () => {
       {isStaleAnalysis && contentReady && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
-          <span className="flex-1 min-w-0 truncate font-medium">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
+          <span className="flex-1 min-w-0 font-medium leading-tight">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
           <button
             onClick={confirmReanalyzeAll}
             className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 font-bold transition-colors"
@@ -948,7 +952,7 @@ const App = () => {
             {/* 구간 다시 전사 툴바 */}
             {toolbarAvailable && (toolbarOpen || selectMode) && (
               <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-3 md:px-6 py-0.5 flex items-center justify-between gap-1.5">
+                <div className="max-w-3xl mx-auto px-3 md:px-6 py-0.5 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
                     <>
                     {/* 보이는 칩은 공부에 쓰는 4개(가리기·묶음·대사만·오답)뿐. 줄바꿈 금지(한 줄 고정) —
@@ -1122,7 +1126,8 @@ const App = () => {
               </div>
             )}
             <div ref={scrollContainerRef} onScroll={onTranscriptScroll} className="flex-1 w-full overflow-y-auto bg-[#F8FAFC] dark:bg-slate-900" onClick={() => { setShowSpeedMenu(false); }}>
-              <div className="max-w-6xl mx-auto px-2 md:px-6 pb-32">
+              {/* PC에서 카드가 1100px까지 늘어나 풀이 한 줄이 90자를 넘었다 → 3xl(768px). 툴바도 같은 폭 */}
+              <div className="max-w-3xl mx-auto px-2 md:px-6 pb-32">
                 {isAnalyzing || isSwitchingFile ? (
                   <div className="flex flex-col items-center justify-center py-20 space-y-6">
                     <div className="relative w-20 h-20">

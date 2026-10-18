@@ -20,7 +20,8 @@ const WorkspaceHeader = ({
             <button
                 onClick={onHome}
                 className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg transition-all"
-                title="Go to Home"
+                title="홈으로"
+                aria-label="홈으로"
             >
                 <Home size={18} />
             </button>
@@ -29,6 +30,7 @@ const WorkspaceHeader = ({
                 <div className="relative">
                     <button
                         onClick={onOpenHistory}
+                        aria-label="대본 목록 열기"
                         className="w-full text-center px-4 py-1 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors group"
                     >
                         {activeFile ? (
@@ -40,17 +42,17 @@ const WorkspaceHeader = ({
                                 )}
                                 <span className={`text-sm font-bold truncate group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors ${busy ? 'text-slate-500 dark:text-slate-400 italic' : ''}`}>
                                     {isAnalyzing
-                                        ? `Extracting Transcript...`
+                                        ? '받아쓰는 중…'
                                         // 실패로 끝난 문장(analysisFailed)은 '분석 중'으로 세지 않는다 — 예전엔 실패가 남은 채 끝나도
                                         // 이 문구가 계속 떠 진행 중처럼 보였다(점검 #13·#19). 실패 문장은 카드의 '다시 시도'가 알린다.
                                         : (activeFile?.data && activeFile.data.some(d => !d.isAnalyzed && !d.analysisFailed)
-                                            ? `Analyzing Details (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
-                                            : activeFile?.file?.name || "Ready")
+                                            ? `분석 중 (${activeFile.data.filter(d => d.isAnalyzed).length}/${activeFile.data.length})`
+                                            : activeFile?.file?.name || '준비됨')
                                     }
                                 </span>
                             </div>
                         ) : (
-                            <span className="text-sm font-bold text-slate-400 dark:text-slate-500">Select File...</span>
+                            <span className="text-sm font-bold text-slate-400 dark:text-slate-500">파일을 고르세요</span>
                         )}
                     </button>
                 </div>
@@ -82,12 +84,15 @@ const WorkspaceHeader = ({
                         onClick={onShowShortcuts}
                         className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg transition-all"
                         title="키보드 단축키 (?)"
+                        aria-label="키보드 단축키"
                     >
                         <HelpCircle size={18} />
                     </button>
                 )}
                 <button
                     onClick={onOpenSettings}
+                    title="설정"
+                    aria-label="설정"
                     className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg transition-all"
                 >
                     <Settings size={18} />

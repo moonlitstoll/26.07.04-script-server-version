@@ -111,7 +111,7 @@ export function incompleteNotice({ at, reason }) {
 // 간격을 2로 권하는 근거: 같은 노래로 잰 결과 간격 7은 8회 중 2회 차단, 1·2는 10회 중 0회였다(2026-09).
 export function recitationBlockedMessage({ antiRecitation = false, markerInterval = 2 } = {}) {
     const tip = !antiRecitation
-        ? "설정에서 'RECITATION 방지 모드'를 켜고 다시 시도해 보세요."
+        ? "설정 > 고급 설정에서 '저작권 차단 피하기'를 켜고 다시 시도해 보세요."
         : markerInterval > 2
             ? `설정의 '삽입 간격'을 ${markerInterval}단어에서 2단어로 줄이고 다시 시도해 보세요.`
             : "차단은 매번 나지 않으니 잠시 후 '다시 시도'를 눌러 보세요.";
