@@ -8,12 +8,16 @@ import { validSpeechEnd } from './utils/speechSegments';
 import { speechEndMissingSet } from './utils/speechEndMerge';
 import { nextAnalysisView } from './utils/analysisView';
 
-// 상단 툴바 칩 공통 크기 — 높이는 휴대폰 탭 기준 36px(min-h-9) 고정, 글자·간격만 min(Nvw, 최대px).
-// 예전엔 높이도 vw 비례(≈22px)라 한 손으로 누르기 어려웠다(2026-10-18 점검 P0).
+// 상단 툴바 칩 공통 크기 — 높이 24px(h-6) 고정, 글자·간격만 min(Nvw, 최대px).
+// 툴바는 대본이 한 줄이라도 더 보이게 최대한 얇게 둔다(사용자 결정 2026-10-18: 누르기 편함보다 대본 면적).
+// 한때 36px로 키웠다가 툴바가 31→45px로 두꺼워져 되돌렸다. 지금 툴바 전체 ≈29px(칩 24 + 위아래 2 + 선 1).
 // 보이는 칩을 가리기·묶음·대사만·오답 4개로 줄이고 편집 기능은 '⋯ 고치기' 메뉴로 옮겨
 // 390px 폭에서 가리기를 켜도 한 줄에 들어온다. 그보다 좁은 화면만 가로 스와이프(⋯ 버튼은 늘 보임).
 // 아이콘은 lucide size 대신 클래스로 지정(SVG 속성보다 CSS가 우선).
-const CHIP = 'shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-[min(0.9vw,4px)] min-h-9 px-[min(1.6vw,6px)] rounded-lg text-[min(3.1vw,13px)] font-bold border transition-colors';
+const CHIP_BASE = 'shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-[min(0.9vw,4px)] px-[min(1.6vw,6px)] text-[min(3.1vw,13px)] font-bold transition-colors';
+const CHIP = `${CHIP_BASE} h-6 rounded-lg border`;
+// 선택 모드 줄 버튼도 같은 높이 — 모드를 바꿔도 툴바 높이가 안 튄다
+const SEL_BTN = 'shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-lg text-xs font-bold';
 const CHIP_ICON = 'w-[min(3.4vw,14px)] h-[min(3.4vw,14px)] shrink-0';
 // 칩을 눌렀을 때 팝오버 앵커로 쓸 좌표(열 때 1회 스냅샷)
 const anchorOf = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, bottom: r.bottom }; };
@@ -933,7 +937,7 @@ const App = () => {
             {/* 구간 다시 전사 툴바 */}
             {contentReady && !activeFile.error && transcriptData.length > 0 && (
               <div className="shrink-0 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
-                <div className="max-w-6xl mx-auto px-3 md:px-6 py-1 flex items-center justify-between gap-1.5">
+                <div className="max-w-6xl mx-auto px-3 md:px-6 py-0.5 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
                     <>
                     {/* 보이는 칩은 공부에 쓰는 4개(가리기·묶음·대사만·오답)뿐. 줄바꿈 금지(한 줄 고정) —
@@ -941,12 +945,12 @@ const App = () => {
                     <div className="flex items-center gap-1 overflow-x-auto min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {/* 🙈 가리기 학습 (클로즈): 왼쪽 = 켜기/끄기, 켜져 있으면 오른쪽 = 난이도·새 문제 팝오버.
                           켜진 동안 왼쪽은 눈 아이콘만 — 옆의 난이도 이름이 '가리기 중'을 알려 주고, 그래야 오답 칩까지 한 줄에 든다 */}
-                      <div className={`shrink-0 inline-flex items-stretch rounded-lg border overflow-hidden ${drillMode ? 'border-indigo-600' : 'border-indigo-100 dark:border-indigo-900'}`}>
+                      <div className={`shrink-0 h-6 inline-flex items-stretch rounded-lg border overflow-hidden ${drillMode ? 'border-indigo-600' : 'border-indigo-100 dark:border-indigo-900'}`}>
                         <button
                           onClick={() => setDrillMode(d => !d)}
                           aria-pressed={drillMode}
                           aria-label={drillMode ? '가리기 끄기' : undefined}
-                          className={`${CHIP} border-0 rounded-none ${drillMode ? 'min-w-9 bg-indigo-600 text-white hover:bg-indigo-700' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'}`}
+                          className={`${CHIP_BASE} ${drillMode ? 'min-w-8 bg-indigo-600 text-white hover:bg-indigo-700' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'}`}
                         >
                           <EyeOff className={CHIP_ICON} />{!drillMode && ' 가리기'}
                         </button>
@@ -955,7 +959,7 @@ const App = () => {
                             onClick={(e) => setToolbarPopover({ kind: 'drill', anchor: anchorOf(e.currentTarget) })}
                             aria-label="가리기 난이도·새 문제"
                             aria-haspopup="dialog"
-                            className={`${CHIP} border-0 rounded-none border-l border-indigo-400 bg-indigo-600 text-white hover:bg-indigo-700`}
+                            className={`${CHIP_BASE} border-l border-indigo-400 bg-indigo-600 text-white hover:bg-indigo-700`}
                           >
                             {DRILL_LEVELS.find(([v]) => v === difficulty)?.[1] || '초급'}
                             <ChevronDown className={CHIP_ICON} />
@@ -1032,7 +1036,7 @@ const App = () => {
                       onClick={(e) => setToolbarPopover({ kind: 'fix', anchor: anchorOf(e.currentTarget) })}
                       aria-label="고치기 메뉴"
                       aria-haspopup="dialog"
-                      className={`${CHIP} min-w-9 px-[min(1.5vw,6px)] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
+                      className={`${CHIP} min-w-8 px-[min(1.5vw,6px)] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
                     >
                       <MoreHorizontal className="w-[min(4.2vw,16px)] h-[min(4.2vw,16px)]" />
                     </button>
@@ -1047,7 +1051,7 @@ const App = () => {
                       <div className="flex items-center gap-1 overflow-x-auto">
                         <button
                           onClick={exitSelectMode}
-                          className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                          className={`${SEL_BTN} text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors`}
                         >
                           <X size={14} /> 취소
                         </button>
@@ -1055,7 +1059,7 @@ const App = () => {
                           onClick={confirmDelete}
                           disabled={selectedIdxs.size === 0}
                           title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className={`${SEL_BTN} text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
@@ -1063,7 +1067,7 @@ const App = () => {
                           <button
                             onClick={confirmSplit}
                             title="문장을 단어 사이에서 나눠 앞/뒷부분만 지우거나 두 문장으로 만들기"
-                            className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors"
+                            className={`${SEL_BTN} text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors`}
                           >
                             <Scissors size={14} /> 나누기
                           </button>
@@ -1072,7 +1076,7 @@ const App = () => {
                           onClick={confirmRecover}
                           disabled={selectedIdxs.size !== 1}
                           title="문장 1개 선택 후 사용 — 그 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (선택 문장 유지·자동 분석)"
-                          className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className={`${SEL_BTN} text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
                         >
                           <LifeBuoy size={14} /> 복구
                         </button>
@@ -1080,7 +1084,7 @@ const App = () => {
                           onClick={confirmReanalyze}
                           disabled={selectedIdxs.size === 0}
                           title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
-                          className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className={`${SEL_BTN} text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
                         >
                           <Languages size={14} /> 분석
                         </button>
@@ -1088,7 +1092,7 @@ const App = () => {
                           onClick={confirmDetectSpeech}
                           disabled={selectedIdxs.size === 0 || speechDetectBusy === activeFileId}
                           title="선택 문장의 '대사 끝나는 지점'만 다시 감지 — 대사만이 안 넘어가는 문장 교정 (글자·분석 그대로, 그 구간 오디오만 전송)"
-                          className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          className={`${SEL_BTN} text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
                         >
                           <FastForward size={14} /> 대사만
                         </button>
@@ -1096,7 +1100,7 @@ const App = () => {
                           onClick={confirmRetranscribe}
                           disabled={selectedIdxs.size === 0}
                           title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
-                          className="shrink-0 inline-flex items-center gap-1 min-h-9 px-2 py-1 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors shadow-sm"
+                          className={`${SEL_BTN} text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors shadow-sm`}
                         >
                           <Check size={14} /> 전사
                         </button>
