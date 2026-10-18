@@ -121,10 +121,11 @@ const CacheHistoryModal = ({
                 <div className="min-w-0 flex-1">
                     <p className={`text-sm font-bold break-words leading-snug ${isActive ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>{display}</p>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] tracking-tight ${statusCls}`}>{statusText}</span>
-                        {progressText && <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">{progressText}</span>}
+                        {/* 11px·slate-500: 예전 10px·slate-400은 대비 2.4:1로 밤에 안 읽혔다(점검) */}
+                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] tracking-tight ${statusCls}`}>{statusText}</span>
+                        {progressText && <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{progressText}</span>}
                         {localHere && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] tracking-tight bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] tracking-tight bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
                                 <HardDrive size={10} /> 저장됨
                             </span>
                         )}
@@ -208,7 +209,7 @@ const CacheHistoryModal = ({
                                 aria-label="대본 이름으로 찾기"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                                className="w-full pl-12 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
                             />
                         </div>
                     </div>
@@ -267,7 +268,7 @@ const CacheHistoryModal = ({
                             {/* 2. 즐겨찾기 */}
                             {favRecords.length > 0 && (
                                 <div className="pt-3 pb-1">
-                                    <div className="flex items-center gap-2 px-1 text-amber-600 dark:text-amber-400">
+                                    <div className="flex items-center gap-2 px-1 text-amber-700 dark:text-amber-400">
                                         <Star size={14} className="fill-current" />
                                         <span className="text-[11px] font-bold tracking-wider">즐겨찾기</span>
                                     </div>
@@ -288,7 +289,7 @@ const CacheHistoryModal = ({
                                 <div className="pt-4 pb-2 text-center">
                                     <button
                                         onClick={clearLocalCache}
-                                        className="inline-flex items-center gap-1 text-xs font-bold text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                     >
                                         <Trash2 size={12} /> 이 기기의 대본 전부 지우기
                                     </button>

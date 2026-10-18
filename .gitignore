@@ -25,3 +25,6 @@ dist-ssr
 
 # understand-anything 분석 캐시 (로컬 산출물)
 .ua/
+
+# impeccable 디자인 점검 기록(로컬 전용)
+.impeccable/

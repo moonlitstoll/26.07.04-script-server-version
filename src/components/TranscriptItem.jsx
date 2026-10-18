@@ -156,7 +156,7 @@ const TranscriptItem = memo(({
                             onClick={() => (groupLoopOn ? jumpToSentence(idx) : seekTo(item.seconds))}
                             className={`
                   ${HIT_TS} flex items-center gap-1 px-1.5 py-0 leading-4 rounded-full text-[11px] font-bold font-mono tracking-wide transition-all
-                  ${isActive ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
+                  ${isActive ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}
                 `}
                         >
                             <Play size={9} fill="currentColor" /> {item.timestamp}

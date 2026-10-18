@@ -212,7 +212,7 @@ const EmptyState = ({
                         ) : (
                             <>
                                 {(favKeys.length > 0 || favCloudItems.length > 0) && (
-                                    <div className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 pt-1 pb-0.5">
+                                    <div className="flex items-center justify-center gap-1.5 text-amber-700 dark:text-amber-400 pt-1 pb-0.5">
                                         <Star size={12} className="fill-current" />
                                         <span className="text-[11px] font-bold tracking-wider">즐겨찾기</span>
                                     </div>
@@ -227,7 +227,7 @@ const EmptyState = ({
                     {cacheKeys.length > 0 && clearLocalCache && (
                         <button
                             onClick={clearLocalCache}
-                            className="text-xs font-bold text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 mx-auto"
+                            className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 mx-auto"
                         >
                             <Trash2 size={12} /> 이 기기의 대본 전부 지우기
                         </button>

@@ -1,8 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Repeat, FastForward, Loader2, Scissors, ChevronDown, MoreHorizontal
+  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Repeat, FastForward, Loader2, Scissors, ChevronDown, MoreHorizontal, Settings as SettingsIcon
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds } from './utils/loopGroups';
+import { stage1FailureNotice } from './utils/failureNotice';
 import { fixMenuItems, DRILL_LEVELS } from './utils/toolbarMenu';
 import { validSpeechEnd } from './utils/speechSegments';
 import { speechEndMissingSet } from './utils/speechEndMerge';
@@ -1135,7 +1136,7 @@ const App = () => {
                       <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
                     </div>
                     <div className="text-center">
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Analyzing {activeFile.file.name}...</h3>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 break-all">{activeFile.file.name}</h3>
                       <p className="text-slate-500 dark:text-slate-400">
                         {/* isAnalyzing = 전사(Stage 1) 중. 받은 문장 수는 스트리밍으로 늘어난다 */}
                         {!isAnalyzing
@@ -1156,21 +1157,51 @@ const App = () => {
                     )}
                   </div>
                 ) : activeFile.error ? (
-                  <div className="max-w-xl mx-auto p-6 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded-2xl border border-red-100 dark:border-red-900 text-center">
-                    <AlertCircle size={32} className="mx-auto mb-3 text-red-500 dark:text-red-400" />
-                    <h3 className="font-bold text-lg mb-1">Analysis Failed</h3>
-                    <p>{activeFile.error}</p>
-                    <button
-                      onClick={() => retryAnalysis(activeFile.id)}
-                      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40"
-                    >
-                      <RotateCcw size={16} />
-                      다시 시도
-                    </button>
-                  </div>
+                  // 사유별 한국어 한 줄 + 맞는 버튼(utils/failureNotice). 원문은 '자세히'에 접어 둔다 —
+                  // 예전엔 영어 제목 + SDK 원문 그대로라 비개발자가 뭘 해야 할지 알 수 없었다(점검 P0).
+                  (() => {
+                    const n = stage1FailureNotice(activeFile.error);
+                    const retryBtn = (primary) => (
+                      <button
+                        onClick={() => retryAnalysis(activeFile.id)}
+                        className={primary
+                          ? 'inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40'
+                          : 'inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all'}
+                      >
+                        <RotateCcw size={16} /> 다시 시도
+                      </button>
+                    );
+                    return (
+                      <div className="max-w-xl mx-auto p-6 bg-red-50 dark:bg-red-950/40 rounded-2xl border border-red-100 dark:border-red-900 text-center">
+                        <AlertCircle size={32} className="mx-auto mb-3 text-red-500 dark:text-red-400" />
+                        <h3 className="font-bold text-lg mb-1 text-red-700 dark:text-red-300">{n.title}</h3>
+                        {n.detail && <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{n.detail}</p>}
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                          {n.action === 'settings' ? (
+                            <>
+                              <button
+                                onClick={() => setShowSettings(true)}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40"
+                              >
+                                <SettingsIcon size={16} /> 설정 열기
+                              </button>
+                              {retryBtn(false)}
+                            </>
+                          ) : retryBtn(true)}
+                        </div>
+                        {n.raw && n.raw !== n.title && (
+                          <details className="mt-4 text-left">
+                            <summary className="cursor-pointer text-xs font-bold text-slate-500 dark:text-slate-400 select-none">자세히 (컴퓨터가 보낸 원문)</summary>
+                            <pre className="mt-2 p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 text-[11px] leading-snug text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-all">{n.raw}</pre>
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })()
                 ) : transcriptData.length === 0 ? (
-                  <div className="text-center py-20 text-slate-400 dark:text-slate-500">
-                    <p>Analysis complete but no text found.</p>
+                  <div className="text-center py-20 text-slate-500 dark:text-slate-400">
+                    <p className="font-bold">받아쓴 문장이 없어요</p>
+                    <p className="text-sm mt-1">이 파일에서 말소리를 찾지 못했어요. 다른 파일로 해 보세요.</p>
                   </div>
                 ) : (
                   <div key={activeFileId} className="space-y-1 min-h-[200px] relative">

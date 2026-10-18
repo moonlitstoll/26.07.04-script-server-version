@@ -4,9 +4,8 @@ import {
     SkipBack, SkipForward
 } from 'lucide-react';
 import { formatClock } from '../utils/timeUtils';
-
-// 재생 속도 프리셋 (0.5x ~ 2.0x, 0.1 간격)
-const PLAYBACK_RATES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0];
+import { fmtRate } from '../utils/playbackRates';
+import { SpeedPopover } from './ToolbarPopovers';
 
 // 컨트롤 바는 모든 크기를 min(Nvw, 최대px)로 잡는다.
 // 브라우저 확대(110% 등)를 하면 CSS 뷰포트 폭이 줄어드는데, px 고정값이면
@@ -107,6 +106,8 @@ const PlayerControls = ({
     // 진행바 끌기: 누르는 동안은 손가락 위치만 보여주고(시각·막대), 손을 떼면 그 자리로 한 번만 이동한다.
     // 끄는 내내 이동하면 반복·대사만 엔진이 매번 위치를 다시 잡아 소리가 튄다. null = 끌고 있지 않음.
     const [dragRatio, setDragRatio] = useState(null);
+    // 배속 팝오버 앵커(누른 버튼 좌표, 열 때 1회) — 열림 여부(showSpeedMenu)는 App이 쥔다(대본 탭하면 닫히게)
+    const [speedAnchor, setSpeedAnchor] = useState(null);
     const ratioAt = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         return rect.width ? Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) : 0;
@@ -213,7 +214,7 @@ const PlayerControls = ({
                                 </div>
                             )}
                             {/* 시각: 끄는 동안은 손가락 위치의 시각. 칸이 좁으면(세로 영상) 지금 시각만 */}
-                            <div className="absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white text-[9px] font-mono font-bold leading-[13px] text-center tabular-nums whitespace-nowrap pointer-events-none">
+                            <div className="absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white text-[10px] font-mono font-bold leading-[14px] text-center tabular-nums whitespace-nowrap pointer-events-none">
                                 {formatClock(shownTime)}{boxWide && ` / ${duration ? formatClock(duration) : '00:00'}`}
                             </div>
                         </>
@@ -238,35 +239,33 @@ const PlayerControls = ({
 
                         {/* Speed & Analysis */}
                         <div className="flex items-center gap-[min(1vw,4px)]">
-                            <div className="relative">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setShowSpeedMenu(!showSpeedMenu); }}
-                                    aria-label={`재생 속도 ${playbackRate.toFixed(1)}x`}
-                                    aria-expanded={showSpeedMenu}
-                                    className={`
+                            {/* 배속: 탭 → 위로 뜨는 팝오버(6칸 + −/+). 앵커는 누를 때 한 번 재서 넘긴다(툴바 팝오버와 같은 방식) */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const r = e.currentTarget.getBoundingClientRect();
+                                    setSpeedAnchor({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+                                    setShowSpeedMenu(!showSpeedMenu);
+                                }}
+                                aria-label={`재생 속도 ${fmtRate(playbackRate)}`}
+                                aria-expanded={showSpeedMenu}
+                                aria-haspopup="dialog"
+                                className={`
                     flex items-center justify-center gap-0.5 px-[min(1.5vw,6px)] rounded-lg font-bold transition-all border
                     text-[min(2.9vw,11px)] min-w-[min(9vw,44px)] min-h-[min(11vw,44px)]
                     ${showSpeedMenu ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}
                   `}
-                                >
-                                    {playbackRate.toFixed(1)}x
-                                </button>
-                                {showSpeedMenu && (
-                                    <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 p-2 z-[60] w-52">
-                                        <div className="grid grid-cols-4 gap-1">
-                                            {PLAYBACK_RATES.map(rate => (
-                                                <button
-                                                    key={rate}
-                                                    onClick={(e) => { e.stopPropagation(); handleRateChange(rate); setShowSpeedMenu(false); }}
-                                                    className={`h-10 rounded text-xs font-bold ${Math.abs(playbackRate - rate) < 0.01 ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                                                >
-                                                    {rate.toFixed(1)}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                            >
+                                {fmtRate(playbackRate)}
+                            </button>
+                            {showSpeedMenu && speedAnchor && (
+                                <SpeedPopover
+                                    anchor={speedAnchor}
+                                    current={playbackRate}
+                                    onPick={handleRateChange}
+                                    onClose={() => setShowSpeedMenu(false)}
+                                />
+                            )}
 
                             {/* 번역/분석 3단계 순환: 👁 접힘 → 📖 풀이 펼침 → 🚫 숨김 (아이콘이 지금 상태를 보여준다) */}
                             <button

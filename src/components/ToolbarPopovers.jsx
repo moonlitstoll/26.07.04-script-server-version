@@ -4,6 +4,7 @@ import { Wand2, Trash2, FastForward, Shuffle } from 'lucide-react';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { placePopoverLeft, DRILL_LEVELS } from '../utils/toolbarMenu';
 import { LOOP_GROUP_MIN, LOOP_GROUP_MAX } from '../utils/loopGroups';
+import { RATE_MIN, RATE_MAX, RATE_PRESETS, stepRate, fmtRate } from '../utils/playbackRates';
 
 // 상단 툴바 칩에서 여는 팝오버들(묶음 문장 수·가리기 난이도·고치기 메뉴).
 // 툴바 안에 띄우면 안 되는 이유 두 가지:
@@ -11,7 +12,8 @@ import { LOOP_GROUP_MIN, LOOP_GROUP_MAX } from '../utils/loopGroups';
 //  ② 툴바 래퍼의 backdrop-blur가 fixed의 containing block이 돼 좌표가 툴바 기준으로 틀어진다
 // → body 포털 + fixed로 띄우고, 앵커(누른 칩) 좌표는 열 때 한 번 계산해 받는다.
 // 가로 위치는 그려진 패널 폭을 재서 정한다(재기 전 한 프레임은 숨김) — 상태 대신 DOM에 직접 쓴다.
-const AnchoredPopover = ({ anchor, align = 'center', label, onClose, className = '', children }) => {
+// placement: 'below'(툴바 칩 — 칩 아래) | 'above'(플레이어 버튼 — 화면 바닥에 있으니 위로). above는 anchor.top이 필요하다.
+const AnchoredPopover = ({ anchor, align = 'center', placement = 'below', label, onClose, className = '', children }) => {
   useEscapeToClose(onClose); // 조건부 마운트라 열려 있을 때만 ESC 스택에 올라간다
   const panelRef = useRef(null);
   useLayoutEffect(() => {
@@ -24,6 +26,9 @@ const AnchoredPopover = ({ anchor, align = 'center', label, onClose, className =
     el.style.left = `${left}px`;
     el.style.visibility = 'visible';
   }, [anchor, align]);
+  const vertical = placement === 'above'
+    ? { bottom: (window.innerHeight || 800) - anchor.top + 6 }
+    : { top: anchor.bottom + 6 };
   return createPortal(
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
@@ -32,7 +37,7 @@ const AnchoredPopover = ({ anchor, align = 'center', label, onClose, className =
         role="dialog"
         aria-label={label}
         className={`fixed z-[61] max-w-[calc(100vw-16px)] rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg ${className}`}
-        style={{ left: 0, top: anchor.bottom + 6, visibility: 'hidden' }}
+        style={{ left: 0, ...vertical, visibility: 'hidden' }}
       >
         {children}
       </div>
@@ -104,6 +109,44 @@ export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, onNewRound,
       <Shuffle className="w-3.5 h-3.5" /> 새 문제
       <span className="font-normal text-xs text-slate-400 dark:text-slate-500">· 오답 표시도 지움</span>
     </button>
+  </AnchoredPopover>
+);
+
+// 배속: 예전엔 0.5~2.0을 0.1 간격 16칸 격자로 다 깔았고(결정 지점에 16개), 스크롤 영역을 눌러야만 닫혔다.
+// 지금은 자주 쓰는 6칸 + −/+ 0.1(창 유지), 다른 팝오버와 같은 틀이라 ESC·바깥 탭으로 닫힌다. 범위는 그대로 0.5~2.0.
+export const SpeedPopover = ({ anchor, current, onPick, onClose }) => (
+  <AnchoredPopover anchor={anchor} placement="above" align="start" label="재생 속도" onClose={onClose} className="p-2">
+    <div className="flex items-center justify-between gap-2 mb-2">
+      <button
+        onClick={() => onPick(stepRate(current, -1))}
+        disabled={current <= RATE_MIN}
+        aria-label="배속 0.1 낮추기"
+        className={STEP_BTN}
+      >
+        −
+      </button>
+      <span className="text-sm font-bold text-slate-600 dark:text-slate-300 tabular-nums">{fmtRate(current)}</span>
+      <button
+        onClick={() => onPick(stepRate(current, +1))}
+        disabled={current >= RATE_MAX}
+        aria-label="배속 0.1 높이기"
+        className={STEP_BTN}
+      >
+        +
+      </button>
+    </div>
+    <div className="flex items-center gap-1">
+      {RATE_PRESETS.map((v) => (
+        <button
+          key={v}
+          onClick={() => { onPick(v); onClose(); }}
+          aria-label={`배속 ${fmtRate(v)}`}
+          className={`w-11 h-10 rounded-lg text-[13px] font-black tabular-nums transition-colors ${Math.abs(v - current) < 0.001 ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'}`}
+        >
+          {fmtRate(v).replace(/x$/, '')}
+        </button>
+      ))}
+    </div>
   </AnchoredPopover>
 );
 

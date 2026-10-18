@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
+import { clampRate } from '../utils/playbackRates';
 import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, wrapSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
@@ -26,7 +27,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
     const [activeSentenceIdx, setActiveSentenceIdx] = useState(-1);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
-    const [playbackRate, setPlaybackRate] = useState(parseFloat(localStorage.getItem('miniapp_playback_rate')) || 1.0);
+    const [playbackRate, setPlaybackRate] = useState(() => clampRate(parseFloat(localStorage.getItem('miniapp_playback_rate')) || 1.0));
     const [isGlobalLoopActive, setIsGlobalLoopActive] = useState(localStorage.getItem('miniapp_loop_active') === 'true');
     const [isPlaying, setIsPlaying] = useState(false);
     const [manualScrollNonce, setManualScrollNonce] = useState(0);
@@ -92,8 +93,9 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
     }, [playbackRate, mediaUrl, isAnalyzing]);
 
     const handleRateChange = (rate) => {
-        setPlaybackRate(rate);
-        localStorage.setItem('miniapp_playback_rate', rate.toString());
+        const r = clampRate(rate); // 0.5~2.0 밖·깨진 값은 여기서 막는다(팝오버 −/+도 이 함수를 탄다)
+        setPlaybackRate(r);
+        localStorage.setItem('miniapp_playback_rate', r.toString());
     };
 
     const seekTo = useCallback((s) => {

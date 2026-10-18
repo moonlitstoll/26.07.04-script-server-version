@@ -22,7 +22,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 ### 테스트 (`src/utils/__tests__/`)
 
-순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `toolbarMenu`(툴바 팝오버 위치·고치기 메뉴 항목), `cacheStatus`(저장 상태 `saveStatusOf` — 문장 0개 = extracted). `src/services/__tests__/`에는 `stage1Line`·`stage1Resume`·`stage2Parser`와 `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기), `stage1Parsers`(전사 줄 파서 규칙 — 클로저라 옮기지 않고 가짜 모델로 실제 루프를 돌려 검증, 대사 끝 응답 해석, 청크 겹침 중복 제거). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `toolbarMenu`(툴바 팝오버 위치·고치기 메뉴 항목), `failureNotice`(전사 실패 문구·버튼), `playbackRates`(배속 범위·단계·표시), `cacheStatus`(저장 상태 `saveStatusOf` — 문장 0개 = extracted). `src/services/__tests__/`에는 `stage1Line`·`stage1Resume`·`stage2Parser`와 `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기), `stage1Parsers`(전사 줄 파서 규칙 — 클로저라 옮기지 않고 가짜 모델로 실제 루프를 돌려 검증, 대사 끝 응답 해석, 청크 겹침 중복 제거). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
 
 **테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
 
@@ -272,6 +272,14 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 - 잡다: 저장 안내 "(0MB)" → KB/소수 1자리(`mbText`), 옛 분석·새 버전 안내 줄 `truncate` 제거(휴대폰에서 잘림), PC 카드 폭 6xl → **3xl**(툴바도), 드래그 덮개 `animate-bounce` 제거, h3/h4 → h2.
 - **안 한 것**: 눈 버튼 3단 순환 안내(탭마다 토스트는 소음, 보류), 돈 드는 버튼마다 "약 N원" 표시(보고서의 '생각해 볼 질문'이라 보류).
 - 검증: 테스트 366 통과(문구 바뀐 2개 갱신), 브라우저 38개(첫 화면 안내·글꼴 Inter·설정 기본/고급·닫기·제목 줄 aria·기록 창 배지/제목/휴지통·삭제→실행취소 7초 뒤 유지→복귀, 라이트·다크) + 터치 19개 통과.
+
+### 2차 점검 뒤 고친 것 — 오류 화면 · 배속 · 작은 글자 (2026-10-18 밤, 가지 `fix3`)
+
+2차 `/impeccable critique` 27/40(`.impeccable/critique/2026-10-18T14-15-31Z__src-app-jsx.md`)의 P0 + P1 셋 중 사용자가 고른 1·3·4번.
+- **전사 실패 화면** (`App.jsx` error 분기, `utils/failureNotice.js#stage1FailureNotice`, 순수·테스트 8개): 예전엔 영어 제목 + SDK 원문(`[GoogleGenerativeAI Error] … 400 Bad Request …`). 지금은 사유별 한국어 제목·설명 + 맞는 버튼 — 키 오류(400 `API key not valid`·401·403·키 없음)는 **'설정 열기'**가 주 버튼, 429 한도·503 혼잡·네트워크·말소리 없음은 '다시 시도'. gemini.js가 만든 `[오류: …]` 머리말은 제목으로, 우리가 쓴 짧은 한국어(취소·중단)는 그대로. 원문은 `<details>` '자세히 (컴퓨터가 보낸 원문)'에 보존. 변이 2개(키 정규식 약화·머리말 해석 끔) 각각 실패 확인. 브라우저: 구글 요청을 가짜 400으로 가로채(비용 0) 제목·버튼·자세히·설정 열기 확인. 대기 화면 제목 `Analyzing …` → 파일 이름, '문장 없음' 안내 한국어.
+- **배속** (`utils/playbackRates.js`, `ToolbarPopovers.jsx#SpeedPopover`): 16칸 격자(0.1 간격) → **6칸 0.5·0.75·1·1.25·1.5·2 + −/+ 0.1(창 유지)**, 범위는 그대로 0.5~2.0. `AnchoredPopover`에 `placement="above"`(플레이어는 바닥이라 위로) + `align="start"`. 다른 팝오버처럼 ESC·바깥 탭으로 닫힘(예전엔 대본 영역 클릭에만 의존). `useAudioPlayer#handleRateChange`가 `clampRate`를 거친다(저장값 깨짐·범위 밖 방어). 표시 `fmtRate`("0.75x", 끝 0 뗌). 변이 2개(반올림 제거 → 1.1+0.1 오차, 상한 3.0) 각각 실패 확인. **새 파일(untracked)에 변이를 넣고 `git checkout`으로 되돌리면 안 된다** — 추적 전이라 복원이 안 돼 변이가 그대로 남았다(실제로 겪음, Write로 원본 재작성). 변이 확인은 커밋 뒤에 하거나 사본을 떠 둘 것.
+- **작은 글자·대비** (대본 면적 불변): 플레이어 영상 칸 시각 9→10px, 기록 창 배지·문장 수·저장됨 10→11px + slate-400→500, 검색 placeholder slate-500, '즐겨찾기' amber-600→700, '전부 지우기' slate-500, 카드 타임스탬프 알약 글자 slate-500/400 → **slate-600/dark 300**(다크 3.9:1 → 통과).
+- 검증: 테스트 378, 브라우저 38개(라이트·다크: 팝오버 위치·6칩·+ 창 유지·ESC·바깥 탭·저장값·실제 audio.playbackRate, 글자 크기, 오류 화면 5개) + 터치 19개 통과, 툴바 폭 289px 그대로, detect 10(불변).
 
 ### Keyboard Shortcuts (구현: `hooks/useKeyboardShortcuts.js`, 표시: `components/ShortcutsHelp.jsx`)
 

@@ -6,7 +6,9 @@
 export function placePopoverLeft({ anchorLeft, anchorRight, width, viewport, align = 'center', margin = 8 }) {
   const want = align === 'end'
     ? anchorRight - width
-    : (anchorLeft + anchorRight) / 2 - width / 2;
+    : align === 'start'
+      ? anchorLeft
+      : (anchorLeft + anchorRight) / 2 - width / 2;
   const max = viewport - margin - width;
   if (max < margin) return margin;
   return Math.min(Math.max(want, margin), max);
