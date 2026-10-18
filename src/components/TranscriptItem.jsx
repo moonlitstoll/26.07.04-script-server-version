@@ -33,6 +33,11 @@ const dedupeSentenceInAnalysis = (analysis, sentence) => {
     }).join('\n');
 };
 
+// 휴대폰 탭 영역: 보이는 크기는 그대로 두고 투명한 가상요소로 위아래를 넓힌다(카드 높이가 안 늘게).
+// 타임스탬프 16px + 위아래 12px = 40px, 배지 16px + 위아래 10px = 36px.
+const HIT_TS = "relative before:content-[''] before:absolute before:-inset-x-1 before:-inset-y-3";
+const HIT_BADGE = "relative before:content-[''] before:absolute before:-inset-x-0.5 before:-inset-y-2.5";
+
 const TranscriptItem = memo(({
     item, idx, isActive, isGlobalLooping, manualScrollNonce,
     seekTo, jumpToSentence,
@@ -150,11 +155,11 @@ const TranscriptItem = memo(({
                             // 옛 묶음이 계속 반복되거나 누르자마자 묶음 처음으로 되감긴다.
                             onClick={() => (groupLoopOn ? jumpToSentence(idx) : seekTo(item.seconds))}
                             className={`
-                  flex items-center gap-1 px-1.5 py-0 leading-4 rounded-full text-[10px] font-bold font-mono tracking-wide transition-all
+                  ${HIT_TS} flex items-center gap-1 px-1.5 py-0 leading-4 rounded-full text-[11px] font-bold font-mono tracking-wide transition-all
                   ${isActive ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}
                 `}
                         >
-                            <Play size={8} fill="currentColor" /> {item.timestamp}
+                            <Play size={9} fill="currentColor" /> {item.timestamp}
                         </button>
 
                         {item.speaker && (
@@ -171,9 +176,9 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onCoverageRetry && onCoverageRetry(idx); }}
                                 title={coverageTitle(coverage)}
-                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+                                className={`${HIT_BADGE} inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[11px] font-bold border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors`}
                             >
-                                <AlertTriangle size={9} />
+                                <AlertTriangle size={11} />
                                 {coverage.kind === 'no-chunks' ? '분석 깨짐' : coverage.missing.length > 0 ? `누락 ${coverage.missing.length}` : coverage.oversplit ? '과분할' : '뭉침'}
                             </button>
                         )}
@@ -182,9 +187,9 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onRetranscribe && onRetranscribe(idx); }}
                                 title={`전사(받아쓰기) 오류 의심: ${item.transcriptSuspect} — 탭하면 이 구간만 다시 전사`}
-                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
+                                className={`${HIT_BADGE} inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[11px] font-bold border bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors`}
                             >
-                                <Volume2 size={9} /> 전사의심
+                                <Volume2 size={11} /> 전사의심
                             </button>
                         )}
                         {/* '대사만' 끝 시각 없음 — 이 문장 뒤는 건너뛰지 않는다. 탭하면 직접 맞추기 창 */}
@@ -192,9 +197,9 @@ const TranscriptItem = memo(({
                             <button
                                 onClick={(e) => { e.stopPropagation(); onSpeechEndFix && onSpeechEndFix(idx); }}
                                 title="'대사만'에서 이 문장의 대사 끝을 몰라 뒤를 건너뛰지 않습니다 — 탭하면 직접 맞추기"
-                                className="inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[9px] font-bold border bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
+                                className={`${HIT_BADGE} inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[11px] font-bold border bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors`}
                             >
-                                <FastForward size={9} /> 대사 끝 없음
+                                <FastForward size={11} /> 대사 끝 없음
                             </button>
                         )}
                     </div>

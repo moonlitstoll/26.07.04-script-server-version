@@ -22,7 +22,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 
 ### 테스트 (`src/utils/__tests__/`)
 
-순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `cacheStatus`(저장 상태 `saveStatusOf` — 문장 0개 = extracted). `src/services/__tests__/`에는 `stage1Line`·`stage1Resume`·`stage2Parser`와 `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기), `stage1Parsers`(전사 줄 파서 규칙 — 클로저라 옮기지 않고 가짜 모델로 실제 루프를 돌려 검증, 대사 끝 응답 해석, 청크 겹침 중복 제거). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
+순수 함수 유틸 위주 — `speechSegments`(경계 계산), `mediaUtils`의 `graftSpeechEnds`(감지결과 구제), `clozeUtils`(출제), `analysisCoverage`(대본 검증), `stage1Line`(전사 줄 형식·숫자 병기 폭주 정리), `stage1Resume`(스트림 끊김 판정·이어받기·반복 루프·저작권 차단, 가짜 모델로 `gemini.js`의 실제 루프까지), `sentenceEdit`(나누기·구간 재전사 계산), `analysisView`(눈 버튼 3단계), `analysisParser`(괄호 풀이 떼기), `speechEndMerge`(대사 끝 감지 대상 고르기·결과 합치기), `toolbarMenu`(툴바 팝오버 위치·고치기 메뉴 항목), `cacheStatus`(저장 상태 `saveStatusOf` — 문장 0개 = extracted). `src/services/__tests__/`에는 `stage1Line`·`stage1Resume`·`stage2Parser`와 `retranscribeSelect`(`gemini.js#selectWindowSentences` — 재전사·복구·구간 재전사가 받은 줄에서 구간 문장 고르기), `stage1Parsers`(전사 줄 파서 규칙 — 클로저라 옮기지 않고 가짜 모델로 실제 루프를 돌려 검증, 대사 끝 응답 해석, 청크 겹침 중복 제거). 재생 엔진·훅·서비스는 브라우저/타이밍 의존이라 여기서 못 잡는다(수동 확인 필요).
 
 **테스트가 실제로 코드를 보는지 반드시 확인할 것.** 실제로 물린 적 있다:
 
@@ -214,7 +214,7 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 ### Data Flow & State Management
 
 - **State**: `App.jsx`가 최상위 상태 관리 (files 배열, activeFileId 등)
-- **묶음 반복 프리셋**: 툴바 묶음 칩의 숫자 탭 → `LoopPresetPopover`(App.jsx 모듈 레벨)가 [1,2,3,5,10,15,20] 프리셋 표시. **툴바가 overflow-x-auto + backdrop-blur(fixed의 containing block)라 반드시 body 포털(createPortal)로 띄워야 함** — 툴바 안에 absolute/fixed로 넣으면 잘리거나 좌표가 틀어짐.
+- **툴바 팝오버(묶음·가리기·고치기)**: `components/ToolbarPopovers.jsx`(`LoopPopover`·`DrillPopover`·`FixMenuPopover`, 공용 틀 `AnchoredPopover`). App은 `toolbarPopover`({kind, anchor}) 하나로 한 번에 하나만 연다. 묶음 칩 탭 → −/+(창 유지)·[1,2,3,5,10,15,20] 프리셋(고르면 닫힘). **툴바가 overflow-x-auto + backdrop-blur(fixed의 containing block)라 반드시 body 포털(createPortal)로 띄워야 함** — 툴바 안에 absolute/fixed로 넣으면 잘리거나 좌표가 틀어짐. 가로 위치는 그린 패널 폭을 재서 `utils/toolbarMenu.js#placePopoverLeft`로 정한다(가운데/오른쪽 끝 맞춤, 화면 안 8px 여백).
 - **Settings**: `hooks/useSettings.js` - 모든 설정을 하나의 `config` 객체로 관리. `updateField(field, value)`로 개별 필드 업데이트 시 localStorage에 **즉시** 동기화(모든 값이 즉시 영속됨). `value`에 함수를 넘기면 이전 값을 받는다(`updateField('showAnalysis', prev => !prev)`) — **토글 콜백은 반드시 이 형태로 쓸 것.** 현재 값을 클로저로 잡으면 deps에 넣어야 하고, 그러면 콜백 참조가 매번 바뀌어 memo된 `TranscriptItem`들이 재생 틱마다 전부 리렌더된다. `setItem`은 try/catch로 감싸 저장 실패해도 화면 상태는 유지된다(캐시가 5MB를 채우면 실제로 던진다).
   - **⚠️ 무엇을 config에 넣을지의 경계**: 툴바에서 조작해도 '마지막 설정'으로 유지되는 게 이로운 것만 넣는다(난이도·분석표시·회차·묶음N·대사만). **유지하면 안 되는 것**: `mistakeOnly`(켜진 채 열리면 대본 대부분이 사라지고 반복 강제 ON + 묶음 잠금, 오답 0이면 '정복 화면'으로 시작 — 왜 대본이 없는지 알 수 없다), `selectMode`(파괴적 편집 모드 + selectedIdxs가 대본별 인덱스라 오염), 모달 열림 상태, 검색어. 이건 실수가 아니라 설계다 — 파일 전환 시 강제 해제 코드(App.jsx의 '가짜 정복 화면/데드락 방지')와 같은 이유. `drillMode`(가리기 on/off)도 일부러 뺐다: 저장된 난이도가 '고급/회상'이면 켜진 채 열릴 때 문장이 통째로 가려진다. 테스트가 이 제외 목록을 단정한다. 설정 항목: apiKey, stage1Model, stage2Model, stage3Model(재전사/재분석 전용), bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled. **즉시 영속되므로 SettingsModal의 'Cancel'은 진입 시 스냅샷을 떠 변경 필드만 되돌린다(그냥 닫으면 유지).**
 - **Custom Hooks**: `useMediaAnalysis` (파일 업로드/분석/취소, **순차 분석 큐**), `useMediaCache` (캐시 로드/삭제, Stage 2 abort 연동), `useAudioPlayer` (재생 제어, 싱크 엔진, `setLoopActive`로 반복 강제/복원), `useLearningProgress` (알았음/몰랐음 저장), `useKeyboardShortcuts`, `useEscapeToClose` (모달 ESC 닫기 — 겹친 모달은 LIFO 스택으로 최상위 하나만)
@@ -247,6 +247,16 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 - `utils/cacheUtils.js` - 캐시 엔트리 파싱(parseCacheEntry) 및 저장(saveCacheEntry)
 - `utils/analysisParser.js` - 문장 analysis → 의미 청크 배열(parseChunks). 클로즈·향후 어휘 기능의 공용 부품
 - `utils/clozeUtils.js` - 시드 난수(mulberry32) + 난이도별 가릴 청크 선택(buildCloze)
+
+### 휴대폰 탭 크기 · 툴바 정리 (2026-10-18, 가지 `mobile`)
+
+`/impeccable critique` 점검(26/40)의 P0(탭·글자 크기)·P1(툴바 넘침)을 고쳤다. 디자인 언어(인디고 강조·보라 활성 문장·카드)는 그대로, 크기·배치·누르는 자리만.
+- **툴바**: 보이는 칩은 가리기·묶음·대사만·오답(있을 때만) + 오른쪽 끝 **'⋯ 고치기' 메뉴**(문장 골라서 고치기 = 예전 '재전사/분석' 선택 모드, 휴지통, 빠진 대사 끝 다시 감지). 항목은 `toolbarMenu.js#fixMenuItems`. 칩 높이 36px(`min-h-9`) 고정, 글자·여백만 vw 비례. **가리기**는 왼쪽 = 켜기/끄기, 켜지면 오른쪽에 지금 난이도(`초급 ▾`) → 난이도 4단·새 문제 팝오버. 켜진 동안 왼쪽은 눈 아이콘만(aria-label '가리기 끄기') — 그래야 오답 칩까지 한 줄에 든다. **묶음 −/+는 팝오버 안으로 옮겼다**(칩 안에 두면 36px 버튼 셋이 들어갈 자리가 없음). **'대사만' 칩의 `!N` 배지는 누르는 자리가 아닌 점**으로 바꾸고 재감지는 고치기 메뉴로(칩 안 탭 자리 둘 → 하나).
+- **실측(Playwright, 가리기 켬 + 오답 1개)**: 390px 칩 줄 303/324px(가로 스크롤 없음), 360px 285/294px. 더 좁으면 칩 줄만 가로 스와이프되고 ⋯는 줄 밖이라 늘 보인다. 옛 구조는 390px에서 49px 넘쳤다.
+- **카드**: 타임스탬프 알약은 보이는 16px 그대로 + 투명 가상요소로 누르는 자리 40px(`HIT_TS`), 글자 10→11px. 배지(누락·뭉침·전사의심·대사 끝 없음) 9→11px, 누르는 자리 36px 이상(`HIT_BADGE`). 가상요소는 카드 높이를 안 늘린다.
+- **플레이어**: 진행바는 보이는 6px, 누르는 자리 24px(`h-6 -my-[9px]` — 바 높이 85px 안의 줄 높이는 예전과 같음) + **터치 끌기**(누르는 동안은 시각·막대만 따라가고 손을 뗄 때 한 번만 이동 — 끄는 내내 이동하면 반복·대사만 엔진이 매번 위치를 다시 잡는다). 배속 칸 45×40px·12px.
+- 선택 모드 줄은 구성 그대로, 버튼 높이만 36px. 설정 창은 손대지 않았다(다음 차례).
+- 검증: `toolbarMenu.test.js` 변이 5개(오른쪽 클램프·end 맞춤·넓은 패널 가드·감지 중 조건·휴지통 개수) 각각 실패 확인. 브라우저(390px 터치): 끄는 동안 이동 0번·떼면 70% 지점, 막대 위 가장자리 탭, 팝오버 ESC·바깥 탭 닫힘, 묶음 + 창 유지, 메뉴 → 재감지 확인창·선택 모드, 난이도 칩 표시 — 13개 통과. 라이트·다크 캡처 39장에서 잘림·흰 조각 없음.
 
 ### Keyboard Shortcuts (구현: `hooks/useKeyboardShortcuts.js`, 표시: `components/ShortcutsHelp.jsx`)
 

@@ -82,6 +82,27 @@ const PlayerControls = ({
         return () => document.removeEventListener('visibilitychange', onVis);
     }, [isPlaying]);
 
+    // 진행바 끌기: 누르는 동안은 손가락 위치만 보여주고(시각·막대), 손을 떼면 그 자리로 한 번만 이동한다.
+    // 끄는 내내 이동하면 반복·대사만 엔진이 매번 위치를 다시 잡아 소리가 튄다. null = 끌고 있지 않음.
+    const [dragRatio, setDragRatio] = useState(null);
+    const ratioAt = (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        return rect.width ? Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) : 0;
+    };
+    const onSeekDown = (e) => {
+        if (!duration) return;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        setDragRatio(ratioAt(e));
+    };
+    const onSeekMove = (e) => { if (dragRatio !== null) setDragRatio(ratioAt(e)); };
+    const onSeekUp = (e) => {
+        if (dragRatio === null) return;
+        const r = ratioAt(e);
+        setDragRatio(null);
+        if (duration) seekTo(r * duration);
+    };
+    const shownTime = dragRatio !== null && duration ? dragRatio * duration : currentTime;
+
     // 뮤트 프리뷰: 큰 드리프트(시크 등)만 오디오 위치로 보정 (미세 드리프트는 무시)
     useEffect(() => {
         const vid = visualVideoRef.current;
@@ -158,23 +179,31 @@ const PlayerControls = ({
                     {/* Row 1: Progress Bar */}
                     <div className="w-full px-2 sm:px-3 pt-2 pb-1 flex items-center gap-[min(2vw,8px)] text-[10px] sm:text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
                         <span className="w-[min(9.5vw,36px)] shrink-0 text-indigo-600 dark:text-indigo-400 text-right">
-                            {formatClock(currentTime)}
+                            {formatClock(shownTime)}
                         </span>
 
+                        {/* 누르는 영역은 24px(h-6), 보이는 막대는 6px. 음수 여백으로 줄 높이는 예전(6px)과 같게 둔다
+                            — 바 전체 높이 85px 안에 버튼 줄이 빠듯하게 들어가 있다. touch-none: 끄는 동안 화면이 안 밀리게 */}
                         <div
-                            className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden cursor-pointer group relative"
-                            onClick={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                if (duration) {
-                                    seekTo(((e.clientX - rect.left) / rect.width) * duration);
-                                }
-                            }}
+                            role="slider"
+                            aria-label="재생 위치"
+                            aria-valuemin={0}
+                            aria-valuemax={Math.round(duration || 0)}
+                            aria-valuenow={Math.round(shownTime || 0)}
+                            aria-valuetext={formatClock(shownTime)}
+                            className="flex-1 h-6 -my-[9px] flex items-center cursor-pointer group touch-none select-none"
+                            onPointerDown={onSeekDown}
+                            onPointerMove={onSeekMove}
+                            onPointerUp={onSeekUp}
+                            onPointerCancel={() => setDragRatio(null)}
                         >
-                            <div className="absolute inset-0 w-full h-full hover:bg-slate-200/40 dark:hover:bg-slate-600/40 transition-colors" />
-                            <div
-                                className="h-full bg-indigo-500 rounded-full relative group-hover:bg-indigo-600 transition-all duration-300 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
-                                style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                            />
+                            <div className="relative w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div className="absolute inset-0 w-full h-full group-hover:bg-slate-200/40 dark:group-hover:bg-slate-600/40 transition-colors" />
+                                <div
+                                    className={`h-full bg-indigo-500 rounded-full relative group-hover:bg-indigo-600 shadow-[0_0_8px_rgba(99,102,241,0.5)] ${dragRatio !== null ? '' : 'transition-all duration-300'}`}
+                                    style={{ width: `${duration ? (shownTime / duration) * 100 : 0}%` }}
+                                />
+                            </div>
                         </div>
 
                         <span className="w-[min(9.5vw,36px)] shrink-0 text-left">{duration ? formatClock(duration) : "00:00"}</span>
@@ -199,13 +228,13 @@ const PlayerControls = ({
                                     {playbackRate.toFixed(1)}x
                                 </button>
                                 {showSpeedMenu && (
-                                    <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 p-2 z-[60] w-48">
+                                    <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 p-2 z-[60] w-52">
                                         <div className="grid grid-cols-4 gap-1">
                                             {PLAYBACK_RATES.map(rate => (
                                                 <button
                                                     key={rate}
                                                     onClick={(e) => { e.stopPropagation(); handleRateChange(rate); setShowSpeedMenu(false); }}
-                                                    className={`py-1.5 rounded text-[10px] font-bold ${Math.abs(playbackRate - rate) < 0.01 ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                    className={`h-10 rounded text-xs font-bold ${Math.abs(playbackRate - rate) < 0.01 ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                                 >
                                                     {rate.toFixed(1)}
                                                 </button>
