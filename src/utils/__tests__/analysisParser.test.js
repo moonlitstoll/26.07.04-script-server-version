@@ -145,3 +145,43 @@ describe('표기 정리 안전망(tidyGlosses)', () => {
         expect(c).toEqual({ chunk: 'công viên', meaning: '공원 (công viên: 공원♪)' });
     });
 });
+
+// ⑦ 화살표 방향 바로잡기 — 화면 전용(fixArrows). 실측: 2026-10-20 휴대폰 Circle K 캡처 4장의 줄 그대로.
+describe('tidyGlosses fixArrows (화살표 방향)', () => {
+    const show = (l) => tidyGlosses(l, { hideAddedNote: true, fixArrows: true });
+    it('덩어리 뜻에 뒤쪽만 들어 있으면 뒤집는다', () => {
+        expect(show('**Quay video thì**: 영상을 찍을 때는 (Quay: 돌리다←찍다 + video: 비디오 + thì: 그러면)'))
+            .toBe('**Quay video thì**: 영상을 찍을 때는 (Quay: 찍다←돌리다 + video: 비디오 + thì: 그러면)');
+        expect(show('**nhưng mà nào ngờ**: 하지만 예상치 못하게 (nhưng mà: 하지만 + nào ngờ: 누가 알았겠어←예상치 못하게)'))
+            .toBe('**nhưng mà nào ngờ**: 하지만 예상치 못하게 (nhưng mà: 하지만 + nào ngờ: 예상치 못하게←누가 알았겠어)');
+        expect(show('**Ảo thực sự luôn**: 진짜 비현실적이야 (Ảo: 환상적인←비현실적인 + thực sự: 정말 + luôn: 항상←강조)'))
+            .toBe('**Ảo thực sự luôn**: 진짜 비현실적이야 (Ảo: 비현실적인←환상적인 + thực sự: 정말 + luôn: 항상·강조)');
+    });
+    it('화살표 뒤가 말투 설명이면 가운뎃점', () => {
+        expect(show('**xem lại nhìn trông ngu vãi**: 다시 보니 멍청해 보였어 (ngu: 멍청하다 + vãi: 존나←강조 비속어)'))
+            .toBe('**xem lại nhìn trông ngu vãi**: 다시 보니 멍청해 보였어 (ngu: 멍청하다 + vãi: 존나·강조 비속어)');
+        expect(show('**Chết**: 앗·망했다 (Chết: 죽다←감탄)')).toBe('**Chết**: 앗·망했다 (Chết: 죽다·감탄)');
+    });
+    it('옛 방향 → 는 ← 로 돌린다', () => {
+        expect(show('**Mấy hôm nay thì**: 요즘에는 (Mấy hôm nay: 며칠 전→요즘 + thì: 그러면)'))
+            .toBe('**Mấy hôm nay thì**: 요즘에는 (Mấy hôm nay: 요즘←며칠 전 + thì: 그러면)');
+    });
+    it('맞는 방향·판단 불가는 그대로 (PC 저장본 실측)', () => {
+        for (const l of [
+            '**Chạy đi**: 너 도망쳐 (Chạy: 도망치다←달리다 + đi: 가라)',
+            '**lấy combo**: 아쉽지만 2만 5천 동 콤보를 선택했다 (lấy: 선택하다←가져가다 + combo: 콤보)',
+            '**gắn kết**: 엄청난 유대감을 (gắn kết: 유대감을 느끼다←연결하다)',
+            '**cốt**: 나는 ~한 것을 고를 것이다 (cốt: 고르다←뼈)',
+            // 양쪽 다 덩어리 뜻에 있으면 판단하지 않는다
+            '**Chết rồi**: 큰일 났다, 죽겠네 (Chết: 큰일 났다←죽다 + rồi: 이미)',
+        ]) expect(show(l)).toBe(l);
+    });
+    it('저장 경로(fixArrows 없음)는 화살표를 안 건드린다', () => {
+        const l = '**Quay video thì**: 영상을 찍을 때는 (Quay: 돌리다←찍다 + vãi: 존나←강조 비속어)';
+        expect(tidyGlosses(l)).toBe(l);
+    });
+    it('가리기 학습(parseChunks)도 같은 정리를 쓴다', () => {
+        const [c] = parseChunks({ isAnalyzed: true, analysis: '**Quay video thì**: 영상을 찍을 때는 (Quay: 돌리다←찍다)' });
+        expect(c.meaning).toContain('찍다←돌리다');
+    });
+});

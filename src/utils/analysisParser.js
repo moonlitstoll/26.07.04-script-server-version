@@ -94,10 +94,39 @@ const tidyFlash = (tail) => tail.replace(/〔⚡([^:：〕]+)([:：])\s*([^〕]*
     let v = mean.replace(/\s*\([^()]*\)/g, '').split('/')[0].replace(FLASH_LABEL, '').replace(/[\s–—\-·]+$/, '').trim();
     return v ? `〔⚡${expr}${colon} ${v}〕` : m;
 });
-const tidyGloss = (part, hideAddedNote) => {
+// ⑦ [화면 전용, fixArrows] 화살표 방향 바로잡기 (2026-10-20, 휴대폰 Circle K 캡처 4장에서 7개 실측).
+//    규칙 C는 `이 문장의 뜻←사전 뜻`인데 모델(특히 재분석 모델 2.5 Flash)이 자주 어겼다. 저장본은 그대로 두고 보일 때만 고친다.
+//    a) 옛 방향 `A→B`(사전 뜻→문맥 뜻) → `B←A`:  "Mấy hôm nay: 며칠 전→요즘" → "요즘←며칠 전"
+//    b) 화살표 뒤가 뜻이 아니라 말투 설명이면 가운뎃점:  "vãi: 존나←강조 비속어" → "존나·강조 비속어", "luôn: 항상←강조" → "항상·강조"
+//    c) 뒤쪽만 덩어리 뜻(굵은 청크 옆)에 들어 있으면 뒤집는다:  "Quay: 돌리다←찍다" + "영상을 찍을 때는" → "찍다←돌리다"
+//       양쪽 다 있거나 다 없으면 판단하지 않고 그대로(맞는 것을 망치지 않게). 한국어 활용 때문에 낱말 끝 한 글자를 떼고 비교한다.
+const ARROW_DESC = /^(강조\s*)?(비속어|욕설|속어|은어|강조|감탄사?|완곡|반말|존댓말|높임|낮춤|어감|말투|호격|부르는 말|의문|부정 강조|부정)(\s*표현)?$/;
+const ONE_CHAR_COMMON = new Set(['가', '오', '하', '보', '되', '있', '없', '주', '이', '나', '들', '알', '먹', '사', '자', '쓰', '말', '받', '놓', '두']);
+const wordKeys = (phrase) => phrase.split(/[\s·,~]+/).map(w => w.replace(/[^가-힣]/g, '')).filter(Boolean).map(w => {
+    const k = w.replace(/다$/, '');
+    return k.length >= 3 ? k.slice(0, -1) : k;
+}).filter(k => k && !(k.length === 1 && ONE_CHAR_COMMON.has(k)));
+const inMeaning = (phrase, meaning) => {
+    const keys = wordKeys(phrase);
+    return keys.length > 0 && keys.every(k => meaning.includes(k));
+};
+const fixArrow = (mean, mainMeaning) => {
+    if (!mean.includes('←') && (mean.match(/→/g) || []).length === 1) {
+        const [a, b] = mean.split('→').map(x => x.trim());
+        if (a && b) mean = `${b}←${a}`;
+    }
+    const m = mean.match(/^(.+?)←(.+)$/);
+    if (!m) return mean;
+    const left = m[1].trim(), right = m[2].trim();
+    if (ARROW_DESC.test(right)) return `${left}·${right}`;
+    if (mainMeaning && inMeaning(right, mainMeaning) && !inMeaning(left, mainMeaning)) return `${right}←${left}`;
+    return mean;
+};
+const tidyGloss = (part, hideAddedNote, fixArrows, mainMeaning) => {
     const m = part.match(/^(\s*[^:]+:\s*)(.*?)(\s*)$/s);
     if (!m) return part;
     let mean = m[2];
+    if (fixArrows) mean = fixArrow(mean, mainMeaning);
     const arrow = mean.match(/^(.+?)←(.+)$/);
     if (arrow && arrow[1].trim() === arrow[2].trim()) mean = arrow[1].trim();
     const note = mean.match(/^(.*)·([^·]+)♪$/);
@@ -129,14 +158,15 @@ const stripMainNote = (main) => {
     if (!m || !m[2].includes('♪')) return main;
     return m[1] + m[2].replace(/·[^·\s()]+♪/g, '').replace(/♪/g, '');
 };
-export function tidyGlosses(line, { hideAddedNote = false } = {}) {
+export function tidyGlosses(line, { hideAddedNote = false, fixArrows = false } = {}) {
     const [rawMain, group, tail] = splitBreakdown(line);
     const main = stripMainNote(rawMain);
     const t = tail ? tidyFlash(tail) : tail;
     if (!group) return main + t;
     const g = group.replace(/\s+$/, '');
     const ws = group.slice(g.length);
-    const inner = g.slice(1, -1).split(/(\s\+\s)/).map((x, i) => (i % 2 ? x : tidyGloss(x, hideAddedNote))).join('');
+    const mainMeaning = (main.match(/\*\*.+?\*\*\s*:\s*(.*)$/s) || [])[1] || '';
+    const inner = g.slice(1, -1).split(/(\s\+\s)/).map((x, i) => (i % 2 ? x : tidyGloss(x, hideAddedNote, fixArrows, mainMeaning))).join('');
     return main + '(' + inner + ')' + ws + t;
 }
 
@@ -145,7 +175,7 @@ export function parseChunks(item) {
     return item.analysis.split('\n')
         .map(raw => {
             // 혹시 남아있을 수 있는 [분석]/분석] 접두 제거
-            const line = tidyGlosses(raw.replace(/^\s*\[?\s*분석\s*\]?\s*/, ''), { hideAddedNote: true });
+            const line = tidyGlosses(raw.replace(/^\s*\[?\s*분석\s*\]?\s*/, ''), { hideAddedNote: true, fixArrows: true });
             const m = line.match(/^\s*\*\*(.+?)\*\*\s*:?\s*(.*)$/);
             if (!m) return null;
             const chunk = m[1].trim();

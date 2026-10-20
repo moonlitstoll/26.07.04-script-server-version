@@ -62,7 +62,7 @@ const TranscriptItem = memo(({
     const analysisLines = useMemo(() => {
         if (!item.analysis || typeof item.analysis !== 'string') return [];
         return stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
-            .split('\n').filter(l => l.trim()).map(l => splitBreakdown(tidyGlosses(l, { hideAddedNote: true })));
+            .split('\n').filter(l => l.trim()).map(l => splitBreakdown(tidyGlosses(l, { hideAddedNote: true, fixArrows: true })));
     }, [item.analysis, item.text]);
     const hasBreakdown = analysisLines.some(([, b]) => b);
 
