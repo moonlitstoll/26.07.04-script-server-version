@@ -221,9 +221,15 @@ const PlayerControls = ({
                                     <Play className={`${ICON_LG} text-white ml-0.5`} fill="white" />
                                 </div>
                             )}
-                            {/* 시각: 끄는 동안은 손가락 위치의 시각. 칸이 좁으면(세로 영상) 지금 시각만 */}
-                            <div className="absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white ${isExpanded ? 'text-xs leading-[18px]' : 'text-[10px] leading-[14px]'} font-mono font-bold text-center tabular-nums whitespace-nowrap pointer-events-none">
-                                {formatClock(shownTime)}{boxWide && ` / ${duration ? formatClock(duration) : '00:00'}`}
+                            {/* 시각: 끄는 동안은 손가락 위치의 시각. 칸이 좁으면 지금 시각만.
+                                '좁다'는 계산이 아니라 실제로 본다 — 한 줄 높이로 자르고 줄바꿈을 허용해, 전체 길이가
+                                안 들어가면 둘째 줄로 밀려 안 보이게 한다(휴대폰 글자 크기 설정이 크면 같은 칸에서도 넘친다).
+                                높이를 em으로 잡아야 글자가 커져도 한 줄이 맞는다.
+                                2026-10-31: className을 따옴표 문자열에 ${}로 써서 글자 크기가 통째로 빠진 채 배포됐다
+                                (본문 크기로 커져 `08:18 / 12:`로 잘림) — 조건부 클래스는 반드시 백틱. */}
+                            <div className={`absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white ${isExpanded ? 'text-xs' : 'text-[10px]'} h-[1.4em] leading-[1.4em] overflow-hidden flex flex-wrap justify-center font-mono font-bold tabular-nums pointer-events-none`}>
+                                <span className="whitespace-nowrap">{formatClock(shownTime)}</span>
+                                {boxWide && <span className="whitespace-nowrap">&nbsp;/ {duration ? formatClock(duration) : '00:00'}</span>}
                             </div>
                         </>
                     ) : (
