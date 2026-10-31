@@ -4,6 +4,7 @@
 // - maxUnit: 반복 단위로 인정하는 최대 단어 수
 // - keepMax: 반복 시 보존할 최대 단위 수 (실제 반복 강조는 살리되 환각 루프는 자름)
 const PUNCT_STRIP = /[.,!?;:…"'`()[\]{}<>~\-—«»「」『』、。，！？]+/g;
+const TRAIL_PUNCT = /[.,!?;:…]+$/;
 
 function collapseConsecutiveRepeats(text, { minRepeat = 2, maxUnit = 8, keepMax = 2 } = {}) {
     const tokens = text.split(/\s+/).filter(Boolean);
@@ -43,6 +44,13 @@ function collapseConsecutiveRepeats(text, { minRepeat = 2, maxUnit = 8, keepMax 
                 const keep = Math.min(reps, keepMax); // 최대 keepMax 단위 보존
                 for (let r = 0; r < keep; r++) {
                     for (let k = 0; k < unitLen; k++) out.push(tokens[i + r * unitLen + k]);
+                }
+                // 버린 마지막 단위의 끝 부호를 남긴 단위로 옮긴다 — 예전엔 "Kết thúc, kết thúc, kết thúc."이
+                // "Kết thúc, kết thúc,"(마침표 사라짐), "Màu gì, màu gì, màu gì đây?"가 "Màu gì, màu gì, đây?"가 됐다
+                // (2026-10-31 실측: 원문 19개 중 32줄). 줄이는 횟수는 그대로.
+                if (reps > keep) {
+                    const tail = (tokens[i + reps * unitLen - 1].match(TRAIL_PUNCT) || [''])[0];
+                    out[out.length - 1] = out[out.length - 1].replace(TRAIL_PUNCT, '') + tail;
                 }
                 i += reps * unitLen;
                 if (reps > keep) changed = true; // 실제로 줄였을 때만 표시
