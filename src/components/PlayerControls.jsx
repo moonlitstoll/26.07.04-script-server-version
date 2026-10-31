@@ -72,6 +72,7 @@ const PlayerControls = ({
     }
     const handleLoadedMetadata = (e) => {
         const v = e.currentTarget;
+        if (Number.isFinite(playbackRate) && playbackRate > 0) v.playbackRate = playbackRate;   // 불러오며 1로 돌아간 배속 다시
         if (!v.videoWidth || !v.videoHeight) return;   // 오디오 전용 파일
         setHasPicture(true);
         setPreviewAspect(Math.min(PREVIEW_ASPECT_MAX, v.videoWidth / v.videoHeight));
@@ -90,6 +91,19 @@ const PlayerControls = ({
         if (isPlaying && vid.paused && !document.hidden) vid.play().catch(() => { /* noop */ });
         else if (!isPlaying && !vid.paused) vid.pause();
     }, [isPlaying, mediaUrl]);
+
+    // 뮤트 프리뷰도 소리와 같은 배속으로. 예전엔 배속이 <audio>에만 걸려 그림은 늘 1배속으로 앞서가다가
+    // 아래 '0.4초 드리프트 보정'에 끌려 되돌아갔다 — 0.6x에서 1.2초마다 그림이 0.45초씩 뒤로 튀었다
+    // (2026-10-31 휴대폰 녹화를 원본 프레임과 맞춰 확인). defaultPlaybackRate도 같이: 새 src를
+    // 불러오면 playbackRate가 default로 되돌아가기 때문.
+    useEffect(() => {
+        const vid = visualVideoRef.current;
+        if (!vid || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
+        try {
+            vid.defaultPlaybackRate = playbackRate;
+            vid.playbackRate = playbackRate;
+        } catch { /* noop */ }
+    }, [playbackRate, mediaUrl]);
 
     // 화면 꺼짐 시 뮤트 프리뷰 정지 / 복귀 시 재개 (소리는 <audio>가 계속 냄)
     useEffect(() => {
