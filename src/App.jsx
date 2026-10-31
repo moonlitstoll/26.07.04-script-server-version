@@ -880,12 +880,14 @@ const App = () => {
   }
 
   // ─── Main Workspace ───
+  // 높이는 h-dvh(지금 보이는 화면). h-screen(100vh)은 휴대폰에서 '주소창이 숨었을 때' 높이라
+  // 주소창이 보이는 동안 앱이 화면보다 길어져 페이지째 밀리고 제목 줄이 위로 사라졌다(2026-10-31).
   return (
     <div
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className="flex flex-col h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-800 dark:text-slate-200 overflow-hidden font-sans animate-in fade-in duration-700 relative"
+      className="flex flex-col h-dvh bg-[#F8FAFC] dark:bg-slate-900 text-slate-800 dark:text-slate-200 overflow-hidden font-sans animate-in fade-in duration-700 relative"
     >
       {/* Drag Overlay */}
       {isDragging && (

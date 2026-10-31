@@ -16,14 +16,17 @@ const ICON_SM = 'w-[min(4.2vw,16px)] h-[min(4.2vw,16px)]';
 const ICON_MD = 'w-[min(4.8vw,18px)] h-[min(4.8vw,18px)]';
 const ICON_LG = 'w-[min(5.3vw,20px)] h-[min(5.3vw,20px)]';
 
-// 바 높이. 평소 56px = 버튼 43px + 위아래 여백. 진행바는 바 맨 위 가장자리의 띠라 줄을 차지하지 않는다.
-// 예전 85px(진행바 줄 ≈27px + 버튼 줄)보다 29px 얇다 — 사용자 결정: 작은 화면에 대본 한 줄이라도 더.
-const BAR_H = 56;
-// 영상 칸을 탭해 키웠을 때 바의 상한. 박스 높이 = min(이 값, 폭상한 ÷ 비율)이라
-// 가로 영상은 폭상한(아래)에 먼저 걸려 74px쯤에서 멈추고, 세로 영상만 여기까지 큰다.
-const BAR_H_EXPANDED = 140;
-// 작은 상태에서 영상 칸이 보장할 최소 폭(탭해서 키우는 자리). 세로 영상은 56px 높이에서
-// 폭이 31px뿐이라 비율을 이 폭까지 끌어올린다(좌우에 검은 띠, 키우면 제 비율로 돌아간다).
+// 바 높이(평소). 진행바는 바 맨 위 가장자리의 띠라 줄을 차지하지 않는다.
+// 이력: 85px → 56px(2026-10-18, 대본 한 줄이라도 더) → 74px(2026-10-31, 사용자: 영상이 좀 커도 된다).
+// 74 = 390px 폭 휴대폰에서 가로 영상이 폭상한(≈132px)에 딱 닿는 높이(132 ÷ 16/9). 더 높여도
+// 가로 영상은 폭에 걸려 안 커지고 바만 두꺼워진다.
+const BAR_H = 74;
+// 영상 칸을 탭해 키웠을 때: 영상이 버튼 줄 위의 자기 줄로 올라가 화면 폭을 거의 다 쓴다.
+// 높이 상한 = 보이는 화면의 40%(세로 영상이 대본을 다 덮지 않게). 버튼 줄은 영상이 옆에 없으니 56px.
+const EXPANDED_MAX_H = '40dvh';
+const CTRL_H_EXPANDED = 56;
+// 작은 상태에서 영상 칸이 보장할 최소 폭(탭해서 키우는 자리). 세로 영상은 74px 높이에서
+// 폭이 42px뿐이라 비율을 이 폭까지 끌어올린다(좌우에 검은 띠, 키우면 제 비율로 돌아간다).
 const PREVIEW_MIN_W = 44;
 
 // 영상 프리뷰 박스의 가로세로비. 박스를 영상 비율에 맞춰야 object-contain의
@@ -76,12 +79,9 @@ const PlayerControls = ({
     const isExpanded = expanded && hasPicture;
     // 작은 상태에선 최소 탭 폭을 보장하는 비율로(세로 영상은 좌우 검은 띠), 키우면 제 비율
     const boxAspect = isExpanded ? previewAspect : Math.max(previewAspect, PREVIEW_MIN_W / BAR_H);
-    // 바 높이: 평소 고정, 키우면 영상 비율이 허락하는 만큼(폭상한 ÷ 비율)까지 — 가로 영상은 폭에 먼저 걸린다
-    const barHeight = isExpanded
-        ? `max(${BAR_H}px, min(${BAR_H_EXPANDED}px, calc(${PREVIEW_MAX_W} / ${previewAspect})))`
-        : `${BAR_H}px`;
-    // 영상 칸 아래 시각 표시에 총 길이까지 넣을 폭이 되는가(≈90px↑). 작은 상태는 높이 56 × 비율, 키운 상태는 폭상한 ÷ 비율 기준
-    const boxWide = isExpanded ? previewAspect >= 0.7 : boxAspect >= 1.5;
+    // 영상 칸 아래 시각 표시에 총 길이까지 넣을 폭이 되는가(≈90px↑). 작은 상태는 높이 74 × 비율,
+    // 키운 상태는 화면 폭 또는 40dvh × 비율이라 세로 영상도 충분히 넓다
+    const boxWide = isExpanded || boxAspect >= 1.2;
 
     // 뮤트 프리뷰 영상: 재생/정지 따라감 (백그라운드에선 재생 안 함)
     useEffect(() => {
@@ -163,7 +163,12 @@ const PlayerControls = ({
                 </div>
             </div>
 
-            <div className="max-w-5xl mx-auto flex flex-row items-stretch" style={{ height: barHeight }}>
+            {/* 평소: 영상 칸 | 버튼 줄 (한 줄, 높이 BAR_H). 키우면: 영상 줄 위 / 버튼 줄 아래.
+                <video>가 다시 만들어지지 않게(재생 위치·그림 유지) 같은 자리의 요소를 두고 배치만 바꾼다. */}
+            <div
+                className={`max-w-5xl mx-auto flex ${isExpanded ? 'flex-col items-center pt-2' : 'flex-row items-stretch'}`}
+                style={isExpanded ? undefined : { height: `${BAR_H}px` }}
+            >
 
                 {/* 사운드+클럭 드라이버: 오디오 요소(화면 꺼져도 자동정지 안 됨).
                     display:none은 피하고 sr-only로 렌더 트리에 유지. */}
@@ -184,7 +189,7 @@ const PlayerControls = ({
                     box-sizing:border-box 때문에 aspect-ratio가 테두리 포함 폭에 걸려
                     안쪽 그림이 1px 깎이고, 그 순간 세로 영상이 폭 지배로 뒤집혀 높이까지 손해다.
 
-                    탭: 영상이면 크게/작게(바 높이까지 같이 큰다), 소리만이면 예전처럼 재생/정지.
+                    탭: 영상이면 크게/작게(키우면 버튼 줄 위 자기 줄로 올라가 화면 폭을 거의 다 쓴다), 소리만이면 예전처럼 재생/정지.
                     소리만 있는 파일의 검은 칸은 사용자 결정으로 그대로 두되, 아래에 시각(지금/전체)을 적어 쓸모를 준다
                     — 진행바를 띠로 올리면서 시각 글자가 갈 자리가 여기뿐이다. */}
                 <div
@@ -192,11 +197,14 @@ const PlayerControls = ({
                     aria-label={mediaUrl ? (hasPicture ? (isExpanded ? '영상 작게' : '영상 크게') : (isPlaying ? '일시정지 (소리 칸)' : '재생 (소리 칸)')) : undefined}
                     onClick={mediaUrl ? (hasPicture ? () => setExpanded(x => !x) : togglePlay) : undefined}
                     className={`relative bg-black self-center shrink-0 overflow-hidden group flex items-center justify-center ${mediaUrl ? 'cursor-pointer' : 'w-[min(26vw,120px)] h-full'}`}
-                    style={mediaUrl ? {
+                    style={!mediaUrl ? undefined : isExpanded ? {
+                        aspectRatio: previewAspect,
+                        width: `min(calc(100% - 16px), calc(${EXPANDED_MAX_H} * ${previewAspect}))`,
+                    } : {
                         aspectRatio: boxAspect,
                         height: `min(100%, calc(${PREVIEW_MAX_W} / ${boxAspect}))`,
                         maxWidth: PREVIEW_MAX_W,
-                    } : undefined}
+                    }}
                 >
                         {mediaUrl ? (
                         <>
@@ -214,7 +222,7 @@ const PlayerControls = ({
                                 </div>
                             )}
                             {/* 시각: 끄는 동안은 손가락 위치의 시각. 칸이 좁으면(세로 영상) 지금 시각만 */}
-                            <div className="absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white text-[10px] font-mono font-bold leading-[14px] text-center tabular-nums whitespace-nowrap pointer-events-none">
+                            <div className="absolute inset-x-0 bottom-0 px-0.5 bg-black/55 text-white ${isExpanded ? 'text-xs leading-[18px]' : 'text-[10px] leading-[14px]'} font-mono font-bold text-center tabular-nums whitespace-nowrap pointer-events-none">
                                 {formatClock(shownTime)}{boxWide && ` / ${duration ? formatClock(duration) : '00:00'}`}
                             </div>
                         </>
@@ -232,7 +240,10 @@ const PlayerControls = ({
                 </div>
 
                 {/* Right: Controls Column (버튼 줄 — 진행바는 바 맨 위 띠로 올라갔다) */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center border-l border-slate-100 dark:border-slate-700">
+                <div
+                    className={`min-w-0 flex flex-col justify-center border-slate-100 dark:border-slate-700 ${isExpanded ? 'flex-none w-full mt-2 border-t' : 'flex-1 border-l'}`}
+                    style={isExpanded ? { height: `${CTRL_H_EXPANDED}px` } : undefined}
+                >
 
                     {/* Control Buttons */}
                     <div className="flex items-center justify-between px-2 pl-1 py-1 gap-[min(1vw,4px)]">
