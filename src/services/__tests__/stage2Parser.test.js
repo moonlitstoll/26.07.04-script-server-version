@@ -239,3 +239,42 @@ describe('파서가 표기 정리 안전망을 거친다', () => {
         expect(res[0].analysis).toBe('**xuất hiện**: 나타나다 (xuất hiện: 나타나다·출현♪)');
     });
 });
+
+describe('실측: [번역] 마커가 깨진 블록 (2.5 Flash, g1 드라마 #34 `[번 dịch]`, 2026-10-31)', () => {
+    // s2base/runs/g1_flash_raw.txt 281~295줄 그대로. #34만 마커가 `[번 dịch]`로 깨졌고 START·END는 멀쩡하다.
+    const RAW = [
+        '--- [INDEX: 33] START ---',
+        '[번역] 여자가 괴롭힘당하는 걸 보고도 안 도와줄 거야?',
+        '[분석] **Thấy phụ nữ**: 여자가 ~하는 걸 보고 (Thấy: 보다 + phụ nữ: 여성·부녀♪)',
+        '[분석] **bị bắt nạt**: 괴롭힘당하는 (bị: ~당하다 + bắt nạt: 괴롭히다)',
+        '[분석] **mà không giúp đỡ à**: 안 도와줄 거야? (mà: 그런데 + không: ~않다 + giúp đỡ: 돕다·구제♪ + à: ~니?·의문)',
+        '--- [INDEX: 33] END ---',
+        '--- [INDEX: 34] START ---',
+        '[번 dịch] 무슨 남자 선배가 그래?',
+        '[분석] **Đàn ông đàn anh**: 무슨 남자 선배가 (Đàn ông: 남자 + đàn anh: 선배)',
+        '[분석] **kiểu gì đấy**: 무슨 종류야? (kiểu: 종류 + gì: 무엇 + đấy: ~야·말끝)',
+        '--- [INDEX: 34] END ---',
+        '--- [INDEX: 35] START ---',
+        '[번역] 오빠. 오빠.',
+        '[분석] **Anh**: 오빠 (Anh: 오빠)',
+        '[분석] **Anh ạ**: 오빠 (Anh: 오빠 + ạ: ~요·존칭)',
+        '--- [INDEX: 35] END ---',
+    ].join('\n');
+    const ITEMS = [{ index: 33 }, { index: 34 }, { index: 35 }];
+
+    it('#34는 END가 있어도 failed(형식 실패 재요청을 타게), #33·#35는 정상', () => {
+        const res = parseStage2Response(RAW, ITEMS, { finishReason: 'STOP' });
+        expect(res[1]).toEqual({ index: 34, translation: '', analysis: '', failed: true });
+        expect(res[0]).toMatchObject({ index: 33, translation: '여자가 괴롭힘당하는 걸 보고도 안 도와줄 거야?' });
+        expect(res[0].analysis.split('\n')).toHaveLength(3);
+        expect(res[0].failed).toBeUndefined();
+        expect(res[2]).toMatchObject({ index: 35, translation: '오빠. 오빠.' });
+        expect(res[2].analysis.split('\n')).toHaveLength(2);
+        expect(res[2].failed).toBeUndefined();
+    });
+
+    it('[번역] 줄은 있는데 내용이 비어도 failed', () => {
+        const text = '--- [INDEX: 1] START ---\n[번역]   \n--- [INDEX: 1] END ---';
+        expect(parseStage2Response(text, [{ index: 1 }])[0].failed).toBe(true);
+    });
+});

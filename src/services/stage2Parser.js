@@ -30,6 +30,7 @@
 //  - END 없이 받은 블록은 [번역] 줄이 있어야 한다(마커만 있고 내용이 없는 블록은 실패).
 // 실측(9회 실행 응답 112개·블록 2,036개): 블록 사이 잡문·코드 울타리 0건 — 다음 START까지를 한 문장으로
 // 봐도 다른 내용이 섞인 적이 없다. 그래도 블록 안에서는 [번역]/[분석]/[전사의심] 줄만 읽는다.
+// [번역] 줄이 없거나 빈 블록은 END가 있어도 실패(2026-11-01, `[번 dịch]` 실측) — 형식 실패 재요청을 탄다.
 // 자기 START가 없으면 여전히 실패 → gemini.js#analyzeBatchSentences가 실패 문장만 한 번 다시 요청한다.
 
 import { flattenNestedParens, tidyGlosses } from '../utils/analysisParser';
@@ -76,7 +77,11 @@ export const parseStage2Response = (text, items, { finishReason } = {}) => {
         // 자기 END가 있으면 예전 그대로 받는다. 없으면: 다음 START가 있거나(블록이 끝까지 옴)
         // 마지막 블록이면 응답이 정상 종료일 때만, 그리고 [번역] 줄이 있을 때만 받는다.
         const closedWithoutEnd = (nextStart !== Infinity || finishReason === 'STOP') && !!translationMatch;
-        const accepted = startIndex !== -1 && (endIndex !== -1 || closedWithoutEnd);
+        // [번역] 줄이 없거나 비면 END가 있어도 실패로 둔다(2026-11-01) — 2.5 Flash가 `[번 dịch] …`처럼
+        // 마커를 깨뜨린 실측(g1 #34). 받아 두면 번역 빈 문장이 '분석 실패' 카드로 남고 아무도 다시 요청하지
+        // 않았다(재요청은 failed만 고름). failed면 analyzeBatchSentences가 그 문장만 한 번 더 요청한다.
+        const hasTranslation = !!translationMatch && translationMatch[1].trim() !== '';
+        const accepted = startIndex !== -1 && hasTranslation && (endIndex !== -1 || closedWithoutEnd);
 
         if (accepted) {
             // 구두점만인 청크 줄(`**?**: ?`, `**,**: ,`)은 버린다 — 2.5 Flash Lite 실측 이탈(42묶음 중 9문장).
@@ -95,7 +100,9 @@ export const parseStage2Response = (text, items, { finishReason } = {}) => {
                 transcriptSuspect: suspectMatch ? suspectMatch[1].trim() : ""
             });
         } else {
-            console.warn(`[Stage 2] Could not find markers for index ${item.index}`);
+            console.warn(startIndex !== -1 && !hasTranslation
+                ? `[Stage 2] No [번역] line for index ${item.index}`
+                : `[Stage 2] Could not find markers for index ${item.index}`);
             results.push({ index: item.index, translation: "", analysis: "", failed: true });
         }
     }

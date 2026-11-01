@@ -61,4 +61,26 @@ describe('analyzeBatchSentences — 형식 실패 재요청', () => {
         expect(calls).toHaveLength(1);
         expect(res.map(r => r.translation)).toEqual(['안녕하세요.', '고마워요.']);
     });
+
+    it('실측: [번역] 마커가 깨진 문장(`[번 dịch]`, g1 #34)만 한 번 더 요청해 번역을 채운다', async () => {
+        const items = [{ index: 33, text: 'Thấy phụ nữ bị bắt nạt mà không giúp đỡ à?' },
+            { index: 34, text: 'Đàn ông đàn anh kiểu gì đấy?' }, { index: 35, text: 'Anh. Anh ạ.' }];
+        const b33 = block(33, '여자가 괴롭힘당하는 걸 보고도 안 도와줄 거야?', '**Thấy phụ nữ**: 여자가 ~하는 걸 보고 (Thấy: 보다 + phụ nữ: 여성)');
+        const b35 = block(35, '오빠. 오빠.', '**Anh ạ**: 오빠 (Anh: 오빠 + ạ: ~요·존칭)');
+        const broken34 = block(34, '무슨 남자 선배가 그래?', '**Đàn ông đàn anh**: 무슨 남자 선배가 (Đàn ông: 남자 + đàn anh: 선배)')
+            .replace('[번역]', '[번 dịch]');
+        const fixed34 = block(34, '무슨 남자 선배가 그래?', '**Đàn ông đàn anh**: 무슨 남자 선배가 (Đàn ông: 남자 + đàn anh: 선배)');
+        stubReplies(`${b33}
+${broken34}
+${b35}`, fixed34);
+        const res = await analyzeBatchSentences(items, 'k', 'gemini-2.5-flash', null);
+        expect(calls).toHaveLength(2);
+        expect(calls[1]).toContain('[분석대상] 문장(INDEX: 34)');
+        expect(calls[1]).not.toContain('[분석대상] 문장(INDEX: 33)');
+        expect(calls[1]).not.toContain('[분석대상] 문장(INDEX: 35)');
+        expect(res.find(r => r.index === 34)).toMatchObject({ translation: '무슨 남자 선배가 그래?' });
+        expect(res.find(r => r.index === 34).analysis).toContain('Đàn ông đàn anh');
+        expect(res.map(r => r.index)).toEqual([33, 34, 35]);
+        expect(res.some(r => r.failed)).toBe(false);
+    });
 });
