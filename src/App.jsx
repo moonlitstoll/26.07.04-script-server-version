@@ -1067,7 +1067,8 @@ const App = () => {
                           ? `${selectedIdxs.size}개`
                           : '문장 탭'}
                       </span>
-                      <div className="flex items-center gap-1 overflow-x-auto">
+                      {/* 좁은 휴대폰(327px)에선 버튼 7개가 한 줄에 안 들어가(458px) 예전엔 옆으로 밀어야 전사·나누기·삭제가 보였다 → 두 줄로 접는다 */}
+                      <div className="flex flex-wrap items-center gap-1">
                         <button
                           onClick={exitSelectMode}
                           className={`${SEL_BTN} text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors`}

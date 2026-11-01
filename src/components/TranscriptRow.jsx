@@ -34,43 +34,47 @@ export default function TranscriptRow({
             </div>
             <div className="min-w-0 flex-1">
                 <p className={`text-sm font-bold break-words leading-snug ${active ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>{display}</p>
-                {status && (
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] tracking-tight ${status.badgeColor}`}>{status.statusText}</span>
-                        {status.progressText && <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{status.progressText}</span>}
+                {/* 별·휴지통은 제목 옆이 아니라 배지 줄 오른쪽 끝 — 제목 옆에 두면 휴대폰(327px)에서 제목 칸이 120px뿐이라
+                    긴 베트남어 제목이 6줄로 늘었다. 지금은 제목이 줄 폭을 다 쓴다 */}
+                <div className="flex items-center justify-between gap-2 mt-0.5">
+                    {status ? (
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <span className={`px-1.5 py-0.5 rounded-full text-[11px] tracking-tight ${status.badgeColor}`}>{status.statusText}</span>
+                            {status.progressText && <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{status.progressText}</span>}
+                        </div>
+                    ) : <span />}
+                    <div className="shrink-0 flex items-center gap-0.5 -my-1 -mr-1.5">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onToggleFav && onToggleFav(); }}
+                            className={`${ICON_BTN} ${fav ? 'text-amber-500 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40' : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
+                            title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
+                            aria-label={fav ? '즐겨찾기 해제' : '즐겨찾기'}
+                            aria-pressed={fav}
+                        >
+                            <Star size={16} className={fav ? 'fill-current' : ''} />
+                        </button>
+                        {localHere && onDeleteLocal && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDeleteLocal(); }}
+                                className={`${ICON_BTN} text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
+                                title="이 기기에서 삭제"
+                                aria-label="이 기기에서 삭제"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        )}
+                        {onDeleteServer && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDeleteServer(); }}
+                                className={`${ICON_BTN} text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
+                                title="서버에서 삭제 (모든 기기)"
+                                aria-label="서버에서 삭제"
+                            >
+                                <Cloud size={16} />
+                            </button>
+                        )}
                     </div>
-                )}
-            </div>
-            <div className="shrink-0 flex items-center gap-0.5">
-                <button
-                    onClick={(e) => { e.stopPropagation(); onToggleFav && onToggleFav(); }}
-                    className={`${ICON_BTN} ${fav ? 'text-amber-500 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40' : 'text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40'}`}
-                    title={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                    aria-label={fav ? '즐겨찾기 해제' : '즐겨찾기'}
-                    aria-pressed={fav}
-                >
-                    <Star size={16} className={fav ? 'fill-current' : ''} />
-                </button>
-                {localHere && onDeleteLocal && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onDeleteLocal(); }}
-                        className={`${ICON_BTN} text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
-                        title="이 기기에서 삭제"
-                        aria-label="이 기기에서 삭제"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                )}
-                {onDeleteServer && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onDeleteServer(); }}
-                        className={`${ICON_BTN} text-slate-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
-                        title="서버에서 삭제 (모든 기기)"
-                        aria-label="서버에서 삭제"
-                    >
-                        <Cloud size={16} />
-                    </button>
-                )}
+                </div>
             </div>
         </div>
     );

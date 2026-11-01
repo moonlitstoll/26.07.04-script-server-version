@@ -83,7 +83,7 @@ const EmptyState = ({
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
-            className="min-h-dvh bg-[#F8FAFC] dark:bg-slate-900 flex flex-col items-center justify-center p-4 relative"
+            className="min-h-dvh bg-[#F8FAFC] dark:bg-slate-900 flex flex-col items-center justify-center p-4 pt-16 relative"
         >
             {isDragging && (
                 <div className="absolute inset-0 z-50 bg-indigo-500/10 backdrop-blur-sm flex items-center justify-center p-10 border-4 border-indigo-500 border-dashed m-4 rounded-3xl">

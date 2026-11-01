@@ -140,7 +140,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                 value={config.apiKey}
                                 onChange={(e) => updateField('apiKey', e.target.value)}
                                 placeholder="API 키 붙여넣기"
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
+                                className="w-full pl-4 pr-11 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
                             />
                             <Check className={`absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-400 transition-all ${config.apiKey.length > 20 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} size={18} />
                         </div>
@@ -251,7 +251,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                         value={config.claudeApiKey || ''}
                                         onChange={(e) => updateField('claudeApiKey', e.target.value.trim())}
                                         placeholder="sk-ant-..."
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
+                                        className="w-full pl-4 pr-11 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
                                     />
                                     <Check className={`absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-400 transition-all ${(config.claudeApiKey || '').startsWith('sk-ant-') ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} size={18} />
                                 </div>
