@@ -93,7 +93,7 @@ const CacheHistoryModal = ({
     return (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             {/* 높이: 휴대폰 90vh, PC 80vh(예전 95vh는 PC에서 과했다). 폭 상한은 대본 화면과 같은 3xl */}
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-3xl h-[90vh] sm:h-[80vh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-3xl h-[90dvh] sm:h-[80dvh] overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="p-3 px-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0 bg-white dark:bg-slate-800 z-10">
                     <h2 className="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-200">
                         <Clock size={18} className="text-indigo-500 dark:text-indigo-400" /> 저장된 대본

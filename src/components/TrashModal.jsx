@@ -6,7 +6,7 @@ const TrashModal = ({ items = [], onRestore, onClear, onClose }) => {
     useEscapeToClose(onClose);
     return (
         <div className="fixed inset-0 z-[110] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg max-h-[85dvh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2.5">

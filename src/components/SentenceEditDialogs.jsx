@@ -15,7 +15,7 @@ const Shell = ({ title, icon, onClose, children, footer }) => {
     useEscapeToClose(onClose);
     return (
         <div className="fixed inset-0 z-[200] bg-slate-900/50 dark:bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92dvh] flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold">
                     {icon}{title}
                 </div>

@@ -125,7 +125,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     </button>
                 </div>
 
-                <div className="p-4 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                <div className="p-4 sm:p-6 space-y-6 max-h-[70dvh] overflow-y-auto">
                     {/* API Key */}
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
