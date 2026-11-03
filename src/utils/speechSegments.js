@@ -111,6 +111,24 @@ export const wrapSkipTarget = (data, lastIdx, duration, now, bufferTime, tailPad
     return target;
 };
 
+// 영상 앞부분(0초 ~ 첫 문장) 건너뛰기. 재생 위치가 첫 문장보다 앞이면 첫 문장 시작(-버퍼)으로 옮길 시각.
+// gapSkipTarget은 '앞 문장의 대사 끝'에서 판정이 시작되는데, 첫 문장 앞에는 앞 문장이 없어서
+// 판정 자체가 안 일어났다. 실측(2026-11-03, 휴대폰 Gara 1/4): 마지막 대사 끝 644.7초·영상 645.07초라
+// 꼬리가 0.37초 → wrapSkipTarget이 '짧으니 자연스럽게 끝냄'으로 빠지고, 브라우저 전체반복이 0초로
+// 되감은 뒤 첫 문장(51.57초)까지 51초 음악을 다 틀었다. 처음 틀 때도 같은 음악을 들었다.
+// 다른 빈 구간과 같은 기준: 첫 문장까지 GAP_SKIP_MIN(3초)을 넘게 비어 있을 때만. 대사 끝 감지값은 안 쓴다
+// (첫 문장 시작만 있으면 된다).
+export const introSkipTarget = (data, now, bufferTime) => {
+    if (!Array.isArray(data) || !data[0]) return null;
+    const first = data[0].seconds;
+    if (!Number.isFinite(first) || !Number.isFinite(now)) return null;
+    if (first <= GAP_SKIP_MIN) return null;                   // 앞부분이 짧으면 그냥 재생
+    const buf = Number.isFinite(bufferTime) ? bufferTime : 0;
+    const target = Math.max(0, first - buf);
+    if (now >= target - 0.05) return null;                    // 이미 첫 문장 근처/이후 (재귀 점프 방지)
+    return target;
+};
+
 // ─────────────────────────────────────────────────────────────
 // [선택 문장 대사끝 재감지 — 클립 창 계산] (A2)
 // '대사만'이 이상한 문장만 골라 speechEnd를 다시 감지할 때, 오디오 전체가 아니라 그 문장

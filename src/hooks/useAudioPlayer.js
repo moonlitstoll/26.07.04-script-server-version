@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
 import { clampRate } from '../utils/playbackRates';
-import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, wrapSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
+import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, wrapSkipTarget, introSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
 
 const ACTION_GUARD_MS = 1500;   // 수동 점프 후 하이라이트 보호 시간
 const SYNC_INTERVAL_MS = 100;   // 재생 위치 동기화 주기
@@ -367,6 +367,18 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                 // isWithinActionGuard: 사용자가 방금 수동으로 시크했다면 끌고 가지 않는다.
                 if (speechOnlyRef.current && !v.paused && !isWithinActionGuard
                     && finalIdx >= 0 && data[finalIdx]) {
+                    // 첫 문장보다 앞(영상 앞부분): 앞 문장이 없어 아래 판정이 시작되지 않는다.
+                    // 끝에서 0초로 되감겼거나 처음 틀었을 때 앞 음악을 건너뛴다. 직접 옮긴 경우도
+                    // 다른 빈 구간처럼 action guard(1.5초) 뒤에 건너뛴다(사용자 결정 2026-11-03).
+                    if (now < data[0].seconds) {
+                        const target = introSkipTarget(data, now, bufferTime);
+                        if (target !== null) {
+                            lastActionTimeRef.current = Date.now();
+                            v.currentTime = target;
+                            safePlay(v, setIsPlaying, 'intro skip (normal play)');
+                            return;
+                        }
+                    }
                     let nm = finalIdx + 1;
                     while (nm < data.length && data[nm].seconds <= data[finalIdx].seconds) nm++;
                     if (nm < data.length) {

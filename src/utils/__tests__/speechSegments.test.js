@@ -6,7 +6,7 @@
 // (예전에 0.4를 하드코딩해 뒀다가, 상수를 0.8로 바꿔도 테스트가 그대로 통과한 적이 있다.)
 import { describe, it, expect } from 'vitest';
 import {
-    gapSkipTarget, wrapSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd, clampTailPad,
+    gapSkipTarget, wrapSkipTarget, introSkipTarget, trimmedLoopEnd, blockSpeechEnd, validSpeechEnd, clampTailPad,
     clipWindowForDetection,
     GAP_SKIP_MIN, SPEECH_TAIL_PAD, MIN_SPEECH_SEC, MAX_SENTENCE_SEC,
     TAIL_PAD_MIN, TAIL_PAD_MAX,
@@ -319,6 +319,54 @@ describe('wrapSkipTarget — 마지막 문장 뒤 엔딩 음악', () => {
     it('되감은 직후에는 다시 발동하지 않는다 (재점프 루프 방지)', () => {
         const target = wrapSkipTarget(d, 1, DUR, LAST_SE + PAD + 0.1, BUF);
         expect(wrapSkipTarget(d, 1, DUR, target, BUF)).toBeNull();
+    });
+});
+
+// 실측(2026-11-03, 휴대폰 Gara 1/4 227문장): 첫 문장 51.57초, 마지막 "Hứ." 644.27초·대사끝 644.7초,
+// 영상 645.07초. 꼬리 0.37초라 wrapSkipTarget은 발동하지 않고(위 '꼬리가 짧으면'), 브라우저가 0초로
+// 되감은 뒤 앞 음악 51초를 다 틀었다. 앞부분 건너뛰기가 이걸 메운다.
+describe('introSkipTarget — 영상 앞부분(첫 문장 전) 건너뛰기', () => {
+    const gara = [
+        { seconds: 51.57, speechEnd: 53.7 },
+        { seconds: 54.27, speechEnd: 55.2 },
+        { seconds: 644.27, speechEnd: 644.7 },
+    ];
+
+    it('실측 사례: 마지막 꼬리가 짧아 되감기가 빠지는 영상이다', () => {
+        expect(wrapSkipTarget(gara, 2, 645.07, 644.7 + 0.2 + 0.01, 0, 0.2)).toBeNull();
+    });
+
+    it('0초로 돌아오면 첫 문장 시작으로 건너뛴다 (버퍼 0 = 사용자 휴대폰 설정)', () => {
+        expect(introSkipTarget(gara, 0, 0)).toBeCloseTo(51.57, 9);
+        expect(introSkipTarget(gara, 20.3, 0)).toBeCloseTo(51.57, 9);
+    });
+
+    it('버퍼만큼 앞에서 멈춘다', () => {
+        expect(introSkipTarget(gara, 0, BUF)).toBeCloseTo(51.57 - BUF, 9);
+    });
+
+    it('도착한 뒤·첫 문장 이후엔 다시 발동하지 않는다 (재점프 루프 방지)', () => {
+        const target = introSkipTarget(gara, 0, BUF);
+        expect(introSkipTarget(gara, target, BUF)).toBeNull();
+        expect(introSkipTarget(gara, 51.57 + 1, BUF)).toBeNull();
+        expect(introSkipTarget(gara, 300, BUF)).toBeNull();
+    });
+
+    it('앞부분이 3초 이하면 건드리지 않는다', () => {
+        expect(introSkipTarget([{ seconds: GAP_SKIP_MIN }], 0, 0)).toBeNull();
+        expect(introSkipTarget([{ seconds: GAP_SKIP_MIN + 0.1 }], 0, 0)).toBeCloseTo(GAP_SKIP_MIN + 0.1, 9);
+    });
+
+    it('대사 끝 감지값이 없어도 동작한다 (첫 문장 시작만 쓴다)', () => {
+        expect(introSkipTarget([{ seconds: 51.57 }], 0, 0)).toBeCloseTo(51.57, 9);
+    });
+
+    it('잘못된 입력에도 터지지 않는다', () => {
+        expect(introSkipTarget(null, 0, 0)).toBeNull();
+        expect(introSkipTarget([], 0, 0)).toBeNull();
+        expect(introSkipTarget([{ seconds: NaN }], 0, 0)).toBeNull();
+        expect(introSkipTarget(gara, NaN, 0)).toBeNull();
+        expect(introSkipTarget(gara, 0, NaN)).toBeCloseTo(51.57, 9);
     });
 });
 
