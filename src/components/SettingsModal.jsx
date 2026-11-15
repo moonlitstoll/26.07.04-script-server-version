@@ -7,6 +7,7 @@ import { SPEECH_TAIL_PAD, TAIL_PAD_MIN, TAIL_PAD_MAX } from '../utils/speechSegm
 import { mediaStore } from '../utils/MediaStore';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { THEME_OPTIONS } from '../utils/theme';
+import OfflineStatus from './OfflineStatus';
 
 const MARKER_PRESETS = ['※', '#', '|', '·', '❖', '∂', '¤'];
 
@@ -628,6 +629,8 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                             </p>
                         </div>
                     )}
+
+                    <OfflineStatus />
                 </div>
 
                 <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-900 flex gap-3">

@@ -42,6 +42,19 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 배포: **Vercel이 main 브랜치 푸시를 자동 배포한다.** `git push origin main`이 곧 배포다.
 (`npm run deploy`는 안내 메시지만 출력하고 종료. `gh-pages` 브랜치는 옛 방식의 잔재 — 사용 안 함.)
 
+### 인터넷 없이 열기 (2026-11-15, `public/sw.js`)
+
+대본(localStorage)·영상(IndexedDB)은 원래 기기에 있었는데 화면 파일을 켤 때마다 서버에서 받아, 인터넷이 없으면 앱이 아예 안 켜졌다(비행기에서 공부 못 함). 화면 파일을 기기에 저장해 둔다. 사용자와 정한 것:
+
+- **화면(HTML)은 서버 먼저, 3초 안에 못 받거나 실패하면 저장본.** 그래서 배포한 새 버전은 예전처럼 바로 보인다('새 버전' 안내 `useAppUpdate`도 그대로). 저장본 먼저 방식은 배포가 한 박자 늦게 보여서 버렸다.
+- **저장 목록은 빌드가 채운다**: `public/sw.js`는 틀이고 `vite.config.js`의 `emit-service-worker`가 `src/utils/swBuild.js`로 `dist/sw.js`를 만든다. ffmpeg(32MB)·`version.json`·`/api`는 저장하지 않는다.
+- **`vercel.json`이 없는 파일을 `index.html`(200)로 돌려준다** — JS 자리에 HTML이 저장되면 인터넷 없을 때 흰 화면이 된다. 설치 때 HTML이 온 자리는 실패로 보고 저장본을 통째로 버린다(테스트 有).
+- 저장본은 이번 것 + 바로 앞 것만 남긴다(열려 있는 옛 화면이 옛 JS 조각을 찾을 때 대비).
+- **AI 버튼은 숨기지 않고 누를 때 안내**(`utils/online.js`, "인터넷 연결이 필요해요"): 새 영상·다시 시도·재전사·재분석·대사 끝 감지. 자동으로 이어 도는 분석(`runStage2Inner`)은 문장을 실패로 표시하지 않고 '분석 전' 그대로 둔다 — 인터넷이 될 때 대본을 열면 이어서 분석한다.
+- `main.jsx`가 저장 지키기(`navigator.storage.persist()`)를 요청한다. 설정 창 맨 아래 `OfflineStatus`가 "인터넷 없이도 열림 ✓"을 보여 준다(운영 빌드만. 개발 서버에서는 저장 담당을 등록하지 않는다).
+- 글꼴은 저장할 것이 없었다: `index.css`의 구글 글꼴 `@import`가 빌드 결과 CSS에 들어 있지 않다(지금도 기기 글꼴로 보이는 중 — 별개 문제, 손대지 않음).
+- 테스트 `__tests__/serviceWorker.test.js`는 실제 `public/sw.js`를 실제 `renderServiceWorker`로 채워 가짜 브라우저에서 돌린다. 변이 13개(3초 기준·HTML 검사·서버 먼저 순서·/api 제외·ffmpeg 제외 등) 전부 잡힘 확인.
+
 ## Architecture
 
 ### Two-Stage AI Pipeline (핵심 아키텍처)

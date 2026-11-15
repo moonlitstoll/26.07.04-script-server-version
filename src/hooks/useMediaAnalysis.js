@@ -14,6 +14,7 @@ import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpe
 import { incompleteNotice } from '../services/stage1Resume';
 import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
+import { isOffline, OFFLINE_MESSAGE } from '../utils/online';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
 // 저장 안내의 용량 글자. 예전 toFixed(0)은 1MB 미만이 "(0MB)"로 나와 고장처럼 읽혔다.
@@ -208,6 +209,13 @@ export const useMediaAnalysis = ({
             .map(x => x.idx);
 
         if (pendingIndices.length === 0) return { total: 0, success: 0, failedIndices: [] };
+
+        // [인터넷 없음] 요청을 보내지 않고 문장을 '분석 전' 그대로 둔다. 실패로 표시하지 않는 이유:
+        // 실패 표시는 저장되고 자동으로 다시 돌지 않는다. 그대로 두면 인터넷이 될 때 대본을 열면 이어서 분석한다(loadCache).
+        if (isOffline()) {
+            if (showToast) showToast({ message: `${OFFLINE_MESSAGE}. 연결된 뒤 대본을 다시 열면 남은 ${pendingIndices.length}문장을 이어서 분석해요.`, type: 'error', duration: 8000 });
+            return { total: pendingIndices.length, success: 0, failedIndices: [], aborted: true, data: transcript };
+        }
 
         // [Claude 2단계] 호출부는 늘 Gemini 키를 넘긴다(1단계가 Gemini라 항상 있음). 고른 모델이 Claude면 여기서 Claude 키로
         // 바꿔 끼운다 — 키가 없으면 요청을 하나도 보내지 않고 실패 카드+안내(Gemini로 몰래 바꾸지 않는다, 사용자 결정 Q5).
@@ -536,6 +544,8 @@ export const useMediaAnalysis = ({
     //  - saveMedia: 원본을 IndexedDB에 저장 (재생 복원용)
     //  - syncCloud: 원본 영상 업로드 + 대본 저장 (다른 기기 열람용)
     const runFullAnalysis = async (fileId, sourceFile, { saveMedia = false, syncCloud = false, awaitStage2 = false } = {}) => {
+        // 인터넷이 없으면 소리 꺼내기(32MB 도구 내려받기)부터 헛돈다 → 바로 안내. 실패 화면이 이 문구를 제목으로 쓴다(failureNotice).
+        if (isOffline()) throw new Error(OFFLINE_MESSAGE);
         if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
         // 2단계가 Claude인데 키가 없으면 전사(비용)부터 쓰지 말고 여기서 멈춘다
         if (isClaudeModel(stage2Model) && !claudeApiKey) throw new Error("2단계 모델이 Claude인데 Claude 키가 없어요. 설정에서 Claude 키를 넣거나 2단계를 Gemini로 바꿔 주세요.");
@@ -725,6 +735,8 @@ export const useMediaAnalysis = ({
     };
 
     const retryAnalysis = async (fileId) => {
+        // 인터넷이 없으면 아래에서 대본을 비우기 전에 멈춘다
+        if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return; }
         // 기존 Stage 2 중단
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
 
@@ -756,6 +768,7 @@ export const useMediaAnalysis = ({
      *  - work(ctx): 결과 반영. '결과 없음'으로 끝낼 땐 ctx.clearFlag()로 표시를 직접 지운다.
      */
     const runRetranscribeJob = async (fileId, { label, failPrefix, missingToast = null, prepare = () => ({}), isTarget }, work) => {
+        if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return; }
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
@@ -919,6 +932,7 @@ export const useMediaAnalysis = ({
      * 오디오 재전사가 없어(텍스트만 전송) 빠르고 타임라인이 완전히 보존된다.
      */
     const reanalyzeSentences = async (fileId, indices) => {
+        if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return; }
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
@@ -987,6 +1001,7 @@ export const useMediaAnalysis = ({
     // indices: 특정 문장 인덱스만 재감지(선택 재감지 A2). 넘기면 onlyMissing은 무시하고 그 문장들만
     //   — 이미 감지됐어도(부정확·포기) 포함해 새 값으로 덮어쓴다. 오디오는 문장별 클립만 전송(비용 비례).
     const detectSpeechEndsForFile = async (fileId, { onlyMissing = false, indices = null } = {}) => {
+        if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return false; }
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return false;
