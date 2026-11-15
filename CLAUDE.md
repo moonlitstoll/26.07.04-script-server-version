@@ -52,7 +52,7 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 - 저장본은 이번 것 + 바로 앞 것만 남긴다(열려 있는 옛 화면이 옛 JS 조각을 찾을 때 대비).
 - **AI 버튼은 숨기지 않고 누를 때 안내**(`utils/online.js`, "인터넷 연결이 필요해요"): 새 영상·다시 시도·재전사·재분석·대사 끝 감지. 자동으로 이어 도는 분석(`runStage2Inner`)은 문장을 실패로 표시하지 않고 '분석 전' 그대로 둔다 — 인터넷이 될 때 대본을 열면 이어서 분석한다.
 - `main.jsx`가 저장 지키기(`navigator.storage.persist()`)를 요청한다. 설정 창 맨 아래 `OfflineStatus`가 "인터넷 없이도 열림 ✓"을 보여 준다(운영 빌드만. 개발 서버에서는 저장 담당을 등록하지 않는다).
-- 글꼴은 저장할 것이 없었다: `index.css`의 구글 글꼴 `@import`가 빌드 결과 CSS에 들어 있지 않다(지금도 기기 글꼴로 보이는 중 — 별개 문제, 손대지 않음).
+- 글꼴은 저장할 것이 없다: 받아오는 글꼴을 쓰지 않고 기기 글꼴만 쓴다. `index.css`의 Inter `@import`는 빌드 결과 CSS에 들어 있지 않았고(배포본에 `fonts.googleapis` 0건, 원인은 따로 캐지 않음), 2026-11-15에 그 줄과 `--font-sans`의 'Inter'를 지웠다(가지 `font-cleanup`). 빌드 CSS는 `--font-sans` 값만 달라지고 화면은 그대로. 받아오는 글꼴을 다시 넣으려면 `public/sw.js`의 저장 목록에도 글꼴 파일을 넣어야 인터넷 없이 열 때 모양이 안 바뀐다.
 - 테스트 `__tests__/serviceWorker.test.js`는 실제 `public/sw.js`를 실제 `renderServiceWorker`로 채워 가짜 브라우저에서 돌린다. 변이 13개(3초 기준·HTML 검사·서버 먼저 순서·/api 제외·ffmpeg 제외 등) 전부 잡힘 확인.
 
 ## Architecture
