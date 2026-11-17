@@ -38,10 +38,6 @@ export function splitBreakdown(line) {
 //  - 쌍점이 없거나(옛 한자 풀이 "날 출 + 나타날 현") 앞이 한글이면("참고: …") 단어로 보지 않는다.
 const HANGUL = /[가-힣ㄱ-ㅎㅏ-ㅣ]/;
 export function splitGlossWords(group) {
-    const s = group || '';
-    if (!s) return [];
-    const m = s.match(/^(\s*\()([\s\S]*)(\)\s*)$/);
-    if (!m) return [{ word: false, text: s }];
     const out = [];
     const push = (word, text) => {
         if (!text) return;
@@ -49,38 +45,72 @@ export function splitGlossWords(group) {
         if (!word && last && !last.word) last.text += text;
         else out.push({ word, text });
     };
-    const pushItem = (it) => {
-        let depth = 0, colon = -1;
-        for (let i = 0; i < it.length; i++) {
-            const ch = it[i];
-            if (ch === '(' || ch === '〈') depth++;
-            else if (ch === ')' || ch === '〉') depth = Math.max(0, depth - 1);
-            else if (depth === 0 && (ch === ':' || ch === '：')) { colon = i; break; }
-        }
-        const head = colon < 0 ? '' : it.slice(0, colon);
-        const w = head.trim();
-        if (!w || HANGUL.test(w)) { push(false, it); return; }
-        const lead = head.length - head.trimStart().length;
-        push(false, head.slice(0, lead));
-        push(true, w);
-        push(false, head.slice(lead + w.length) + it.slice(colon));
-    };
-    push(false, m[1]);
+    for (const u of splitGlossPairs(group)) {
+        for (const p of u.parts) push(p.type === 'word', p.text);
+        push(false, u.after);
+    }
+    return out;
+}
+
+// 요소 풀이를 "단어: 뜻 +" 묶음으로 나눈다 — 화면에서 한 쌍이 줄 끝에서 갈라지지 않게 묶고("(Và:" / "그리고"),
+// 쌍점·더하기 기호를 흐리게 보여 주기 위함(2026-11-17). splitGlossWords 도 이 결과를 이어 붙여 만든다.
+// 반환: [{ parts: [{ type: 'word' | 'mark' | 'text', text }], after }] — parts 와 after 를 차례로 이으면 항상 원래 글자.
+//  - 묶음은 더하기 기호까지다. 더하기 뒤 공백은 묶음 밖(after)이라 줄은 거기서만 바뀐다.
+//    여는 괄호는 첫 묶음에, 닫는 괄호는 끝 묶음에 들어간다.
+//  - mark 는 단어 바로 뒤의 첫 쌍점과 묶음을 가르는 더하기뿐이다. 뜻 안의 쌍점·괄호 속 더하기는 글자(text)다.
+export function splitGlossPairs(group) {
+    const s = group || '';
+    if (!s) return [];
+    const m = s.match(/^(\s*\()([\s\S]*)(\)\s*)$/);
+    if (!m) return [{ parts: [{ type: 'text', text: s }], after: '' }];
     const inner = m[2];
+    const items = [];
     let depth = 0, start = 0;
     for (let i = 0; i < inner.length; i++) {
         const ch = inner[i];
         if (ch === '(' || ch === '〈') depth++;
         else if (ch === ')' || ch === '〉') depth = Math.max(0, depth - 1);
         else if (depth === 0 && ch === '+' && /\s/.test(inner[i - 1] || '') && /\s/.test(inner[i + 1] || '')) {
-            pushItem(inner.slice(start, i));
-            push(false, '+');
+            items.push({ raw: inner.slice(start, i), plus: true });
             start = i + 1;
         }
     }
-    pushItem(inner.slice(start));
-    push(false, m[3]);
-    return out;
+    items.push({ raw: inner.slice(start), plus: false });
+    // 둘째 항목부터는 앞 공백(더하기 뒤 공백)을 앞 묶음의 after 로 넘긴다
+    const leads = items.map((it, idx) => (idx === 0 ? 0 : it.raw.length - it.raw.trimStart().length));
+    return items.map((it, idx) => {
+        const parts = [];
+        const add = (type, text) => {
+            if (!text) return;
+            const last = parts[parts.length - 1];
+            if (type === 'text' && last && last.type === 'text') last.text += text;
+            else parts.push({ type, text });
+        };
+        if (idx === 0) add('text', m[1]);
+        const body = it.raw.slice(leads[idx]);
+        let d = 0, colon = -1;
+        for (let i = 0; i < body.length; i++) {
+            const ch = body[i];
+            if (ch === '(' || ch === '〈') d++;
+            else if (ch === ')' || ch === '〉') d = Math.max(0, d - 1);
+            else if (d === 0 && (ch === ':' || ch === '：')) { colon = i; break; }
+        }
+        const head = colon < 0 ? '' : body.slice(0, colon);
+        const w = head.trim();
+        if (!w || HANGUL.test(w)) add('text', body);
+        else {
+            const lead = head.length - head.trimStart().length;
+            add('text', head.slice(0, lead));
+            add('word', w);
+            add('text', head.slice(lead + w.length));
+            add('mark', body[colon]);
+            add('text', body.slice(colon + 1));
+        }
+        if (it.plus) add('mark', '+');
+        if (idx === items.length - 1) add('text', m[3]);
+        const next = items[idx + 1];
+        return { parts, after: next ? next.raw.slice(0, leads[idx + 1]) : '' };
+    });
 }
 
 // [괄호 속 괄호 안전망 — Stage 2 v4 표기 규칙] 요소 풀이 안에 모델이 또 괄호를 넣으면 정한 모양으로 바꾼다.

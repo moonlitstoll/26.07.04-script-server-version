@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Check, X, Languages } from 'lucide-react';
 import { buildCloze } from '../utils/clozeUtils';
+import { splitBreakdown } from '../utils/analysisParser';
+import GlossText from './GlossText';
 
 // 가려진 청크를 '박스 하나 + 단어별 밑줄'로 렌더.
 // 박스(연노랑 배경)는 청크 전체에 하나 — 청크가 한 단위임이 보인다.
@@ -111,12 +113,16 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
             {/* 공개된 청크의 뜻 */}
             {allRevealed && (
                 <div className="mb-2 space-y-0.5">
-                    {drill.parts.filter(p => p.type === 'blank').map((p, i) => (
-                        <div key={i} className="text-[13px] text-slate-600 dark:text-slate-300">
-                            <span className="font-semibold text-emerald-700 dark:text-emerald-300">{p.answer}</span>
-                            {p.meaning ? <span className="text-slate-600 dark:text-slate-300"> — {p.meaning}</span> : null}
-                        </div>
-                    ))}
+                    {drill.parts.filter(p => p.type === 'blank').map((p, i) => {
+                        // 뜻 뒤의 괄호 풀이는 대본 카드와 같은 모양(단어 하늘색·쌍 묶음)으로 보여 준다
+                        const [main, gloss, tail] = splitBreakdown(p.meaning || '');
+                        return (
+                            <div key={i} className="text-[13px] text-slate-600 dark:text-slate-300">
+                                <span className="font-semibold text-emerald-700 dark:text-emerald-300">{p.answer}</span>
+                                {p.meaning ? <span className="text-slate-600 dark:text-slate-300"> — {main}{gloss && <GlossText text={gloss} keyPrefix={`c${i}`} />}{tail}</span> : null}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
