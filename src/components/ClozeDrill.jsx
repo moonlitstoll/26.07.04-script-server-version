@@ -38,7 +38,7 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
     // 분석 안 된(청크 0개) 문장 → 드릴 불가, 원문만 표시 (탭하면 점프)
     if (!drill.ok) {
         return (
-            <div onClick={onJump} className="text-lg sm:text-xl leading-snug px-1 font-bold text-slate-400 dark:text-slate-500 cursor-pointer">
+            <div onClick={onJump} className="text-lg sm:text-xl leading-snug px-1 font-medium text-slate-400 dark:text-slate-500 cursor-pointer">
                 {item.text}
                 <span className="ml-2 text-[11px] font-medium text-slate-300 dark:text-slate-600">(분석 전 — 가리기 불가)</span>
             </div>
@@ -80,7 +80,7 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
                 )
             )}
             {/* 클로즈 문장 */}
-            <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-bold text-slate-900 dark:text-slate-100 mb-2">
+            <div className="text-lg sm:text-xl md:text-2xl leading-relaxed font-medium text-slate-900 dark:text-slate-100 mb-2">
                 {drill.parts.map((p, i) => {
                     if (p.type === 'text') return <span key={i}>{p.value} </span>;
                     if (revealed.has(i)) {
@@ -113,8 +113,8 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
                 <div className="mb-2 space-y-0.5">
                     {drill.parts.filter(p => p.type === 'blank').map((p, i) => (
                         <div key={i} className="text-[13px] text-slate-600 dark:text-slate-300">
-                            <span className="font-bold text-emerald-700 dark:text-emerald-300">{p.answer}</span>
-                            {p.meaning ? <span className="text-slate-500 dark:text-slate-400"> — {p.meaning}</span> : null}
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-300">{p.answer}</span>
+                            {p.meaning ? <span className="text-slate-600 dark:text-slate-300"> — {p.meaning}</span> : null}
                         </div>
                     ))}
                 </div>

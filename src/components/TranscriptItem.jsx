@@ -6,10 +6,12 @@ import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
 import { splitBreakdown, tidyGlosses } from '../utils/analysisParser';
 
-// **굵게** 표시 → 초록 굵은 청크
+// **굵게** 표시 → 초록 청크
+// 베트남어는 굵기를 낮게 둔다(문장 medium, 초록 청크 semibold — 2026-11-17). bold·extrabold에서는 획이 두꺼워
+// ể·ắ·ử처럼 표시가 겹친 글자의 틈이 메워져 휴대폰에서 성조가 안 보였다. 다시 굵게 올리지 말 것.
 const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
     part.startsWith('**') && part.endsWith('**') && part.length > 4
-        ? <strong key={`${keyPrefix}-${i}`} className="text-emerald-800 dark:text-emerald-300 font-extrabold">{part.slice(2, -2)}</strong>
+        ? <strong key={`${keyPrefix}-${i}`} className="text-emerald-800 dark:text-emerald-300 font-semibold">{part.slice(2, -2)}</strong>
         : part
 );
 
@@ -236,7 +238,7 @@ const TranscriptItem = memo(({
                     tabIndex={0}
                     aria-label={`${item.timestamp}부터 재생`}
                     className={`
-            text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-0.5 px-1 font-bold
+            text-lg sm:text-xl md:text-2xl leading-snug cursor-pointer transition-all duration-300 mb-0.5 px-1 font-medium
             ${isActive ? 'text-black dark:text-white' : 'text-slate-900 dark:text-slate-100'}
           `}
                 >
@@ -311,7 +313,7 @@ const TranscriptItem = memo(({
                                 <p key={li} className="font-medium">
                                     {renderBold(main, `m${li}`)}
                                     {breakdown && breakdownOpen && (
-                                        <span className="text-slate-500 dark:text-slate-400 font-normal">{renderBold(breakdown, `b${li}`)}</span>
+                                        <span className="text-slate-600 dark:text-slate-300 font-normal">{renderBold(breakdown, `b${li}`)}</span>
                                     )}
                                     {tail}
                                     {/* 화살표는 마지막 줄 오른쪽 끝에 띄운다 — 따로 한 줄을 차지하면 카드마다 빈 행이 생긴다 */}
