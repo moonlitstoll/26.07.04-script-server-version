@@ -1,12 +1,19 @@
-import { useRef, useEffect, useLayoutEffect, useMemo, useState, memo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useMemo, useState, memo, Fragment } from 'react';
 import {
     Play, Repeat, Clock, Loader2, Check, AlertTriangle, RotateCcw, Volume2, ChevronDown, ChevronUp, FastForward
 } from 'lucide-react';
 import ClozeDrill from './ClozeDrill';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
-import { splitBreakdown, tidyGlosses } from '../utils/analysisParser';
+import { splitBreakdown, splitGlossWords, tidyGlosses } from '../utils/analysisParser';
 
 // **굵게** 표시 → 초록 청크
+// 괄호 안 단어 풀이: 원어 단어만 하늘색 — 풀이의 한글이 위쪽 한글 뜻과 같은 밝기라 어디가 풀이인지 안 갈렸다(2026-11-17).
+// 색을 뺀 나머지(굵기·크기)는 풀이 전체와 같다. 조각 나누기는 analysisParser#splitGlossWords.
+const renderGloss = (s, keyPrefix) => splitGlossWords(s).map((p, i) => p.word
+    ? <span key={`${keyPrefix}-w${i}`} className="text-sky-700 dark:text-sky-300">{renderBold(p.text, `${keyPrefix}-w${i}`)}</span>
+    : <Fragment key={`${keyPrefix}-t${i}`}>{renderBold(p.text, `${keyPrefix}-t${i}`)}</Fragment>
+);
+
 // 베트남어는 굵기를 낮게 둔다(문장 medium, 초록 청크 semibold — 2026-11-17). bold·extrabold에서는 획이 두꺼워
 // ể·ắ·ử처럼 표시가 겹친 글자의 틈이 메워져 휴대폰에서 성조가 안 보였다. 다시 굵게 올리지 말 것.
 const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
@@ -313,7 +320,7 @@ const TranscriptItem = memo(({
                                 <p key={li} className="font-medium">
                                     {renderBold(main, `m${li}`)}
                                     {breakdown && breakdownOpen && (
-                                        <span className="text-slate-600 dark:text-slate-300 font-normal">{renderBold(breakdown, `b${li}`)}</span>
+                                        <span className="text-slate-600 dark:text-slate-300 font-normal">{renderGloss(breakdown, `b${li}`)}</span>
                                     )}
                                     {tail}
                                     {/* 화살표는 마지막 줄 오른쪽 끝에 띄운다 — 따로 한 줄을 차지하면 카드마다 빈 행이 생긴다 */}

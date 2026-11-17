@@ -32,6 +32,57 @@ export function splitBreakdown(line) {
     return [body, '', tail];
 }
 
+// 요소 풀이 "(Và: 그리고 + đây: 여기)"를 [원어 단어 / 나머지] 조각으로 나눈다 — 화면에서 단어만 색을 달리 보여
+// 위쪽 한글 뜻과 구분하기 위함(2026-11-17). 반환: [{ word, text }] — 이으면 항상 원래 글자.
+//  - 항목은 괄호·〈〉 밖의 " + "로 나뉘고, 항목의 첫 쌍점 앞이 단어다. "ba(3)"처럼 숫자를 같이 적은 괄호는 단어에 포함.
+//  - 쌍점이 없거나(옛 한자 풀이 "날 출 + 나타날 현") 앞이 한글이면("참고: …") 단어로 보지 않는다.
+const HANGUL = /[가-힣ㄱ-ㅎㅏ-ㅣ]/;
+export function splitGlossWords(group) {
+    const s = group || '';
+    if (!s) return [];
+    const m = s.match(/^(\s*\()([\s\S]*)(\)\s*)$/);
+    if (!m) return [{ word: false, text: s }];
+    const out = [];
+    const push = (word, text) => {
+        if (!text) return;
+        const last = out[out.length - 1];
+        if (!word && last && !last.word) last.text += text;
+        else out.push({ word, text });
+    };
+    const pushItem = (it) => {
+        let depth = 0, colon = -1;
+        for (let i = 0; i < it.length; i++) {
+            const ch = it[i];
+            if (ch === '(' || ch === '〈') depth++;
+            else if (ch === ')' || ch === '〉') depth = Math.max(0, depth - 1);
+            else if (depth === 0 && (ch === ':' || ch === '：')) { colon = i; break; }
+        }
+        const head = colon < 0 ? '' : it.slice(0, colon);
+        const w = head.trim();
+        if (!w || HANGUL.test(w)) { push(false, it); return; }
+        const lead = head.length - head.trimStart().length;
+        push(false, head.slice(0, lead));
+        push(true, w);
+        push(false, head.slice(lead + w.length) + it.slice(colon));
+    };
+    push(false, m[1]);
+    const inner = m[2];
+    let depth = 0, start = 0;
+    for (let i = 0; i < inner.length; i++) {
+        const ch = inner[i];
+        if (ch === '(' || ch === '〈') depth++;
+        else if (ch === ')' || ch === '〉') depth = Math.max(0, depth - 1);
+        else if (depth === 0 && ch === '+' && /\s/.test(inner[i - 1] || '') && /\s/.test(inner[i + 1] || '')) {
+            pushItem(inner.slice(start, i));
+            push(false, '+');
+            start = i + 1;
+        }
+    }
+    pushItem(inner.slice(start));
+    push(false, m[3]);
+    return out;
+}
+
 // [괄호 속 괄호 안전망 — Stage 2 v4 표기 규칙] 요소 풀이 안에 모델이 또 괄호를 넣으면 정한 모양으로 바꾼다.
 // 규칙(prompts.js D·E): 보충 설명은 가운뎃점, 합성어 부품은 〈〉. 모델이 어겨도 저장 모양이 같게.
 //  "쨍(종소리)"            → "쨍·종소리"            (뜻 뒤에 붙은 보충 설명)
