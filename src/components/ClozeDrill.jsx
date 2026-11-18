@@ -57,15 +57,15 @@ const ClozeDrill = ({ item, drill, showTranslation = false, allOpen = false, onJ
         <div>
             <div className="px-1">
                 {/* 번역 단서(눈 켜짐·책) — 이걸 보고 원어를 입으로 꺼낸 뒤 문장을 눌러 확인. 탭하면 그 문장 재생.
-                    안내 줄은 뺐다(일반 번역 칸과 같은 모양, 카드마다 대본 한 줄 더 — 사용자 2026-11-18). */}
+                    안내 줄은 뺐고 글자·여백은 일반 번역 칸(TranscriptItem)과 같다 — 사용자 2026-11-18. */}
                 {showTranslation && (
                     item.translation ? (
                         <div
                             onClick={onJump}
                             title="탭하면 이 문장 재생"
-                            className="mb-2 rounded-xl px-3 py-1.5 border bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
+                            className="-mx-1 mb-2 rounded-xl px-2.5 py-1 border bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
                         >
-                            <p className="text-slate-700 dark:text-slate-300 text-[15px] leading-snug whitespace-pre-line font-medium">
+                            <p className="text-slate-700 dark:text-slate-300 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
                                 {item.translation.replace(/\\n/g, '\n')}
                             </p>
                         </div>
