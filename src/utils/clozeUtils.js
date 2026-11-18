@@ -85,7 +85,7 @@ function pickUnits(units, ratio, rand) {
 export function buildCloze(item, idx, round, difficulty) {
     const chunks = parseChunks(item);
     if (chunks.length === 0) {
-        return { ok: false, parts: [], chunkCount: 0, wordCount: 0, hiddenWords: 0, wholeSentence: false };
+        return { ok: false, parts: [], chunkMarks: [], chunkCount: 0, wordCount: 0, hiddenWords: 0, wholeSentence: false };
     }
     const ratio = DRILL_RATIOS[difficulty] ?? DRILL_RATIOS.easy;
     const rand = mulberry32((idx + 1) * 100003 + round * 131 + (DIFF_SEEDS[difficulty] ?? DIFF_SEEDS.easy));
@@ -101,6 +101,9 @@ export function buildCloze(item, idx, round, difficulty) {
     const hiddenWords = units.reduce((n, u, i) => n + (hidden.has(i) ? u.words : 0), 0);
 
     const parts = [];
+    // 청크별 [{ text, hidden }] — 해설에서 가려졌던 단어만 색을 달리하는 데 쓴다.
+    // 문장 통째 가림은 전부 칠해도 구분이 안 되므로 비워 둔다(해설은 초록 그대로).
+    const chunkMarks = [];
     for (const p of pieces) {
         // 통째 가림은 문장부호·숫자 병기까지 청크째 가린다(답이 새지 않게)
         if (wholeSentence) {
@@ -112,13 +115,31 @@ export function buildCloze(item, idx, round, difficulty) {
             if (u.chunkIdx !== p.chunkIdx || !hidden.has(i)) return;
             for (let t = u.start; t < u.end; t++) covered[t] = true;
         });
+        const segments = [];
         for (let t = 0; t < p.tokens.length;) {
             let end = t;
             while (end < p.tokens.length && covered[end] === covered[t]) end++;
             const text = p.tokens.slice(t, end).join(' ');
             parts.push(covered[t] ? { type: 'blank', answer: text } : { type: 'text', value: text });
+            segments.push({ text, hidden: covered[t] });
             t = end;
         }
+        chunkMarks.push({ chunk: p.chunk, segments });
     }
-    return { ok: true, parts, chunkCount: chunks.length, wordCount, hiddenWords, wholeSentence };
+    return { ok: true, parts, chunkMarks, chunkCount: chunks.length, wordCount, hiddenWords, wholeSentence };
+}
+
+// 해설 줄마다 그 줄 청크의 표시를 찾는다(가려진 단어가 없는 줄은 null).
+// 같은 청크가 문장에 두 번 나와도 앞에서부터 차례로 짝지어, 가려진 자리만 칠한다.
+export function marksForLines(mains, chunkMarks) {
+    let from = 0;
+    return mains.map((main) => {
+        const m = (main || '').match(/^\s*\*\*(.+?)\*\*/);
+        if (!m) return null;
+        const chunk = m[1].trim();
+        const at = chunkMarks.findIndex((c, i) => i >= from && c.chunk === chunk);
+        if (at < 0) return null;
+        from = at + 1;
+        return chunkMarks[at].segments.some(s => s.hidden) ? chunkMarks[at].segments : null;
+    });
 }

@@ -6,6 +6,7 @@ import ClozeDrill from './ClozeDrill';
 import GlossText from './GlossText';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
 import { splitBreakdown, tidyGlosses } from '../utils/analysisParser';
+import { buildCloze, marksForLines } from '../utils/clozeUtils';
 
 // **굵게** 표시 → 초록 청크
 // 베트남어는 굵기를 낮게 둔다(문장 medium, 초록 청크 semibold — 2026-11-17). bold·extrabold에서는 획이 두꺼워
@@ -15,6 +16,23 @@ const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
         ? <strong key={`${keyPrefix}-${i}`} className="text-emerald-800 dark:text-emerald-300 font-semibold">{part.slice(2, -2)}</strong>
         : part
 );
+
+// 분석 줄의 앞 청크를 그린다. 가리기에서는 가려졌던 단어만 노란 글자(나머지는 초록 그대로).
+const renderChunkLine = (main, keyPrefix, segments) => {
+    const m = segments && main.match(/^(\s*)\*\*(.+?)\*\*/);
+    if (!m) return renderBold(main, keyPrefix);
+    return (
+        <>
+            {m[1]}
+            <strong className="text-emerald-800 dark:text-emerald-300 font-semibold">
+                {segments.map((s, i) => (
+                    <span key={i} className={s.hidden ? 'text-amber-700 dark:text-amber-300' : undefined}>{i > 0 ? ' ' : ''}{s.text}</span>
+                ))}
+            </strong>
+            {renderBold(main.slice(m[0].length), keyPrefix)}
+        </>
+    );
+};
 
 // [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
 // 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
@@ -68,6 +86,16 @@ const TranscriptItem = memo(({
             .split('\n').filter(l => l.trim()).map(l => splitBreakdown(tidyGlosses(l, { hideAddedNote: true, fixArrows: true })));
     }, [item.analysis, item.text]);
     const hasBreakdown = analysisLines.some(([, b]) => b);
+
+    // 가리기 문제. 문장 칸과 해설 칸이 같은 문제를 봐야 가려졌던 단어를 해설에서 짚을 수 있다.
+    const drill = useMemo(
+        () => (drillMode ? buildCloze(item, idx, drillRound, difficulty) : null),
+        [drillMode, item, idx, drillRound, difficulty]
+    );
+    const hiddenMarks = useMemo(
+        () => (drill ? marksForLines(analysisLines.map(([main]) => main), drill.chunkMarks) : []),
+        [drill, analysisLines]
+    );
 
     // 괄호 풀이 카드별 펼침: 눈 버튼(showBreakdown)이 전체 기본값, 분석 칸을 탭하면 이 카드만 반대로 뒤집는다.
     const [flipped, setFlipped] = useState(false);
@@ -173,7 +201,7 @@ const TranscriptItem = memo(({
                 >
                     {analysisLines.map(([main, breakdown, tail], li) => (
                         <p key={li} className="font-medium">
-                            {renderBold(main, `m${li}`)}
+                            {renderChunkLine(main, `m${li}`, hiddenMarks[li])}
                             {breakdown && breakdownOpen && (
                                 <span className="text-slate-600 dark:text-slate-300 font-normal"><GlossText text={breakdown} keyPrefix={`b${li}`} renderText={renderBold} /></span>
                             )}
@@ -301,9 +329,7 @@ const TranscriptItem = memo(({
                     <ClozeDrill
                         key={`cloze-${difficulty}-${drillRound}`}
                         item={item}
-                        idx={idx}
-                        difficulty={difficulty}
-                        round={drillRound}
+                        drill={drill}
                         showTranslation={showDrillTranslation}
                         onJump={() => jumpToSentence(idx)}
                         explanation={explanation}

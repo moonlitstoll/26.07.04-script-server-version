@@ -3,7 +3,7 @@
 // 시드(idx + round + difficulty) 기반이라 같은 입력이면 항상 같은 문제가 나온다.
 // 토글을 껐다 켜도 문제가 안 바뀌는 게 이 성질 덕분이므로, 재현성이 깨지면 학습 흐름이 망가진다.
 import { describe, it, expect } from 'vitest';
-import { buildCloze, DRILL_RATIOS } from '../clozeUtils';
+import { buildCloze, DRILL_RATIOS, marksForLines } from '../clozeUtils';
 
 // 청크 n개, 청크마다 단어 w개인 문장 (뜻풀이 없음 → 한 단어씩 가린다)
 const mk = (n, w = 4) => ({
@@ -116,5 +116,33 @@ describe('시드 재현성', () => {
             Array.from({ length: 8 }, (_, round) => JSON.stringify(buildCloze(mk(5), 3, round, 'easy').parts)),
         );
         expect(rounds.size).toBeGreaterThan(1);
+    });
+});
+
+describe('해설에서 가려졌던 단어 표시', () => {
+    it('청크별 표시는 빈칸과 정확히 같은 단어를 가리킨다', () => {
+        for (let idx = 0; idx < 30; idx++) {
+            const r = buildCloze(mk(4), idx, 0, 'mid');
+            const marked = r.chunkMarks.flatMap(c => c.segments.filter(s => s.hidden).map(s => s.text));
+            expect(marked).toEqual(blanks(r).map(b => b.answer));
+            expect(r.chunkMarks.map(c => c.segments.map(s => s.text).join(' ')))
+                .toEqual(mk(4).analysis.split('\n').map(l => l.match(/\*\*(.+)\*\*/)[1]));
+        }
+    });
+
+    it('문장 통째 가림은 표시하지 않는다(해설은 초록 그대로)', () => {
+        expect(buildCloze(mk(3), 0, 0, 'full').chunkMarks).toEqual([]);
+        expect(marksForLines(['**w0x0**: 뜻'], [])).toEqual([null]);
+    });
+
+    it('같은 청크가 두 번 나오면 앞에서부터 차례로 짝짓는다', () => {
+        const first = [{ text: 'a', hidden: true }, { text: 'b', hidden: false }];
+        const marks = [
+            { chunk: 'a b', segments: first },
+            { chunk: 'c', segments: [{ text: 'c', hidden: false }] },
+            { chunk: 'a b', segments: [{ text: 'a b', hidden: false }] },
+        ];
+        expect(marksForLines(['**a b**: 뜻', '굵은 글씨 없는 줄', '**c**: 뜻', '**a b**: 뜻'], marks))
+            .toEqual([first, null, null, null]);
     });
 });
