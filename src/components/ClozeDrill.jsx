@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Languages } from 'lucide-react';
 
 // 가려진 청크를 '박스 하나 + 단어별 밑줄'로 렌더.
 // 박스(연한 살구색 배경)는 청크 전체에 하나 — 청크가 한 단위임이 보인다.
@@ -57,7 +56,8 @@ const ClozeDrill = ({ item, drill, showTranslation = false, allOpen = false, onJ
     return (
         <div>
             <div className="px-1">
-                {/* 번역 단서(눈 켜짐·책) — 이걸 보고 원어를 입으로 꺼낸 뒤 문장을 눌러 확인. 탭하면 그 문장 재생. */}
+                {/* 번역 단서(눈 켜짐·책) — 이걸 보고 원어를 입으로 꺼낸 뒤 문장을 눌러 확인. 탭하면 그 문장 재생.
+                    안내 줄은 뺐다(일반 번역 칸과 같은 모양, 카드마다 대본 한 줄 더 — 사용자 2026-11-18). */}
                 {showTranslation && (
                     item.translation ? (
                         <div
@@ -65,9 +65,6 @@ const ClozeDrill = ({ item, drill, showTranslation = false, allOpen = false, onJ
                             title="탭하면 이 문장 재생"
                             className="mb-2 rounded-xl px-3 py-1.5 border bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
                         >
-                            <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] uppercase tracking-wider mb-0.5">
-                                <Languages size={12} /> 번역 단서 — {drill.wholeSentence ? '원어로 말해보세요' : '가려진 곳을 말해보세요'}
-                            </div>
                             <p className="text-slate-700 dark:text-slate-300 text-[15px] leading-snug whitespace-pre-line font-medium">
                                 {item.translation.replace(/\\n/g, '\n')}
                             </p>
