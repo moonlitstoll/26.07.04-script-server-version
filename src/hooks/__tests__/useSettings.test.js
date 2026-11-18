@@ -74,24 +74,18 @@ describe('저장값이 있을 때 — 그대로 복원', () => {
 });
 
 describe('저장값이 오염됐을 때 — 조용히 안전값으로', () => {
-    it("옛 '회상'은 전체 + 번역 보기로 옮긴다", () => {
+    it("옛 '회상'은 전체로 옮긴다", () => {
         store.set('miniapp_drill_difficulty', 'recall');
         expect(loadFromStorage().difficulty).toBe('full');
-        expect(loadFromStorage().showDrillTranslation).toBe(true);
     });
 
-    it("옛 '회상'이었어도 번역 보기를 직접 끄면 꺼진 채 유지한다", () => {
-        store.set('miniapp_drill_difficulty', 'recall');
-        store.set('miniapp_drill_translation', 'false');
-        expect(loadFromStorage().showDrillTranslation).toBe(false);
-    });
-
-    it('번역 보기는 기본 꺼짐, 저장값이 있으면 그대로', () => {
-        expect(loadFromStorage().showDrillTranslation).toBe(false);
+    it('옛 번역 보기 저장값은 더 읽지 않고, 일반 화면의 눈 상태에도 영향이 없다', () => {
         store.set('miniapp_drill_translation', 'true');
         store.set('miniapp_drill_difficulty', 'easy');
-        expect(loadFromStorage().showDrillTranslation).toBe(true);
-        expect(loadFromStorage().difficulty).toBe('easy');
+        const c = loadFromStorage();
+        expect(c).not.toHaveProperty('showDrillTranslation');
+        expect(c.difficulty).toBe('easy');
+        expect(c.showAnalysis).toBe(true);
     });
 
     it('모르는 난이도는 기본값으로 되돌린다 (buildCloze가 깨지지 않게)', () => {

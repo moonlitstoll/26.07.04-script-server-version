@@ -30,7 +30,6 @@ const DEFAULTS = {
     // 유지하지 않는 것과의 경계: 선택 모드·모달 열림은 유지하면 앱이 이상한 화면으로
     // 시작한다(파괴적 모드로 진입). 그래서 여기 넣지 않았다 — 의도적 제외다.
     difficulty: 'easy',   // 가리기 난이도. 학습자의 실력 수준이라 안정적 선호값이다.
-    showDrillTranslation: false, // 가리기 중 번역 단서 표시. 어떤 난이도와도 함께 쓴다.
     showAnalysis: true,   // 번역/분석 표시. 끈 채로 열려도 원문은 보이므로 혼란이 없다.
     showBreakdown: false, // 분석의 괄호 속 요소 풀이 펼침. 기본은 접힘 — 휴대폰에서 문장 하나가 한 화면에 들어오게(2026-09).
     // 화면 테마: 'system'(기기 설정 따라감, 기본) | 'light' | 'dark'. 설정창에서만 바꾼다(툴바 버튼 없음).
@@ -39,7 +38,7 @@ const DEFAULTS = {
 };
 
 // 가리기 난이도 허용값. 오염된 문자열이 buildCloze로 흘러들면 출제가 깨지므로 화이트리스트로 막는다.
-// 'recall'(회상)은 2026-11-18에 '전체 + 번역 보기'로 나뉘었다 — 저장돼 있으면 읽을 때 옮겨 준다.
+// 'recall'(회상)은 2026-11-18에 없어졌다 — 저장돼 있으면 '전체'로 읽는다(번역은 눈 버튼으로 켠다).
 const DIFFICULTIES = ['easy', 'mid', 'hard', 'full'];
 
 const STORAGE_KEYS = {
@@ -62,7 +61,6 @@ const STORAGE_KEYS = {
     speechAutoDetect: 'miniapp_speech_auto_detect',
     speechTailPad: 'miniapp_speech_tail_pad',
     difficulty: 'miniapp_drill_difficulty',
-    showDrillTranslation: 'miniapp_drill_translation',
     showAnalysis: 'miniapp_show_analysis',
     showBreakdown: 'miniapp_show_breakdown',
     drillRound: 'miniapp_drill_round',
@@ -118,10 +116,6 @@ export function loadFromStorage() {
             if (saved === 'recall') return 'full';
             return DIFFICULTIES.includes(saved) ? saved : DEFAULTS.difficulty;
         })(),
-        // 직접 켜고 끈 값이 있으면 그것을, 없으면 옛 '회상' 사용자만 켠 상태로 시작한다.
-        showDrillTranslation: localStorage.getItem(STORAGE_KEYS.showDrillTranslation) !== null
-            ? localStorage.getItem(STORAGE_KEYS.showDrillTranslation) === 'true'
-            : localStorage.getItem(STORAGE_KEYS.difficulty) === 'recall',
         // 기본값이 true라 `=== 'true'`를 쓰면 안 된다(키가 없을 때 false로 뒤집힘).
         showAnalysis: localStorage.getItem(STORAGE_KEYS.showAnalysis) !== null
             ? localStorage.getItem(STORAGE_KEYS.showAnalysis) === 'true'

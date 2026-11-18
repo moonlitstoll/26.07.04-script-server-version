@@ -17,7 +17,7 @@ const renderBold = (s, keyPrefix) => s.split(/(\*\*.*?\*\*)/).map((part, i) =>
         : part
 );
 
-// 분석 줄의 앞 청크를 그린다. 가리기에서는 가려졌던 단어만 노란 글자(나머지는 초록 그대로).
+// 분석 줄의 앞 청크를 그린다. 가리기에서는 가려졌던 단어만 살구색 글자(나머지는 초록 그대로).
 const renderChunkLine = (main, keyPrefix, segments) => {
     const m = segments && main.match(/^(\s*)\*\*(.+?)\*\*/);
     if (!m) return renderBold(main, keyPrefix);
@@ -26,7 +26,7 @@ const renderChunkLine = (main, keyPrefix, segments) => {
             {m[1]}
             <strong className="text-emerald-800 dark:text-emerald-300 font-semibold">
                 {segments.map((s, i) => (
-                    <span key={i} className={s.hidden ? 'text-amber-700 dark:text-amber-300' : undefined}>{i > 0 ? ' ' : ''}{s.text}</span>
+                    <span key={i} className={s.hidden ? 'text-[#a84f29] dark:text-[#f6c5a8]' : undefined}>{i > 0 ? ' ' : ''}{s.text}</span>
                 ))}
             </strong>
             {renderBold(main.slice(m[0].length), keyPrefix)}
@@ -70,7 +70,7 @@ const TranscriptItem = memo(({
     selectMode = false, isSelected = false, onToggleSelect,
     onRetryAnalysis, onCoverageRetry, onRetranscribe,
     speechEndMissing = false, onSpeechEndFix,
-    drillMode = false, difficulty = 'easy', drillRound = 0, showDrillTranslation = false,
+    drillMode = false, difficulty = 'easy', drillRound = 0,
     inLoopGroup = false, groupLoopOn = false
 }) => {
     const itemRef = useRef(null);
@@ -138,10 +138,11 @@ const TranscriptItem = memo(({
     }, [showAnalysis, showBreakdown, flipped, isActive]);
 
     // 번역·분석 칸. 일반 화면은 문장 아래에 늘 두고, 가리기에서는 답을 연 뒤에 같은 것을 보여 준다
-    // (2026-11-18 사용자 요청: 가리기에서도 문장 전체 해설이 일반 화면과 똑같이, 하단 눈·책 버튼도 똑같이).
-    // 가리기에서 '번역 보기' 단서가 위에 이미 떠 있으면 번역 상자는 다시 그리지 않는다.
+    // (2026-11-18 사용자 요청: 가리기에서도 문장 전체 해설이 일반 화면과 똑같이).
+    // 가리기에서는 답을 연 카드에만 그려지므로 눈 꺼짐이어도 보인다. 번역은 눈이 켜져 있으면 문장 위 단서로
+    // 이미 떠 있고, 눈 꺼짐에서 문장을 눌렀을 때만 여기 상자로 나온다(문장 위치가 밀리지 않게).
     const explanation = (
-        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100 dark:border-slate-700' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
+        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${drillMode || showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100 dark:border-slate-700' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
 
             {/* Stage 2 실패 상태: 분석이 끝났는데도 실패로 남은 문장 → 다시 시도 */}
             {!item.isAnalyzed && item.analysisFailed ? (
@@ -174,7 +175,7 @@ const TranscriptItem = memo(({
             ) : null}
 
             {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약). 탭하면 원문처럼 문장 시작으로 */}
-            {showAnalysis && item.translation && !(drillMode && showDrillTranslation) && (
+            {(drillMode ? !showAnalysis : showAnalysis) && item.translation && (
                 <div
                     onClick={() => jumpToSentence(idx)}
                     className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
@@ -330,7 +331,8 @@ const TranscriptItem = memo(({
                         key={`cloze-${difficulty}-${drillRound}`}
                         item={item}
                         drill={drill}
-                        showTranslation={showDrillTranslation}
+                        showTranslation={showAnalysis}
+                        allOpen={showAnalysis && showBreakdown}
                         onJump={() => jumpToSentence(idx)}
                         explanation={explanation}
                     />

@@ -6,6 +6,7 @@ import {
 import { formatClock } from '../utils/timeUtils';
 import { fmtRate } from '../utils/playbackRates';
 import { SpeedPopover } from './ToolbarPopovers';
+import { analysisButtonText } from '../utils/analysisView';
 
 // 컨트롤 바는 모든 크기를 min(Nvw, 최대px)로 잡는다.
 // 브라우저 확대(110% 등)를 하면 CSS 뷰포트 폭이 줄어드는데, px 고정값이면
@@ -45,7 +46,7 @@ const PREVIEW_MAX_W = 'calc(40vw - 24px)';
 const PlayerControls = ({
     attachVideo, mediaUrl, isPlaying, currentTime, duration,
     playbackRate, isGlobalLoopActive, loopGroupSize = 1, currentSentenceIdx,
-    showAnalysis, showBreakdown = false, onCycleAnalysis, showSpeedMenu,
+    showAnalysis, showBreakdown = false, onCycleAnalysis, drillMode = false, showSpeedMenu,
     togglePlay, seekTo, handlePrev, handleNext,
     handleRateChange, toggleLoop,
     setShowAnalysis, setShowSpeedMenu,
@@ -55,6 +56,7 @@ const PlayerControls = ({
     // 크롬은 <video>를 화면 꺼짐 시 자동 정지시키나 <audio>는 계속 재생하므로,
     // 재생/클럭을 오디오로 옮기고 <video>는 음소거 시각 프리뷰로만 쓴다.
     const visualVideoRef = useRef(null);
+    const analysisButton = analysisButtonText({ showAnalysis, showBreakdown }, drillMode);
 
     // 프리뷰 박스 비율: 영상 메타데이터를 읽어 실제 비율로 맞춘다.
     // 파일이 바뀌면 렌더 중에 기본값으로 되돌린다(effect+setState 대신 React 권장 패턴).
@@ -298,11 +300,12 @@ const PlayerControls = ({
                                 />
                             )}
 
-                            {/* 번역/분석 3단계 순환: 👁 접힘 → 📖 풀이 펼침 → 🚫 숨김 (아이콘이 지금 상태를 보여준다) */}
+                            {/* 번역/분석 3단계 순환: 👁 접힘 → 📖 풀이 펼침 → 🚫 숨김 (아이콘이 지금 상태를 보여준다).
+                                가리기에서는 👁 번역 → 📖 정답·해설 → 🚫 문장만 */}
                             <button
                                 onClick={() => (onCycleAnalysis ? onCycleAnalysis() : setShowAnalysis(!showAnalysis))}
-                                title={!showAnalysis ? '번역/분석 숨김 — 탭하면 다시 보기' : showBreakdown ? '단어 풀이 펼침 — 탭하면 번역/분석 숨기기' : '단어 풀이 접힘 — 탭하면 풀이 펼치기'}
-                                aria-label={!showAnalysis ? '번역/분석 보기' : showBreakdown ? '번역/분석 숨기기' : '단어 풀이 펼치기'}
+                                title={analysisButton.title}
+                                aria-label={analysisButton.label}
                                 className={`flex items-center justify-center shrink-0 min-w-[min(9vw,44px)] min-h-[min(11vw,44px)] rounded-lg border transition-all ${!showAnalysis ? 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700' : showBreakdown ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900'}`}
                             >
                                 {!showAnalysis ? <EyeOff className={ICON_SM} /> : showBreakdown ? <BookOpen className={ICON_SM} /> : <Eye className={ICON_SM} />}

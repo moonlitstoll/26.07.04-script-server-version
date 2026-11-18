@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Shuffle, Languages } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { placePopoverLeft, DRILL_LEVELS } from '../utils/toolbarMenu';
 import { LOOP_GROUP_MIN, LOOP_GROUP_MAX } from '../utils/loopGroups';
@@ -87,8 +87,8 @@ export const LoopPopover = ({ anchor, current, onPick, onClose }) => (
   </AnchoredPopover>
 );
 
-// 가리기: 난이도 4단 + 번역 보기(창 유지) + 새 문제. 예전엔 가리기를 켜면 이 5개가 툴바 한 줄에 붙어 칩이 10개가 됐다.
-export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, showTranslation, onToggleTranslation, onNewRound, onClose }) => (
+// 가리기: 난이도 4단 + 새 문제. 번역은 하단 눈 버튼으로 켠다(2026-11-18, '번역 보기' 칸 삭제).
+export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, onNewRound, onClose }) => (
   <AnchoredPopover anchor={anchor} label="가리기 난이도" onClose={onClose} className="p-2">
     <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
       {DRILL_LEVELS.map(([v, label]) => (
@@ -102,14 +102,6 @@ export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, showTransla
         </button>
       ))}
     </div>
-    <button
-      onClick={onToggleTranslation}
-      aria-pressed={showTranslation}
-      className={`mt-2 w-full h-10 inline-flex items-center justify-center gap-1.5 rounded-lg border text-[13px] font-bold transition-colors ${showTranslation ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' : 'text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}
-    >
-      <Languages className="w-3.5 h-3.5" /> 번역 보기
-      <span className="font-normal text-xs">{showTranslation ? '켜짐' : '꺼짐'}</span>
-    </button>
     <button
       onClick={() => { onNewRound(); onClose(); }}
       className="mt-2 w-full h-10 inline-flex items-center justify-center gap-1.5 rounded-lg border text-[13px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 transition-colors"

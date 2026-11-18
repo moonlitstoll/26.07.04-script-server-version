@@ -7,7 +7,7 @@ import { stage1FailureNotice } from './utils/failureNotice';
 import { selectRowExtras, DRILL_LEVELS } from './utils/toolbarMenu';
 import { validSpeechEnd } from './utils/speechSegments';
 import { speechEndMissingSet } from './utils/speechEndMerge';
-import { nextAnalysisView } from './utils/analysisView';
+import { nextAnalysisView, DRILL_VIEW_START } from './utils/analysisView';
 
 // 상단 툴바 칩 공통 크기 — 높이 24px(h-6) 고정, 글자·간격만 min(Nvw, 최대px).
 // 툴바는 대본이 한 줄이라도 더 보이게 최대한 얇게 둔다(사용자 결정 2026-10-18: 누르기 편함보다 대본 면적).
@@ -92,7 +92,11 @@ const App = () => {
   // 번역/분석 표시 — config에 있어 마지막 설정이 유지된다(miniapp_show_analysis).
   // setter 모양을 유지해 PlayerControls 등 기존 호출부를 그대로 둔다. updateField가
   // 안정 참조(useCallback [])라 이 래퍼도 안정적 → memo된 카드가 재생 틱마다 리렌더되지 않는다.
-  const showAnalysis = config.showAnalysis;
+  // 가리기 중에는 저장하지 않는 drillView를 쓴다(문장만 → 번역 → 정답·해설, utils/analysisView).
+  // 일반 화면 설정을 건드리지 않으니 가리기를 끄거나 앱을 다시 열면 원래 눈 상태 그대로다.
+  const [drillMode, setDrillMode] = useState(false);
+  const [drillView, setDrillView] = useState(DRILL_VIEW_START);
+  const showAnalysis = drillMode ? drillView.showAnalysis : config.showAnalysis;
   const setShowAnalysis = useCallback((v) => updateField('showAnalysis', v), [updateField]);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showCacheHistory, setShowCacheHistory] = useState(false);
@@ -129,15 +133,20 @@ const App = () => {
   }, [showConfirm]);
 
   // 분석의 괄호 속 단어 풀이 전체 펼침/접힘(기본 접힘). 카드의 분석 칸을 탭하면 그 카드만 뒤집힌다.
-  const showBreakdown = config.showBreakdown;
+  const showBreakdown = drillMode ? drillView.showBreakdown : config.showBreakdown;
   // 하단 눈 버튼·키보드 B: 접힘 → 펼침 → 숨김 → 접힘 3단계 순환(utils/analysisView).
   // 두 설정을 함께 읽어야 해서 최신값을 ref로 본다 — 값을 deps에 넣으면 콜백 참조가 바뀌어
   // memo된 TranscriptItem이 재생 틱마다 리렌더된다(토글 콜백의 안정 참조 규칙과 같은 이유).
   const analysisViewRef = useRef({ showAnalysis, showBreakdown });
-  useEffect(() => { analysisViewRef.current = { showAnalysis, showBreakdown }; }, [showAnalysis, showBreakdown]);
+  const drillModeRef = useRef(drillMode);
+  useEffect(() => {
+    analysisViewRef.current = { showAnalysis, showBreakdown };
+    drillModeRef.current = drillMode;
+  }, [showAnalysis, showBreakdown, drillMode]);
   const toggleGlobalAnalysis = useCallback(() => {
     const next = nextAnalysisView(analysisViewRef.current);
     analysisViewRef.current = next; // 연타해도 한 단계씩 넘어가게
+    if (drillModeRef.current) { setDrillView(next); return; }
     updateField('showBreakdown', next.showBreakdown);
     updateField('showAnalysis', next.showAnalysis);
   }, [updateField]);
@@ -207,13 +216,11 @@ const App = () => {
   const updateReady = useAppUpdate();
 
   // ─── 가리기 학습(클로즈) ───
-  const [drillMode, setDrillMode] = useState(false);
   // 난이도·회차는 config에 있어 새로고침/앱 재시작 후에도 유지된다.
   // (가리기 모드 on/off는 일부러 휘발로 둔다 — '고급/전체'로 저장된 채 켜져 열리면
   //  문장이 통째로 가려져 '대본이 안 보인다'가 되기 때문. 난이도 선택기는 drillMode일 때만
   //  렌더되므로, 저장된 난이도는 사용자가 가리기를 켤 때 칩 하이라이트로 바로 보인다.)
   const difficulty = config.difficulty;  // 'easy' | 'mid' | 'hard' | 'full' (단어 약 25·50·75·100% 가림)
-  const showDrillTranslation = config.showDrillTranslation;  // 번역 단서(뜻→원어 산출). 난이도와 따로 켠다
   const drillRound = config.drillRound;  // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
 
   const effLoopN = clampLoopGroupSize(config.loopGroupSize);
@@ -732,10 +739,15 @@ const App = () => {
         <DrillPopover
           anchor={toolbarPopover.anchor}
           difficulty={difficulty}
-          onPickDifficulty={(v) => updateField('difficulty', v)}
-          showTranslation={showDrillTranslation}
-          onToggleTranslation={() => updateField('showDrillTranslation', v => !v)}
-          onNewRound={() => updateField('drillRound', r => r + 1)}
+          onPickDifficulty={(v) => {
+            if (v === difficulty) return;
+            updateField('difficulty', v);
+            setDrillView(DRILL_VIEW_START); // 새 문제는 문장만 보이는 단계부터(정답이 먼저 보이지 않게)
+          }}
+          onNewRound={() => {
+            updateField('drillRound', r => r + 1);
+            setDrillView(DRILL_VIEW_START);
+          }}
           onClose={closeToolbarPopover}
         />
       )}
@@ -879,7 +891,7 @@ const App = () => {
                           켜진 동안 왼쪽은 눈 아이콘만 — 옆의 난이도 이름이 '가리기 중'을 알려 주고, 그래야 칩이 한 줄에 든다 */}
                       <div className={`shrink-0 h-6 inline-flex items-stretch rounded-lg border overflow-hidden ${drillMode ? 'border-indigo-600' : 'border-indigo-100 dark:border-indigo-900'}`}>
                         <button
-                          onClick={() => setDrillMode(d => !d)}
+                          onClick={() => { setDrillMode(d => !d); setDrillView(DRILL_VIEW_START); }}
                           aria-pressed={drillMode}
                           aria-label={drillMode ? '가리기 끄기' : undefined}
                           className={`${CHIP_BASE} ${drillMode ? 'min-w-8 bg-indigo-600 text-white hover:bg-indigo-700' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'}`}
@@ -894,7 +906,6 @@ const App = () => {
                             className={`${CHIP_BASE} border-l border-indigo-400 bg-indigo-600 text-white hover:bg-indigo-700`}
                           >
                             {DRILL_LEVELS.find(([v]) => v === difficulty)?.[1] || '초급'}
-                            {showDrillTranslation && <Languages className={CHIP_ICON} aria-label="번역 보기 켜짐" />}
                             <ChevronDown className={CHIP_ICON} />
                           </button>
                         )}
@@ -1155,7 +1166,6 @@ const App = () => {
                             drillMode={drillMode}
                             difficulty={difficulty}
                             drillRound={drillRound}
-                            showDrillTranslation={showDrillTranslation}
                             inLoopGroup={!!loopGroup && idx >= loopGroup.start && idx <= loopGroup.end}
                             groupLoopOn={!!loopGroup}
                           />
@@ -1181,6 +1191,7 @@ const App = () => {
               showAnalysis={showAnalysis}
               showBreakdown={showBreakdown}
               onCycleAnalysis={toggleGlobalAnalysis}
+              drillMode={drillMode}
               showSpeedMenu={showSpeedMenu}
               togglePlay={togglePlay}
               seekTo={seekTo}
