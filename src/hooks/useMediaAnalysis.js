@@ -1460,14 +1460,14 @@ export const useMediaAnalysis = ({
         if (showToast) showToast({
             message: `${label}. 다시 분석 중...`,
             type: 'success',
-            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, result.trashed, '나누기를 취소했습니다.') },
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, result.trashed, '자르기를 취소했습니다.') },
             duration: 10000,
         });
         if (apiKey) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     };
 
     /**
-     * [대사 끝 직접 맞추기] 선택 모드 '대사만' → 직접 맞추기. AI를 부르지 않고 사용자가 맞춘 끝 시각을 넣는다.
+     * [대사 끝 직접 맞추기] 고치기 줄 '대사 끝' → 끝 직접 맞추기. AI를 부르지 않고 사용자가 맞춘 끝 시각을 넣는다.
      * 같은 시각의 형제 문장 전부에 넣고 판단 불가 표시를 지운다(speechEndMerge#applyManualSpeechEnd). 10초 실행취소.
      */
     const setSpeechEndManual = (fileId, idx, se) => {

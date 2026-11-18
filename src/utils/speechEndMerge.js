@@ -119,6 +119,12 @@ export function initialSpeechEnd(data, idx, duration = 0) {
     return { value: clamp(v), estimated: true };
 }
 
+// '대사 끝' 창을 열 때 먼저 골라 둘 칸. 기본은 AI에게 맡기기(사용자 결정 2026-11-18).
+// 단, AI가 이미 판단 못 한 문장은 다시 보내도 비용만 들므로(selectSpeechEndTargets와 같은 이유) 직접 맞추기로 연다.
+export function defaultSpeechEndMode(data, idx) {
+    return data[idx]?.speechEndSkipped && blockSpeechEnd(data, idx) === null ? 'manual' : 'ai';
+}
+
 /**
  * 이 끝 시각이면 재생이 어떻게 되는지(창 아래 안내 문구용). 엔진(gapSkipTarget·wrapSkipTarget)과 같은 3초 기준.
  * @returns {{ kind: 'skip'|'short'|'wrap'|'end', gap: number, nextStart: number|null }}

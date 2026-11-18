@@ -22,8 +22,7 @@ export const DRILL_LEVELS = [['easy', '초급'], ['mid', '중급'], ['hard', '�
 // 고치기를 두 번 눌러야 켜져서(사용자 2026-11-18) 툴바에는 고치기 버튼 하나만 두고 나머지를 이 줄로 옮겼다.
 //  - 휴지통: 지운 문장이 있을 때만(비어 있으면 열어도 할 일이 없다). 지우는 곳과 되살리는 곳이 같은 줄.
 //  - 빠진 대사: 대사 끝이 안 잡힌 문장이 있을 때만. 감지 중이면 숨긴다(두 번 누르기 방지).
-//  - 문장을 하나라도 고른 동안은 둘 다 숨긴다. 둘은 '고른 문장'과 무관한 동작이고, 327px 폭에서
-//    문장 1개를 고르면 '나누기'가 생겨 휴지통까지 두면 버튼 줄이 2줄 → 3줄(57 → 85px)로 늘었다(실측).
+//  - 문장을 하나라도 고른 동안은 둘 다 숨긴다. 둘은 '고른 문장'과 무관한 동작이다.
 export function selectRowExtras({ trashCount = 0, missingSpeechEnds = 0, speechBusy = false, selectedCount = 0 } = {}) {
   const items = [];
   if (selectedCount > 0) return items;

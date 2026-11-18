@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, initialSpeechEnd, speechEndEditBounds, applyManualSpeechEnd, speechEndSkipInfo, unresolvedSpeechEnds, speechEndMissingSet } from '../speechEndMerge';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, initialSpeechEnd, speechEndEditBounds, applyManualSpeechEnd, speechEndSkipInfo, unresolvedSpeechEnds, speechEndMissingSet, defaultSpeechEndMode } from '../speechEndMerge';
 import { gapSkipTarget } from '../speechSegments';
 import { sanitizeData } from '../mediaUtils';
 
@@ -194,5 +194,21 @@ describe('건너뛸 자리가 아니면 배지·안내에서 뺀다', () => {
         expect(unresolvedSpeechEnds(d, 30)).toEqual([1]);
         expect(unresolvedSpeechEnds(d, 22)).toEqual([]);
         expect(unresolvedSpeechEnds(d)).toEqual([1]);
+    });
+});
+
+describe("'대사 끝' 창의 처음 선택", () => {
+    it('기본은 AI에게 맡기기(끝이 있든 아직 감지 전이든)', () => {
+        expect(defaultSpeechEndMode([S(10, 'a', { speechEnd: 12 })], 0)).toBe('ai');
+        expect(defaultSpeechEndMode([S(10, 'a')], 0)).toBe('ai');
+    });
+
+    it('AI가 이미 못 찾은 문장은 직접 맞추기로 연다', () => {
+        expect(defaultSpeechEndMode([S(10, 'a', { speechEndSkipped: true })], 0)).toBe('manual');
+    });
+
+    it('못 찾았어도 옛 값이나 같은 시각 형제의 끝이 있으면 AI가 기본', () => {
+        expect(defaultSpeechEndMode([S(10, 'a', { speechEndSkipped: true, speechEnd: 12 })], 0)).toBe('ai');
+        expect(defaultSpeechEndMode([S(10, 'a', { speechEndSkipped: true }), S(10, 'b', { speechEnd: 12 })], 0)).toBe('ai');
     });
 });

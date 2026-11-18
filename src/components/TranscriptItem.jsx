@@ -308,11 +308,11 @@ const TranscriptItem = memo(({
                                 <Volume2 size={11} /> 전사의심
                             </button>
                         )}
-                        {/* '대사만' 끝 시각 없음 — 이 문장 뒤는 건너뛰지 않는다. 탭하면 직접 맞추기 창 */}
+                        {/* '대사만' 끝 시각 없음 — 이 문장 뒤는 건너뛰지 않는다. 탭하면 '대사 끝 맞추기' 창 */}
                         {!drillMode && speechEndMissing && (
                             <button
                                 onClick={(e) => { e.stopPropagation(); onSpeechEndFix && onSpeechEndFix(idx); }}
-                                title="'대사만'에서 이 문장의 대사 끝을 몰라 뒤를 건너뛰지 않습니다 — 탭하면 직접 맞추기"
+                                title="'대사만'에서 이 문장의 대사 끝을 몰라 뒤를 건너뛰지 않습니다 — 탭하면 대사 끝 맞추기"
                                 className={`${HIT_BADGE} inline-flex items-center gap-1 px-1.5 py-0 leading-4 rounded-md text-[11px] font-bold border bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors`}
                             >
                                 <FastForward size={11} /> 대사 끝 없음

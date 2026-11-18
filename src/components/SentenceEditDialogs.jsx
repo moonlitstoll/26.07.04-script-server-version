@@ -6,7 +6,7 @@ import {
     formatStamp, splitWords, sentenceEndOf, estimateSplitTime, splitTimeBounds,
     rangeFromSelection, indicesInRange, clampRange, LONG_RANGE_WARN_SEC,
 } from '../utils/sentenceEdit';
-import { speechEndEditBounds, initialSpeechEnd, speechEndSkipInfo } from '../utils/speechEndMerge';
+import { speechEndEditBounds, initialSpeechEnd, speechEndSkipInfo, defaultSpeechEndMode } from '../utils/speechEndMerge';
 
 const STEPS = [0.5, 0.1]; // 조정 단위(큰 이동, 미세 조정)
 const PREVIEW_SEC = 3;
@@ -103,7 +103,7 @@ const ModeOption = ({ checked, onClick, title, desc }) => (
 );
 
 /**
- * "전사" 확인창 — 기존 '문장별로 다시'(기본)와 새 '한 구간으로 다시' 중 고른다.
+ * "전사" 확인창 — 위 = AI에게 맡기기(문장별로, 기본), 아래 = 구간 직접 정하기. '대사 끝' 창과 순서를 맞췄다.
  * 한 구간: 선택한 첫 문장 시작 ~ 마지막 문장 끝을 한 번에 다시 듣고, 시작 시각이 그 안인 문장을 전부 바꾼다.
  */
 export function RetranscribeDialog({ data, selectedIdxs, duration, mediaUrl, playbackRate, onPausePlayer, onSentenceMode, onRangeMode, onClose }) {
@@ -136,11 +136,11 @@ export function RetranscribeDialog({ data, selectedIdxs, duration, mediaUrl, pla
         >
             <SentencePreview items={idxs.map(i => data[i]).filter(Boolean)} />
             <ModeOption checked={mode === 'sentence'} onClick={() => setMode('sentence')}
-                title="문장별로 다시"
-                desc={`선택한 ${idxs.length}개 문장을 하나씩 다시 듣고 전사합니다. 나머지 문장·타임라인은 그대로.`} />
+                title="AI에게 맡기기"
+                desc={`선택한 ${idxs.length}개 문장을 AI가 하나씩 다시 듣고 전사합니다. 나머지 문장·타임라인은 그대로.`} />
             <ModeOption checked={mode === 'range'} onClick={() => setMode('range')}
-                title="한 구간으로 다시"
-                desc="처음~끝을 한 번에 다시 들어, 그 안의 문장을 통째로 새로 바꿉니다. 문장 경계가 틀렸거나 문장이 빠진 곳에." />
+                title="구간 직접 정하기"
+                desc="시작과 끝을 직접 맞추면, 그 안의 문장을 AI가 통째로 새로 전사합니다. 문장 경계가 틀렸거나 문장이 빠진 곳에." />
 
             {mode === 'range' && (
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/60 p-3 space-y-2.5">
@@ -169,14 +169,15 @@ export function RetranscribeDialog({ data, selectedIdxs, duration, mediaUrl, pla
 }
 
 /**
- * 선택 모드 '대사만'(문장 1개) — AI에게 다시 듣게 하거나(기존, 짧은 클립 전송) 끝 시각을 직접 맞춘다(무료).
+ * 고치기 줄 '대사 끝'(문장 1개) — 위 = AI에게 맡기기(기본, 짧은 클립 전송), 아래 = 끝 시각 직접 맞추기(무료).
+ * AI가 이미 못 찾은 문장은 다시 보내도 돈만 들어서 직접 맞추기로 연다(defaultSpeechEndMode).
  * 직접 맞추기: ±0.5·±0.1초 + '끝 앞/뒤 3초' 미리 듣기, 아래 줄에 그 값이면 건너뛰는지 보여 준다.
  */
 export function SpeechEndDialog({ data, idx, duration, mediaUrl, playbackRate, onPausePlayer, onDetect, onApply, onClose }) {
     const item = data[idx];
     const bounds = useMemo(() => speechEndEditBounds(data, idx, duration), [data, idx, duration]);
     const initial = useMemo(() => initialSpeechEnd(data, idx, duration), [data, idx, duration]);
-    const [mode, setMode] = useState('manual');
+    const [mode, setMode] = useState(() => defaultSpeechEndMode(data, idx));
     const [se, setSe] = useState(initial.value);
     const preview = usePreviewPlayer(mediaUrl, { onStart: onPausePlayer, rate: playbackRate });
     const info = speechEndSkipInfo(data, idx, se, duration);
@@ -191,17 +192,17 @@ export function SpeechEndDialog({ data, idx, duration, mediaUrl, playbackRate, o
                 <button
                     onClick={() => { preview.stop(); if (mode === 'manual') onApply(se); else onDetect(); }}
                     className="flex-1 py-2.5 text-white font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-black/40">
-                    {mode === 'manual' ? '적용' : '대사만 다시'}
+                    {mode === 'manual' ? '적용' : '끝 다시 찾기'}
                 </button>
             </>}
         >
             <SentencePreview items={[item]} />
-            <ModeOption checked={mode === 'manual'} onClick={() => setMode('manual')}
-                title="직접 맞추기 (무료)"
-                desc="들어 보면서 대사가 끝나는 시각을 직접 정합니다." />
             <ModeOption checked={mode === 'ai'} onClick={() => setMode('ai')}
-                title="AI가 다시 듣기"
-                desc="이 문장 주변 오디오만 AI에게 다시 들려 끝을 찾습니다(몇 원). 못 찾으면 기존 값을 그대로 둡니다." />
+                title="AI에게 맡기기"
+                desc="이 문장 주변만 AI가 다시 듣고 끝을 찾습니다(몇 원). 못 찾으면 기존 값을 그대로 둡니다." />
+            <ModeOption checked={mode === 'manual'} onClick={() => setMode('manual')}
+                title="끝 직접 맞추기 (무료)"
+                desc="들어 보면서 대사가 끝나는 시각을 직접 정합니다." />
 
             {mode === 'manual' && (
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/60 p-3 space-y-2.5">
@@ -232,7 +233,7 @@ const SPLIT_MODES = [
 ];
 
 /**
- * "나누기" 창 — 뒷부분이 시작될 단어를 탭하고, 앞/뒤 삭제 또는 둘로 나누기를 고른다.
+ * "자르기" 창 — 뒷부분이 시작될 단어를 탭하고, 앞/뒤 삭제 또는 둘로 나누기를 고른다.
  * 뒷부분이 남는 경우 그 시작 시각을 글자 수로 어림해 넣고, ±0.5초와 미리 듣기로 맞춘다.
  */
 export function SplitDialog({ data, idx, duration, mediaUrl, playbackRate, onPausePlayer, onApply, onClose }) {
@@ -255,7 +256,7 @@ export function SplitDialog({ data, idx, duration, mediaUrl, playbackRate, onPau
 
     return (
         <Shell
-            title="문장 나누기" icon={<Scissors size={18} className="text-indigo-600 dark:text-indigo-400" />} onClose={close}
+            title="문장 자르기" icon={<Scissors size={18} className="text-indigo-600 dark:text-indigo-400" />} onClose={close}
             footer={<>
                 <button onClick={close} className="flex-1 py-2.5 text-slate-600 dark:text-slate-300 font-bold hover:bg-white dark:hover:bg-slate-700 rounded-xl">취소</button>
                 <button

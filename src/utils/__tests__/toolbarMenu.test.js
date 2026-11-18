@@ -47,7 +47,7 @@ describe('고치기 줄에 있을 때만 붙는 버튼', () => {
         expect(selectRowExtras({ trashCount: 1, missingSpeechEnds: 2 }).map(i => i.id)).toEqual(['trash', 'detectMissing']);
     });
 
-    it('문장을 고른 동안은 둘 다 숨긴다(버튼 줄이 3줄로 늘지 않게)', () => {
+    it('문장을 고른 동안은 둘 다 숨긴다(고른 문장과 무관한 동작)', () => {
         expect(selectRowExtras({ trashCount: 2, missingSpeechEnds: 5, selectedCount: 1 })).toEqual([]);
         expect(selectRowExtras({ trashCount: 2, missingSpeechEnds: 5, selectedCount: 0 }).map(i => i.id)).toEqual(['trash', 'detectMissing']);
     });

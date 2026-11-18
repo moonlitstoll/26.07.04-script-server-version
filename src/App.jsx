@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, Repeat, FastForward, Loader2, Scissors, ChevronDown, Wand2, ArchiveRestore, Settings as SettingsIcon
+  AlertCircle, RotateCcw, X, EyeOff, Repeat, FastForward, Loader2, ChevronDown, Wand2, Settings as SettingsIcon
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds } from './utils/loopGroups';
 import { stage1FailureNotice } from './utils/failureNotice';
@@ -18,7 +18,10 @@ import { nextAnalysisView, DRILL_VIEW_START } from './utils/analysisView';
 const CHIP_BASE = 'shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-[min(0.9vw,4px)] px-[min(1.6vw,6px)] text-[min(3.1vw,13px)] font-bold transition-colors';
 const CHIP = `${CHIP_BASE} h-6 rounded-lg border`;
 // 선택 모드 줄 버튼도 같은 높이 — 모드를 바꿔도 툴바 높이가 안 튄다
-const SEL_BTN = 'shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-lg text-xs font-bold';
+const SEL_BASE = 'shrink-0 inline-flex items-center justify-center h-6 rounded-lg text-xs font-bold whitespace-nowrap';
+const SEL_OUTLINE = `${SEL_BASE} px-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`;
+const SEL_PLAIN = `${SEL_OUTLINE} text-slate-600 dark:text-slate-300 enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-700`;
+const SEL_DELETE = `${SEL_OUTLINE} text-red-600 dark:text-red-400 enabled:hover:bg-red-50 dark:enabled:hover:bg-red-950/40`;
 const CHIP_ICON = 'w-[min(3.4vw,14px)] h-[min(3.4vw,14px)] shrink-0';
 // 칩을 눌렀을 때 팝오버 앵커로 쓸 좌표(열 때 1회 스냅샷)
 const anchorOf = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, bottom: r.bottom }; };
@@ -449,7 +452,7 @@ const App = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     setEditDialog({ kind: 'retranscribe', fileId: activeFile.id, idxs: new Set(selectedIdxs) });
   };
-  // 문장 나누기(일부 삭제) — 문장 1개를 골랐을 때만
+  // 문장 자르기(일부 삭제·둘로 나누기) — 문장 1개를 골랐을 때만
   const confirmSplit = () => {
     if (!activeFile || selectedIdxs.size !== 1) return;
     setEditDialog({ kind: 'split', fileId: activeFile.id, idx: [...selectedIdxs][0] });
@@ -459,7 +462,7 @@ const App = () => {
     if (speechDetectBusy) return; // 감지 중엔 결과가 덮어쓸 수 있어 막는다(선택 모드 '대사만'과 같은 규칙)
     setEditDialog({ kind: 'speechEnd', fileId: activeFileId, idx: i });
   }, [activeFileId, speechDetectBusy]);
-  // 감지 완료 안내의 [그 문장 보기]: 그 문장으로 이동하고 선택해 둔다 → 바로 '대사만'으로 직접 맞추기
+  // 감지 완료 안내의 [그 문장 보기]: 그 문장으로 이동하고 선택해 둔다 → 바로 '대사 끝'으로 직접 맞추기
   useEffect(() => {
     revealSentenceRef.current = (fileId, idx) => {
       if (activeFileRef.current?.id !== fileId || !activeFileRef.current?.data?.[idx]) return; // 그사이 다른 영상으로 옮겼으면 무시
@@ -543,18 +546,18 @@ const App = () => {
     });
   };
 
-  // 선택 문장의 '대사만'(대사 끝 시각)만 다시 감지 — 문장 글자·타임스탬프는 그대로.
+  // 선택 문장의 대사 끝 시각만 다시 감지(고치기 줄 '대사 끝') — 문장 글자·타임스탬프는 그대로.
   // 들어보니 대사만이 이상한(안 넘어가는) 문장만 골라 고칠 때. 그 문장 주변 오디오만 전송(비용 비례).
   const confirmDetectSpeech = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     if (speechDetectBusy) return; // 다른 감지 진행 중이면 무반응+선택소실이 되므로 차단(칩/배지 핸들러와 동일 패턴)
     const idxs = [...selectedIdxs];
     const fileId = activeFile.id;
-    // 문장 1개면 'AI가 다시 듣기 / 직접 맞추기' 창 — 직접 맞추기는 ±버튼·미리 듣기로 끝 시각을 정한다(무료)
+    // 문장 1개면 'AI에게 맡기기 / 끝 직접 맞추기' 창 — 직접 맞추기는 ±버튼·미리 듣기로 끝 시각을 정한다(무료)
     if (idxs.length === 1) { setEditDialog({ kind: 'speechEnd', fileId, idx: idxs[0] }); return; }
     showConfirm({
       message: `선택한 ${idxs.length}개 문장의 '대사 끝나는 지점'만 다시 감지해 '대사만' 건너뛰기를 고칩니다. 문장 글자·번역·분석은 그대로예요. (그 구간 오디오만 전송, 감지되면 기존 값을 새로 바꿔요) 진행할까요?`,
-      confirmText: '대사만 다시',
+      confirmText: '끝 다시 찾기',
       danger: false,
       onConfirm: () => {
         detectSpeechEndsForFile(fileId, { indices: idxs });
@@ -965,7 +968,7 @@ const App = () => {
                     <button
                       onClick={() => setSelectMode(true)}
                       aria-label="문장 골라서 고치기"
-                      title="문장 골라서 고치기 — 다시 전사·분석·삭제·나누기·복구·휴지통"
+                      title="문장 골라서 고치기 — 전사·분석·대사 끝·복구·자르기·삭제·휴지통"
                       className={`${CHIP} ${drillMode ? 'min-w-8' : ''} text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
                     >
                       {/* 가리기 중엔 아이콘만 — 327px에서 칩 줄이 넘치지 않게.
@@ -975,83 +978,86 @@ const App = () => {
                     </>
                   ) : (
                     <>
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0 whitespace-nowrap tabular-nums">
-                        {selectedIdxs.size > 0
-                          ? `${selectedIdxs.size}개`
-                          : '문장 탭'}
-                      </span>
-                      {/* 좁은 휴대폰(327px)에선 버튼 7개가 한 줄에 안 들어가(458px) 예전엔 옆으로 밀어야 전사·나누기·삭제가 보였다 → 두 줄로 접는다 */}
-                      <div className="flex flex-wrap items-center gap-1">
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                      {/* 윗줄 = 상태, 아랫줄 = 고른 문장에 할 일(삭제는 실행취소·휴지통이 있어 같이 둔다). 버튼 자리는 고정이고, 지금 못 쓰는 버튼은 흐리게만 한다.
+                          색은 회색 하나, 삭제 글자만 빨강(예전엔 6색이라 난잡했다 — 사용자 2026-11-18). 327px에 맞추려고 아이콘은 뺐다.
+                          버튼이 더 늘면 스크롤 말고 윗줄 빈자리 → '⋯' 메뉴 순서로 넣는다 */}
+                      <div className="flex items-center gap-1">
                         <button
                           onClick={exitSelectMode}
-                          className={`${SEL_BTN} text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors`}
+                          aria-label="선택 취소"
+                          title="선택 취소"
+                          className={`${SEL_BASE} w-7 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors`}
                         >
-                          <X size={14} /> 취소
+                          <X size={14} />
                         </button>
-                        <button
-                          onClick={confirmRecover}
-                          disabled={selectedIdxs.size !== 1}
-                          title="문장 1개 선택 후 사용 — 그 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (선택 문장 유지·자동 분석)"
-                          className={`${SEL_BTN} text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
-                        >
-                          <LifeBuoy size={14} /> 복구
-                        </button>
-                        <button
-                          onClick={confirmReanalyze}
-                          disabled={selectedIdxs.size === 0}
-                          title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
-                          className={`${SEL_BTN} text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
-                        >
-                          <Languages size={14} /> 분석
-                        </button>
-                        <button
-                          onClick={confirmDetectSpeech}
-                          disabled={selectedIdxs.size === 0 || speechDetectBusy === activeFileId}
-                          title="선택 문장의 '대사 끝나는 지점'만 다시 감지 — 대사만이 안 넘어가는 문장 교정 (글자·분석 그대로, 그 구간 오디오만 전송)"
-                          className={`${SEL_BTN} text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
-                        >
-                          <FastForward size={14} /> 대사만
-                        </button>
-                        <button
-                          onClick={confirmRetranscribe}
-                          disabled={selectedIdxs.size === 0}
-                          title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
-                          className={`${SEL_BTN} text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors shadow-sm`}
-                        >
-                          <Check size={14} /> 전사
-                        </button>
-                        {/* 지우는 동작(나누기·삭제)은 오른쪽 끝 묶음 — 예전엔 '취소' 바로 옆이 빨간 '삭제'였다 */}
-                        <span aria-hidden="true" className="shrink-0 w-px h-4 mx-0.5 bg-slate-200 dark:bg-slate-700" />
-                        {selectedIdxs.size === 1 && (
-                          <button
-                            onClick={confirmSplit}
-                            title="문장을 단어 사이에서 나눠 앞/뒷부분만 지우거나 두 문장으로 만들기"
-                            className={`${SEL_BTN} text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 transition-colors`}
-                          >
-                            <Scissors size={14} /> 나누기
-                          </button>
-                        )}
-                        <button
-                          onClick={confirmDelete}
-                          disabled={selectedIdxs.size === 0}
-                          title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
-                          className={`${SEL_BTN} text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`}
-                        >
-                          <Trash2 size={14} /> 삭제
-                        </button>
-                        {/* 있을 때만(문장을 고르기 전에만): 휴지통(지운 문장 되살리기)·빠진 대사 끝 재감지 — 예전 '⋯ 고치기' 메뉴에서 옮김.
-                            휴지통 아이콘은 '삭제'와 겹치지 않게 상자 모양 */}
+                        {/* 줄어드는 건 이 글자뿐 — 휴지통·빠진 대사 숫자가 커져도 버튼은 안 밀린다 */}
+                        <span className="flex-1 min-w-0 truncate text-xs font-bold text-slate-600 dark:text-slate-300 tabular-nums">
+                          {selectedIdxs.size > 0 ? `${selectedIdxs.size}개 선택` : '문장 선택'}
+                        </span>
+                        {/* 있을 때만(문장을 고르기 전에만): 휴지통(지운 문장 되살리기)·빠진 대사 끝 재감지 */}
                         {selectRowExtras({ trashCount: trashItems.length, missingSpeechEnds, speechBusy: !!speechDetectBusy, selectedCount: selectedIdxs.size }).map((it) => (
                           <button
                             key={it.id}
                             onClick={it.id === 'trash' ? () => setShowTrash(true) : handleDetectMissing}
                             title={it.title}
-                            className={`${SEL_BTN} text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors`}
+                            className={SEL_PLAIN}
                           >
-                            {it.id === 'trash' ? <ArchiveRestore size={14} /> : <FastForward size={14} />} {it.label}
+                            {it.label}
                           </button>
                         ))}
                       </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={confirmRetranscribe}
+                          disabled={selectedIdxs.size === 0}
+                          title="해당 구간 오디오를 다시 들어 전사부터 새로 (분석도 자동)"
+                          className={SEL_PLAIN}
+                        >
+                          전사
+                        </button>
+                        <button
+                          onClick={confirmReanalyze}
+                          disabled={selectedIdxs.size === 0}
+                          title="전사(문장·타임스탬프)는 그대로 두고 번역·분석만 다시"
+                          className={SEL_PLAIN}
+                        >
+                          분석
+                        </button>
+                        <button
+                          onClick={confirmDetectSpeech}
+                          disabled={selectedIdxs.size === 0 || speechDetectBusy === activeFileId}
+                          title="선택 문장의 대사가 끝나는 지점만 다시 맞추기 — '대사만 재생'이 안 넘어가는 문장 교정 (글자·분석 그대로)"
+                          className={SEL_PLAIN}
+                        >
+                          대사 끝
+                        </button>
+                        <button
+                          onClick={confirmRecover}
+                          disabled={selectedIdxs.size !== 1}
+                          title="문장 1개 선택 후 사용 — 그 앞·뒤 이웃 사이 빈칸에서 실수로 지워진 문장 복구 (선택 문장 유지·자동 분석)"
+                          className={SEL_PLAIN}
+                        >
+                          복구
+                        </button>
+                        <button
+                          onClick={confirmSplit}
+                          disabled={selectedIdxs.size !== 1}
+                          title="문장 1개 선택 후 사용 — 단어 사이를 잘라 앞/뒷부분만 지우거나 두 문장으로 만들기"
+                          className={SEL_PLAIN}
+                        >
+                          자르기
+                        </button>
+                        <button
+                          onClick={confirmDelete}
+                          disabled={selectedIdxs.size === 0}
+                          title="선택한 문장을 대본에서 삭제 (중복·불필요 정리)"
+                          className={SEL_DELETE}
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
                     </>
                   )}
                 </div>
