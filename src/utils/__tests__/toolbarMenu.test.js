@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { placePopoverLeft, fixMenuItems } from '../toolbarMenu';
+import { placePopoverLeft, selectRowExtras } from '../toolbarMenu';
 
 describe('툴바 팝오버 위치', () => {
     // 실측 화면 폭 390px(휴대폰) 기준
@@ -25,23 +25,34 @@ describe('툴바 팝오버 위치', () => {
     });
 });
 
-describe("'고치기' 메뉴 항목", () => {
-    it('기본: 문장 고치기 + 휴지통', () => {
-        expect(fixMenuItems({}).map(i => i.id)).toEqual(['select', 'trash']);
-        expect(fixMenuItems({}).find(i => i.id === 'trash').label).toBe('휴지통');
+describe('고치기 줄에 있을 때만 붙는 버튼', () => {
+    it('기본: 아무것도 없다(휴지통이 비었고 빠진 대사도 없음)', () => {
+        expect(selectRowExtras({})).toEqual([]);
+        expect(selectRowExtras()).toEqual([]);
     });
 
-    it('휴지통에 문장이 있으면 개수를 붙인다', () => {
-        expect(fixMenuItems({ trashCount: 3 }).find(i => i.id === 'trash').label).toBe('휴지통 (3)');
+    it('지운 문장이 있으면 휴지통이 개수와 함께 생긴다', () => {
+        const items = selectRowExtras({ trashCount: 3 });
+        expect(items.map(i => i.id)).toEqual(['trash']);
+        expect(items[0].label).toBe('휴지통 3');
     });
 
-    it('빠진 대사 끝이 있으면 재감지 항목이 생긴다', () => {
-        const items = fixMenuItems({ missingSpeechEnds: 5 });
-        expect(items.map(i => i.id)).toEqual(['select', 'trash', 'detectMissing']);
-        expect(items[2].label).toBe('빠진 대사 끝 다시 감지 (5)');
+    it('빠진 대사 끝이 있으면 재감지 버튼이 생긴다', () => {
+        const items = selectRowExtras({ missingSpeechEnds: 5 });
+        expect(items.map(i => i.id)).toEqual(['detectMissing']);
+        expect(items[0].label).toBe('빠진 대사 5');
     });
 
-    it('감지 중이면 재감지 항목을 숨긴다(두 번 누르기 방지)', () => {
-        expect(fixMenuItems({ missingSpeechEnds: 5, speechBusy: true }).map(i => i.id)).toEqual(['select', 'trash']);
+    it('둘 다 있으면 휴지통이 먼저', () => {
+        expect(selectRowExtras({ trashCount: 1, missingSpeechEnds: 2 }).map(i => i.id)).toEqual(['trash', 'detectMissing']);
+    });
+
+    it('문장을 고른 동안은 둘 다 숨긴다(버튼 줄이 3줄로 늘지 않게)', () => {
+        expect(selectRowExtras({ trashCount: 2, missingSpeechEnds: 5, selectedCount: 1 })).toEqual([]);
+        expect(selectRowExtras({ trashCount: 2, missingSpeechEnds: 5, selectedCount: 0 }).map(i => i.id)).toEqual(['trash', 'detectMissing']);
+    });
+
+    it('감지 중이면 재감지 버튼을 숨긴다(두 번 누르기 방지), 휴지통은 그대로', () => {
+        expect(selectRowExtras({ trashCount: 2, missingSpeechEnds: 5, speechBusy: true }).map(i => i.id)).toEqual(['trash']);
     });
 });

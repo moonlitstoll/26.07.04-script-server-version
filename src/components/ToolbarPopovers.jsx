@@ -1,12 +1,12 @@
 import { useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Wand2, Trash2, FastForward, Shuffle } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { placePopoverLeft, DRILL_LEVELS } from '../utils/toolbarMenu';
 import { LOOP_GROUP_MIN, LOOP_GROUP_MAX } from '../utils/loopGroups';
 import { RATE_MIN, RATE_MAX, RATE_PRESETS, stepRate, fmtRate } from '../utils/playbackRates';
 
-// 상단 툴바 칩에서 여는 팝오버들(묶음 문장 수·가리기 난이도·고치기 메뉴).
+// 상단 툴바 칩에서 여는 팝오버들(묶음 문장 수·가리기 난이도).
 // 툴바 안에 띄우면 안 되는 이유 두 가지:
 //  ① 칩 행이 overflow-x-auto → absolute 팝오버가 행 높이에서 잘린다
 //  ② 툴바 래퍼의 backdrop-blur가 fixed의 containing block이 돼 좌표가 툴바 기준으로 틀어진다
@@ -147,29 +147,5 @@ export const SpeedPopover = ({ anchor, current, onPick, onClose }) => (
         </button>
       ))}
     </div>
-  </AnchoredPopover>
-);
-
-const FIX_ICONS = { select: Wand2, trash: Trash2, detectMissing: FastForward };
-
-// '⋯ 고치기' 메뉴 — 항목은 utils/toolbarMenu#fixMenuItems가 정한다.
-export const FixMenuPopover = ({ anchor, items, onPick, onClose }) => (
-  <AnchoredPopover anchor={anchor} align="end" label="고치기" onClose={onClose} className="w-64 p-1">
-    {items.map((it) => {
-      const Icon = FIX_ICONS[it.id];
-      return (
-        <button
-          key={it.id}
-          onClick={() => { onClose(); onPick(it.id); }}
-          className="w-full min-h-11 flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-        >
-          {Icon && <Icon className="w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400" />}
-          <span className="min-w-0">
-            <span className="block text-sm font-bold text-slate-700 dark:text-slate-300">{it.label}</span>
-            <span className="block text-xs text-slate-500 dark:text-slate-400">{it.hint}</span>
-          </span>
-        </button>
-      );
-    })}
   </AnchoredPopover>
 );

@@ -1,10 +1,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Repeat, FastForward, Loader2, Scissors, ChevronDown, MoreHorizontal, Settings as SettingsIcon
+  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Repeat, FastForward, Loader2, Scissors, ChevronDown, Wand2, ArchiveRestore, Settings as SettingsIcon
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds } from './utils/loopGroups';
 import { stage1FailureNotice } from './utils/failureNotice';
-import { fixMenuItems, DRILL_LEVELS } from './utils/toolbarMenu';
+import { selectRowExtras, DRILL_LEVELS } from './utils/toolbarMenu';
 import { validSpeechEnd } from './utils/speechSegments';
 import { speechEndMissingSet } from './utils/speechEndMerge';
 import { nextAnalysisView } from './utils/analysisView';
@@ -12,8 +12,8 @@ import { nextAnalysisView } from './utils/analysisView';
 // 상단 툴바 칩 공통 크기 — 높이 24px(h-6) 고정, 글자·간격만 min(Nvw, 최대px).
 // 툴바는 대본이 한 줄이라도 더 보이게 최대한 얇게 둔다(사용자 결정 2026-10-18: 누르기 편함보다 대본 면적).
 // 한때 36px로 키웠다가 툴바가 31→45px로 두꺼워져 되돌렸다. 지금 툴바 전체 ≈29px(칩 24 + 위아래 2 + 선 1).
-// 보이는 칩을 가리기·묶음·대사만·오답 4개로 줄이고 편집 기능은 '⋯ 고치기' 메뉴로 옮겨
-// 390px 폭에서 가리기를 켜도 한 줄에 들어온다. 그보다 좁은 화면만 가로 스와이프(⋯ 버튼은 늘 보임).
+// 보이는 칩을 가리기·묶음·대사만·오답 4개로 줄이고 편집 기능은 오른쪽 끝 '고치기' 버튼 하나로 모아
+// 390px 폭에서 가리기를 켜도 한 줄에 들어온다. 그보다 좁은 화면만 가로 스와이프(고치기 버튼은 늘 보임).
 // 아이콘은 lucide size 대신 클래스로 지정(SVG 속성보다 CSS가 우선).
 const CHIP_BASE = 'shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-[min(0.9vw,4px)] px-[min(1.6vw,6px)] text-[min(3.1vw,13px)] font-bold transition-colors';
 const CHIP = `${CHIP_BASE} h-6 rounded-lg border`;
@@ -62,7 +62,7 @@ import WorkspaceHeader from './components/WorkspaceHeader';
 import NoActiveFile from './components/NoActiveFile';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import TrashModal from './components/TrashModal';
-import { LoopPopover, DrillPopover, FixMenuPopover } from './components/ToolbarPopovers';
+import { LoopPopover, DrillPopover } from './components/ToolbarPopovers';
 import { RetranscribeDialog, SplitDialog, SpeechEndDialog } from './components/SentenceEditDialogs';
 import { getPassphrase, setPassphrase as persistPassphrase, CLOUD_ENABLED } from './services/cloudSync';
 import { getLastPos, setLastPos } from './utils/viewPosition';
@@ -814,18 +814,6 @@ const App = () => {
           onClose={closeToolbarPopover}
         />
       )}
-      {toolbarPopover?.kind === 'fix' && (
-        <FixMenuPopover
-          anchor={toolbarPopover.anchor}
-          items={fixMenuItems({ trashCount: trashItems.length, missingSpeechEnds, speechBusy: !!speechDetectBusy })}
-          onPick={(id) => {
-            if (id === 'select') setSelectMode(true);
-            else if (id === 'trash') setShowTrash(true);
-            else if (id === 'detectMissing') handleDetectMissing();
-          }}
-          onClose={closeToolbarPopover}
-        />
-      )}
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
       {showTrash && (
         <TrashModal
@@ -1029,10 +1017,10 @@ const App = () => {
                         {speechDetectBusy === activeFileId
                           ? <Loader2 className={`${CHIP_ICON} animate-spin`} />
                           : <FastForward className={CHIP_ICON} />} 대사만
-                        {/* 미감지 잔여 표시 = 오른쪽 위 점(누르는 자리 아님 — 개수와 재감지는 '⋯ 고치기' 메뉴).
+                        {/* 미감지 잔여 표시 = 오른쪽 위 점(누르는 자리 아님 — 개수와 재감지는 고치기 줄의 '빠진 대사 N').
                             예전 !N 배지는 칩 안의 두 번째 탭 자리라 엄지로 못 골랐다 */}
                         {hasSpeechEnds && missingSpeechEnds > 0 && speechDetectBusy !== activeFileId && (
-                          <span title={`${missingSpeechEnds}개 문장 미감지 — '⋯ 고치기'에서 그 문장들만 재감지`} className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500">
+                          <span title={`${missingSpeechEnds}개 문장 미감지 — '고치기'에서 그 문장들만 재감지`} className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500">
                             <span className="sr-only">{missingSpeechEnds}개 문장 미감지</span>
                           </span>
                         )}
@@ -1050,14 +1038,17 @@ const App = () => {
                       )}
                     </div>
 
-                    {/* ⋯ 고치기: 재전사/분석(선택 모드)·휴지통·빠진 대사 끝 재감지. 스와이프 줄 밖이라 늘 보인다 */}
+                    {/* 고치기: 한 번 탭 = 문장 골라서 고치기(선택 모드). 예전 '⋯' 메뉴는 두 번 눌러야 했다(사용자 2026-11-18).
+                        휴지통·빠진 대사 끝 재감지는 고치기 줄 안으로 옮겼다. 스와이프 줄 밖이라 늘 보인다 */}
                     <button
-                      onClick={(e) => setToolbarPopover({ kind: 'fix', anchor: anchorOf(e.currentTarget) })}
-                      aria-label="고치기 메뉴"
-                      aria-haspopup="dialog"
-                      className={`${CHIP} min-w-8 px-[min(1.5vw,6px)] text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
+                      onClick={() => setSelectMode(true)}
+                      aria-label="문장 골라서 고치기"
+                      title="문장 골라서 고치기 — 다시 전사·분석·삭제·나누기·복구·휴지통"
+                      className={`${CHIP} ${drillMode ? 'min-w-8' : ''} text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
                     >
-                      <MoreHorizontal className="w-[min(4.2vw,16px)] h-[min(4.2vw,16px)]" />
+                      {/* 가리기 중엔 아이콘만 — 327px에서 가리기+오답 칩까지 켜지면 글자 때문에 칩 줄이 9px 넘쳤다(실측).
+                          가리기 칩이 켜진 동안 눈 아이콘만 남기는 것과 같은 규칙 */}
+                      <Wand2 className={CHIP_ICON} />{!drillMode && ' 고치기'}
                     </button>
                     </>
                   ) : (
@@ -1126,6 +1117,18 @@ const App = () => {
                         >
                           <Trash2 size={14} /> 삭제
                         </button>
+                        {/* 있을 때만(문장을 고르기 전에만): 휴지통(지운 문장 되살리기)·빠진 대사 끝 재감지 — 예전 '⋯ 고치기' 메뉴에서 옮김.
+                            휴지통 아이콘은 '삭제'와 겹치지 않게 상자 모양 */}
+                        {selectRowExtras({ trashCount: trashItems.length, missingSpeechEnds, speechBusy: !!speechDetectBusy, selectedCount: selectedIdxs.size }).map((it) => (
+                          <button
+                            key={it.id}
+                            onClick={it.id === 'trash' ? () => setShowTrash(true) : handleDetectMissing}
+                            title={it.title}
+                            className={`${SEL_BTN} text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors`}
+                          >
+                            {it.id === 'trash' ? <ArchiveRestore size={14} /> : <FastForward size={14} />} {it.label}
+                          </button>
+                        ))}
                       </div>
                     </>
                   )}
