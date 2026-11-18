@@ -96,13 +96,6 @@ describe('낱말 경계', () => {
         expect(shown(r)).toBe('hai mươi tư(24) giờ');
         expect(['hai mươi tư(24)', 'giờ']).toContain(blanks(r)[0].answer);
     });
-
-    it('가려진 단어가 든 청크의 뜻만 돌려준다', () => {
-        const r = buildCloze(mk(5), 2, 0, 'easy');
-        const withBlank = new Set(blanks(r).map(p => p.answer.split(' ')[0].split('x')[0]));
-        expect(r.meanings.map(m => m.chunk.split('x')[0]).sort()).toEqual([...withBlank].sort());
-        expect(r.meanings[0].meaning).toMatch(/^뜻\d$/);
-    });
 });
 
 describe('분석 전 문장', () => {
@@ -110,7 +103,6 @@ describe('분석 전 문장', () => {
         const r = buildCloze({ isAnalyzed: false, text: 'x' }, 0, 0, 'full');
         expect(r.ok).toBe(false);
         expect(r.parts).toEqual([]);
-        expect(r.meanings).toEqual([]);
     });
 });
 

@@ -85,7 +85,7 @@ function pickUnits(units, ratio, rand) {
 export function buildCloze(item, idx, round, difficulty) {
     const chunks = parseChunks(item);
     if (chunks.length === 0) {
-        return { ok: false, parts: [], meanings: [], chunkCount: 0, wordCount: 0, hiddenWords: 0, wholeSentence: false };
+        return { ok: false, parts: [], chunkCount: 0, wordCount: 0, hiddenWords: 0, wholeSentence: false };
     }
     const ratio = DRILL_RATIOS[difficulty] ?? DRILL_RATIOS.easy;
     const rand = mulberry32((idx + 1) * 100003 + round * 131 + (DIFF_SEEDS[difficulty] ?? DIFF_SEEDS.easy));
@@ -101,19 +101,16 @@ export function buildCloze(item, idx, round, difficulty) {
     const hiddenWords = units.reduce((n, u, i) => n + (hidden.has(i) ? u.words : 0), 0);
 
     const parts = [];
-    const hiddenChunks = new Set();
     for (const p of pieces) {
         // 통째 가림은 문장부호·숫자 병기까지 청크째 가린다(답이 새지 않게)
         if (wholeSentence) {
             parts.push({ type: 'blank', answer: p.chunk });
-            hiddenChunks.add(p.chunkIdx);
             continue;
         }
         const covered = new Array(p.tokens.length).fill(false);
         units.forEach((u, i) => {
             if (u.chunkIdx !== p.chunkIdx || !hidden.has(i)) return;
             for (let t = u.start; t < u.end; t++) covered[t] = true;
-            hiddenChunks.add(p.chunkIdx);
         });
         for (let t = 0; t < p.tokens.length;) {
             let end = t;
@@ -123,8 +120,5 @@ export function buildCloze(item, idx, round, difficulty) {
             t = end;
         }
     }
-    // 전부 공개한 뒤 보여 줄 뜻: 가려진 단어가 들어 있던 청크의 줄
-    const meanings = pieces.filter(p => hiddenChunks.has(p.chunkIdx)).map(p => ({ chunk: p.chunk, meaning: p.meaning }));
-
-    return { ok: true, parts, meanings, chunkCount: chunks.length, wordCount, hiddenWords, wholeSentence };
+    return { ok: true, parts, chunkCount: chunks.length, wordCount, hiddenWords, wholeSentence };
 }

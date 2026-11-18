@@ -109,6 +109,88 @@ const TranscriptItem = memo(({
         }
     }, [showAnalysis, showBreakdown, flipped, isActive]);
 
+    // 번역·분석 칸. 일반 화면은 문장 아래에 늘 두고, 가리기에서는 답을 연 뒤에 같은 것을 보여 준다
+    // (2026-11-18 사용자 요청: 가리기에서도 문장 전체 해설이 일반 화면과 똑같이, 하단 눈·책 버튼도 똑같이).
+    // 가리기에서 '번역 보기' 단서가 위에 이미 떠 있으면 번역 상자는 다시 그리지 않는다.
+    const explanation = (
+        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100 dark:border-slate-700' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
+
+            {/* Stage 2 실패 상태: 분석이 끝났는데도 실패로 남은 문장 → 다시 시도 */}
+            {!item.isAnalyzed && item.analysisFailed ? (
+                <div className="py-3 px-3 my-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 min-w-0">
+                        <AlertTriangle size={15} className="shrink-0 text-amber-500 dark:text-amber-400" />
+                        <span className="text-[13px] font-bold leading-tight">이 문장 분석에 실패했어요</span>
+                    </div>
+                    {onRetryAnalysis && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onRetryAnalysis(idx); }}
+                            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 transition-colors"
+                        >
+                            <RotateCcw size={13} /> 다시 시도
+                        </button>
+                    )}
+                </div>
+            ) : !item.isAnalyzed ? (
+                /* Stage 2 Loading State */
+                <div className="py-4 px-2 space-y-3 animate-pulse">
+                    <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded-md w-3/4" />
+                    <div className="space-y-2">
+                        <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-md w-full" />
+                        <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-md w-5/6" />
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
+                        <Clock size={12} className="animate-spin" /> Analyzing Sentence Details...
+                    </div>
+                </div>
+            ) : null}
+
+            {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약). 탭하면 원문처럼 문장 시작으로 */}
+            {showAnalysis && item.translation && !(drillMode && showDrillTranslation) && (
+                <div
+                    onClick={() => jumpToSentence(idx)}
+                    className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
+                >
+                    <p className="text-slate-700 dark:text-slate-300 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
+                        {item.translation?.replace(/\\n/g, '\n')}
+                    </p>
+                </div>
+            )}
+
+            {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게.
+                풀이는 기본 접힘이라 휴대폰에서 문장 하나가 한 화면에 들어온다. 분석 칸 아무 곳이나 탭하면
+                이 카드의 풀이 전체가 펼침/접힘(재생 위치는 그대로). 표시는 오른쪽 아래 화살표 하나뿐. */}
+            {analysisLines.length > 0 && (
+                <div
+                    onClick={hasBreakdown ? () => setFlipped(f => !f) : undefined}
+                    onKeyDown={hasBreakdown ? onKeyActivate(() => setFlipped(f => !f)) : undefined}
+                    role={hasBreakdown ? 'button' : undefined}
+                    tabIndex={hasBreakdown ? 0 : undefined}
+                    aria-expanded={hasBreakdown ? breakdownOpen : undefined}
+                    aria-label={hasBreakdown ? (breakdownOpen ? '단어 풀이 접기' : '단어 풀이 펼치기') : undefined}
+                    title={hasBreakdown ? (breakdownOpen ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
+                    className={`px-1 space-y-0.5 text-slate-800 dark:text-slate-200 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer' : ''}`}
+                >
+                    {analysisLines.map(([main, breakdown, tail], li) => (
+                        <p key={li} className="font-medium">
+                            {renderBold(main, `m${li}`)}
+                            {breakdown && breakdownOpen && (
+                                <span className="text-slate-600 dark:text-slate-300 font-normal"><GlossText text={breakdown} keyPrefix={`b${li}`} renderText={renderBold} /></span>
+                            )}
+                            {tail}
+                            {/* 화살표는 마지막 줄 오른쪽 끝에 띄운다 — 따로 한 줄을 차지하면 카드마다 빈 행이 생긴다 */}
+                            {hasBreakdown && li === analysisLines.length - 1 && (
+                                <span aria-hidden="true" className="float-right mt-1 text-slate-300 dark:text-slate-600">
+                                    {breakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                </span>
+                            )}
+                        </p>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <div
             ref={itemRef}
@@ -224,6 +306,7 @@ const TranscriptItem = memo(({
                         round={drillRound}
                         showTranslation={showDrillTranslation}
                         onJump={() => jumpToSentence(idx)}
+                        explanation={explanation}
                     />
                 ) : (
                 <>
@@ -246,83 +329,7 @@ const TranscriptItem = memo(({
                     ))}
                 </div>
 
-                {/* Detailed Analysis Section */}
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnalysis ? 'max-h-[2000px] opacity-100 mt-0.5 pt-1 border-t border-slate-100 dark:border-slate-700' : 'max-h-0 opacity-0 mt-0 pt-0'}`}>
-
-                    {/* Stage 2 실패 상태: 분석이 끝났는데도 실패로 남은 문장 → 다시 시도 */}
-                    {!item.isAnalyzed && item.analysisFailed ? (
-                        <div className="py-3 px-3 my-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 min-w-0">
-                                <AlertTriangle size={15} className="shrink-0 text-amber-500 dark:text-amber-400" />
-                                <span className="text-[13px] font-bold leading-tight">이 문장 분석에 실패했어요</span>
-                            </div>
-                            {onRetryAnalysis && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onRetryAnalysis(idx); }}
-                                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 transition-colors"
-                                >
-                                    <RotateCcw size={13} /> 다시 시도
-                                </button>
-                            )}
-                        </div>
-                    ) : !item.isAnalyzed ? (
-                        /* Stage 2 Loading State */
-                        <div className="py-4 px-2 space-y-3 animate-pulse">
-                            <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded-md w-3/4" />
-                            <div className="space-y-2">
-                                <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-md w-full" />
-                                <div className="h-3 bg-slate-50 dark:bg-slate-900 rounded-md w-5/6" />
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">
-                                <Clock size={12} className="animate-spin" /> Analyzing Sentence Details...
-                            </div>
-                        </div>
-                    ) : null}
-
-                    {/* Translation — 제목 줄 없이 파란 상자로만 구분 (휴대폰 세로 공간 절약). 탭하면 원문처럼 문장 시작으로 */}
-                    {showAnalysis && item.translation && (
-                        <div
-                            onClick={() => jumpToSentence(idx)}
-                            className="rounded-xl px-2.5 py-1 border transition-colors duration-300 mb-1 bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 cursor-pointer"
-                        >
-                            <p className="text-slate-700 dark:text-slate-300 text-[16px] leading-[1.5] whitespace-pre-line font-medium">
-                                {item.translation?.replace(/\\n/g, '\n')}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Analysis — 제목 줄·테두리 없이 폭을 넓게. 청크와 뜻은 진하게, 괄호 속 요소 풀이는 흐리게.
-                        풀이는 기본 접힘이라 휴대폰에서 문장 하나가 한 화면에 들어온다. 분석 칸 아무 곳이나 탭하면
-                        이 카드의 풀이 전체가 펼침/접힘(재생 위치는 그대로). 표시는 오른쪽 아래 화살표 하나뿐. */}
-                    {analysisLines.length > 0 && (
-                        <div
-                            onClick={hasBreakdown ? () => setFlipped(f => !f) : undefined}
-                            onKeyDown={hasBreakdown ? onKeyActivate(() => setFlipped(f => !f)) : undefined}
-                            role={hasBreakdown ? 'button' : undefined}
-                            tabIndex={hasBreakdown ? 0 : undefined}
-                            aria-expanded={hasBreakdown ? breakdownOpen : undefined}
-                            aria-label={hasBreakdown ? (breakdownOpen ? '단어 풀이 접기' : '단어 풀이 펼치기') : undefined}
-                            title={hasBreakdown ? (breakdownOpen ? '탭하면 풀이 접기' : '탭하면 단어 풀이 펼치기') : undefined}
-                            className={`px-1 space-y-0.5 text-slate-800 dark:text-slate-200 text-[16px] leading-[1.5] ${hasBreakdown ? 'cursor-pointer' : ''}`}
-                        >
-                            {analysisLines.map(([main, breakdown, tail], li) => (
-                                <p key={li} className="font-medium">
-                                    {renderBold(main, `m${li}`)}
-                                    {breakdown && breakdownOpen && (
-                                        <span className="text-slate-600 dark:text-slate-300 font-normal"><GlossText text={breakdown} keyPrefix={`b${li}`} renderText={renderBold} /></span>
-                                    )}
-                                    {tail}
-                                    {/* 화살표는 마지막 줄 오른쪽 끝에 띄운다 — 따로 한 줄을 차지하면 카드마다 빈 행이 생긴다 */}
-                                    {hasBreakdown && li === analysisLines.length - 1 && (
-                                        <span aria-hidden="true" className="float-right mt-1 text-slate-300 dark:text-slate-600">
-                                            {breakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                        </span>
-                                    )}
-                                </p>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {explanation}
                 </>
                 )}
 
