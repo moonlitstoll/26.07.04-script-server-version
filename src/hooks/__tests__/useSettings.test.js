@@ -41,7 +41,7 @@ describe('저장값이 없을 때 — 기본값', () => {
 
 describe('저장값이 있을 때 — 그대로 복원', () => {
     it('마지막에 고른 난이도로 시작한다', () => {
-        for (const d of ['easy', 'mid', 'hard', 'recall']) {
+        for (const d of ['easy', 'mid', 'hard', 'full']) {
             store.set('miniapp_drill_difficulty', d);
             expect(loadFromStorage().difficulty).toBe(d);
         }
@@ -62,7 +62,7 @@ describe('저장값이 있을 때 — 그대로 복원', () => {
         expect(loadFromStorage().showBreakdown).toBe(false);
     });
 
-    it('빈칸 회차가 유지된다 ("새 문제"를 다시 눌러 오답을 버리지 않아도 되게)', () => {
+    it('빈칸 회차가 유지된다 (새로고침해도 보던 문제가 그대로)', () => {
         store.set('miniapp_drill_round', '7');
         expect(loadFromStorage().drillRound).toBe(7);
     });
@@ -74,6 +74,26 @@ describe('저장값이 있을 때 — 그대로 복원', () => {
 });
 
 describe('저장값이 오염됐을 때 — 조용히 안전값으로', () => {
+    it("옛 '회상'은 전체 + 번역 보기로 옮긴다", () => {
+        store.set('miniapp_drill_difficulty', 'recall');
+        expect(loadFromStorage().difficulty).toBe('full');
+        expect(loadFromStorage().showDrillTranslation).toBe(true);
+    });
+
+    it("옛 '회상'이었어도 번역 보기를 직접 끄면 꺼진 채 유지한다", () => {
+        store.set('miniapp_drill_difficulty', 'recall');
+        store.set('miniapp_drill_translation', 'false');
+        expect(loadFromStorage().showDrillTranslation).toBe(false);
+    });
+
+    it('번역 보기는 기본 꺼짐, 저장값이 있으면 그대로', () => {
+        expect(loadFromStorage().showDrillTranslation).toBe(false);
+        store.set('miniapp_drill_translation', 'true');
+        store.set('miniapp_drill_difficulty', 'easy');
+        expect(loadFromStorage().showDrillTranslation).toBe(true);
+        expect(loadFromStorage().difficulty).toBe('easy');
+    });
+
     it('모르는 난이도는 기본값으로 되돌린다 (buildCloze가 깨지지 않게)', () => {
         for (const bad of ['expert', '', 'EASY', 'null', '3']) {
             store.set('miniapp_drill_difficulty', bad);
@@ -180,11 +200,11 @@ describe('화면 테마', () => {
 });
 
 describe('유지하지 않기로 한 것들은 config에 없다', () => {
-    // 이것들은 저장하면 앱이 이상한 화면으로 시작한다(대본이 사라지거나 파괴적 모드 진입).
+    // 이것들은 저장하면 앱이 이상한 화면으로 시작한다(파괴적 모드 진입 등).
     // 실수로 추가되는 것을 막기 위해 명시적으로 단정한다 — 근거는 CLAUDE.md 참고.
-    it('오답만 보기 / 선택 모드 / 모달 열림 / 가리기 on-off 는 설정이 아니다', () => {
+    it('선택 모드 / 모달 열림 / 가리기 on-off 는 설정이 아니다', () => {
         const cfg = loadFromStorage();
-        for (const k of ['mistakeOnly', 'selectMode', 'showTrash', 'showSettings', 'drillMode', 'searchQuery']) {
+        for (const k of ['selectMode', 'showTrash', 'showSettings', 'drillMode', 'searchQuery']) {
             expect(cfg, `${k}가 config에 들어옴`).not.toHaveProperty(k);
         }
     });

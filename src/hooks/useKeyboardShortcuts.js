@@ -56,7 +56,7 @@ export const useKeyboardShortcuts = ({
                     break;
                 case 'ArrowLeft':
                     e.preventDefault();
-                    // 버튼과 동일한 네비게이션 로직 사용 (오답 모드면 오답만 순회) — 없으면 기존 ±1 폴백
+                    // 버튼과 동일한 네비게이션 로직 사용 (묶음 반복이면 묶음 단위) — 없으면 기존 ±1 폴백
                     if (onPrevSentence) {
                         onPrevSentence();
                     } else {

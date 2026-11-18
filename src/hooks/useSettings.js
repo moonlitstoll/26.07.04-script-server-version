@@ -27,19 +27,20 @@ const DEFAULTS = {
     // 대사만 재생에서 대사 끝 뒤에 더 듣는 여유(초). 기본값 출처는 speechSegments 하나뿐이다.
     speechTailPad: SPEECH_TAIL_PAD,
     // ─── 학습 화면 상태 (툴바에서 조작하지만 '마지막 설정'으로 유지되는 게 이로운 것들) ───
-    // 유지하지 않는 것과의 경계: 오답만 보기·선택 모드·모달 열림은 유지하면 앱이 이상한 화면으로
-    // 시작한다(대본이 사라지거나 파괴적 모드로 진입). 그래서 여기 넣지 않았다 — 의도적 제외다.
+    // 유지하지 않는 것과의 경계: 선택 모드·모달 열림은 유지하면 앱이 이상한 화면으로
+    // 시작한다(파괴적 모드로 진입). 그래서 여기 넣지 않았다 — 의도적 제외다.
     difficulty: 'easy',   // 가리기 난이도. 학습자의 실력 수준이라 안정적 선호값이다.
+    showDrillTranslation: false, // 가리기 중 번역 단서 표시. 어떤 난이도와도 함께 쓴다.
     showAnalysis: true,   // 번역/분석 표시. 끈 채로 열려도 원문은 보이므로 혼란이 없다.
     showBreakdown: false, // 분석의 괄호 속 요소 풀이 펼침. 기본은 접힘 — 휴대폰에서 문장 하나가 한 화면에 들어오게(2026-09).
     // 화면 테마: 'system'(기기 설정 따라감, 기본) | 'light' | 'dark'. 설정창에서만 바꾼다(툴바 버튼 없음).
     theme: DEFAULT_THEME,
-    drillRound: 0,        // 빈칸 섞기 시드. 화면에 드러나지 않지만, 리셋되면 '새 문제'를
-                          // 다시 눌러야 하고 그 버튼이 오답 기록까지 지운다(강제 교환).
+    drillRound: 0,        // 빈칸 섞기 시드. 화면에 드러나지 않지만, 리셋되면 보던 문제가 바뀐다.
 };
 
 // 가리기 난이도 허용값. 오염된 문자열이 buildCloze로 흘러들면 출제가 깨지므로 화이트리스트로 막는다.
-const DIFFICULTIES = ['easy', 'mid', 'hard', 'recall'];
+// 'recall'(회상)은 2026-11-18에 '전체 + 번역 보기'로 나뉘었다 — 저장돼 있으면 읽을 때 옮겨 준다.
+const DIFFICULTIES = ['easy', 'mid', 'hard', 'full'];
 
 const STORAGE_KEYS = {
     apiKey: 'miniapp_gemini_key',
@@ -61,6 +62,7 @@ const STORAGE_KEYS = {
     speechAutoDetect: 'miniapp_speech_auto_detect',
     speechTailPad: 'miniapp_speech_tail_pad',
     difficulty: 'miniapp_drill_difficulty',
+    showDrillTranslation: 'miniapp_drill_translation',
     showAnalysis: 'miniapp_show_analysis',
     showBreakdown: 'miniapp_show_breakdown',
     drillRound: 'miniapp_drill_round',
@@ -111,9 +113,15 @@ export function loadFromStorage() {
             ? clampTailPad(localStorage.getItem(STORAGE_KEYS.speechTailPad))
             : DEFAULTS.speechTailPad,
         // 오염값은 조용히 기본값으로. 모르는 난이도가 buildCloze에 들어가면 출제가 깨진다.
-        difficulty: DIFFICULTIES.includes(localStorage.getItem(STORAGE_KEYS.difficulty))
-            ? localStorage.getItem(STORAGE_KEYS.difficulty)
-            : DEFAULTS.difficulty,
+        difficulty: (() => {
+            const saved = localStorage.getItem(STORAGE_KEYS.difficulty);
+            if (saved === 'recall') return 'full';
+            return DIFFICULTIES.includes(saved) ? saved : DEFAULTS.difficulty;
+        })(),
+        // 직접 켜고 끈 값이 있으면 그것을, 없으면 옛 '회상' 사용자만 켠 상태로 시작한다.
+        showDrillTranslation: localStorage.getItem(STORAGE_KEYS.showDrillTranslation) !== null
+            ? localStorage.getItem(STORAGE_KEYS.showDrillTranslation) === 'true'
+            : localStorage.getItem(STORAGE_KEYS.difficulty) === 'recall',
         // 기본값이 true라 `=== 'true'`를 쓰면 안 된다(키가 없을 때 false로 뒤집힘).
         showAnalysis: localStorage.getItem(STORAGE_KEYS.showAnalysis) !== null
             ? localStorage.getItem(STORAGE_KEYS.showAnalysis) === 'true'

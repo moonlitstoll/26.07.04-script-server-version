@@ -149,7 +149,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
     }, [triggerManualScroll, setAnchor]);
 
     // 문장 반복을 특정 값으로 설정 (toggleLoop의 '값 지정' 버전).
-    // 오답 모드 진입 시 반복 강제 ON, 이탈 시 이전 상태 복원에 사용.
+    // 묶음 문장 수를 2 이상으로 고르면 반복을 켜는 데 사용.
     const setLoopActive = useCallback((val) => {
         setIsGlobalLoopActive(prev => {
             if (prev === val) return prev;
@@ -461,9 +461,9 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
 
     // ─────────────────────────────────────────────────────────────
     // MediaSession: 알림/잠금화면의 제목만 여기서 정한다.
-    //  - 이전/다음 버튼은 App이 한 곳에서 등록한다(화면 ◀▶와 같은 goPrev/goNext — 오답 모드·묶음 반복 인식).
+    //  - 이전/다음 버튼은 App이 한 곳에서 등록한다(화면 ◀▶와 같은 goPrev/goNext — 묶음 반복 인식).
     //    예전엔 여기서도 등록했는데, 이 effect가 대본이 바뀔 때마다(분석 배치·편집) 다시 돌며
-    //    App의 등록을 덮어써 잠금화면 버튼만 오답·묶음을 무시하고 한 문장씩 움직였다.
+    //    App의 등록을 덮어써 잠금화면 버튼만 묶음을 무시하고 한 문장씩 움직였다.
     //  - play/pause는 등록하지 않는다 → 크롬 기본 재생 동작을 그대로 유지
     //    (과거 play/pause를 덮어썼다가 백그라운드에서 '타임라인만 흐르고 소리 없음' 회귀 발생).
     //  - setPositionState/playbackState도 등록하지 않는다(가짜 재생 표시 방지).

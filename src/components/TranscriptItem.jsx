@@ -52,7 +52,7 @@ const TranscriptItem = memo(({
     selectMode = false, isSelected = false, onToggleSelect,
     onRetryAnalysis, onCoverageRetry, onRetranscribe,
     speechEndMissing = false, onSpeechEndFix,
-    drillMode = false, difficulty = 'easy', drillRound = 0, onMarkAnswer, isWrong = false,
+    drillMode = false, difficulty = 'easy', drillRound = 0, showDrillTranslation = false,
     inLoopGroup = false, groupLoopOn = false
 }) => {
     const itemRef = useRef(null);
@@ -154,11 +154,6 @@ const TranscriptItem = memo(({
                 {/* Header: Timestamp & Looping Indicator — 휴대폰에서 세로 공간을 덜 쓰게 낮게 */}
                 <div className="flex flex-wrap items-center justify-between gap-1.5 mb-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
-                        {isWrong && (
-                            <span title="이 문장을 몰랐어요 (오답)" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 text-[10px] font-black">
-                                !
-                            </span>
-                        )}
                         <button
                             // 묶음 반복 중엔 seekTo가 아니라 jumpToSentence로 간다.
                             // seekTo는 반복 기준(앵커)을 안 옮기므로, 다른 묶음의 ▶를 누르면
@@ -227,7 +222,7 @@ const TranscriptItem = memo(({
                         idx={idx}
                         difficulty={difficulty}
                         round={drillRound}
-                        onMark={(known) => onMarkAnswer && onMarkAnswer(idx, known)}
+                        showTranslation={showDrillTranslation}
                         onJump={() => jumpToSentence(idx)}
                     />
                 ) : (

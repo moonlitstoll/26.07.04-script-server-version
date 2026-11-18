@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Shuffle } from 'lucide-react';
+import { Shuffle, Languages } from 'lucide-react';
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { placePopoverLeft, DRILL_LEVELS } from '../utils/toolbarMenu';
 import { LOOP_GROUP_MIN, LOOP_GROUP_MAX } from '../utils/loopGroups';
@@ -87,8 +87,8 @@ export const LoopPopover = ({ anchor, current, onPick, onClose }) => (
   </AnchoredPopover>
 );
 
-// 가리기: 난이도 4단 + 새 문제. 예전엔 가리기를 켜면 이 5개가 툴바 한 줄에 붙어 칩이 10개가 됐다.
-export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, onNewRound, onClose }) => (
+// 가리기: 난이도 4단 + 번역 보기(창 유지) + 새 문제. 예전엔 가리기를 켜면 이 5개가 툴바 한 줄에 붙어 칩이 10개가 됐다.
+export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, showTranslation, onToggleTranslation, onNewRound, onClose }) => (
   <AnchoredPopover anchor={anchor} label="가리기 난이도" onClose={onClose} className="p-2">
     <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
       {DRILL_LEVELS.map(([v, label]) => (
@@ -96,18 +96,25 @@ export const DrillPopover = ({ anchor, difficulty, onPickDifficulty, onNewRound,
           key={v}
           onClick={() => { onPickDifficulty(v); onClose(); }}
           aria-pressed={difficulty === v}
-          className={`min-w-14 h-10 px-2 text-[13px] font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+          className={`flex-1 min-w-14 h-10 px-2 text-[13px] font-bold transition-colors ${difficulty === v ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
         >
           {label}
         </button>
       ))}
     </div>
     <button
+      onClick={onToggleTranslation}
+      aria-pressed={showTranslation}
+      className={`mt-2 w-full h-10 inline-flex items-center justify-center gap-1.5 rounded-lg border text-[13px] font-bold transition-colors ${showTranslation ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800' : 'text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}
+    >
+      <Languages className="w-3.5 h-3.5" /> 번역 보기
+      <span className="font-normal text-xs">{showTranslation ? '켜짐' : '꺼짐'}</span>
+    </button>
+    <button
       onClick={() => { onNewRound(); onClose(); }}
       className="mt-2 w-full h-10 inline-flex items-center justify-center gap-1.5 rounded-lg border text-[13px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 transition-colors"
     >
       <Shuffle className="w-3.5 h-3.5" /> 새 문제
-      <span className="font-normal text-xs text-slate-400 dark:text-slate-500">· 오답 표시도 지움</span>
     </button>
   </AnchoredPopover>
 );

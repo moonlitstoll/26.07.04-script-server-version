@@ -15,7 +15,7 @@ export function placePopoverLeft({ anchorLeft, anchorRight, width, viewport, ali
 }
 
 // 가리기 난이도 [저장값, 화면 이름] — 툴바 칩(지금 난이도 표시)과 팝오버가 같이 쓴다.
-export const DRILL_LEVELS = [['easy', '초급'], ['mid', '중급'], ['hard', '고급'], ['recall', '회상']];
+export const DRILL_LEVELS = [['easy', '초급'], ['mid', '중급'], ['hard', '고급'], ['full', '전체']];
 
 // 고치기 줄(문장 골라서 고치기) 오른쪽 끝에 '있을 때만' 붙는 버튼.
 // 예전엔 툴바의 '⋯ 고치기' 메뉴에 [문장 골라서 고치기 / 휴지통 / 빠진 대사 끝 다시 감지]가 있었는데,

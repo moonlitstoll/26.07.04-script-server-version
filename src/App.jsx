@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, AlertTriangle, Repeat, FastForward, Loader2, Scissors, ChevronDown, Wand2, ArchiveRestore, Settings as SettingsIcon
+  AlertCircle, RotateCcw, X, Check, Languages, Trash2, LifeBuoy, EyeOff, Repeat, FastForward, Loader2, Scissors, ChevronDown, Wand2, ArchiveRestore, Settings as SettingsIcon
 } from 'lucide-react';
 import { clampLoopGroupSize, slidingGroupBounds } from './utils/loopGroups';
 import { stage1FailureNotice } from './utils/failureNotice';
@@ -12,7 +12,7 @@ import { nextAnalysisView } from './utils/analysisView';
 // 상단 툴바 칩 공통 크기 — 높이 24px(h-6) 고정, 글자·간격만 min(Nvw, 최대px).
 // 툴바는 대본이 한 줄이라도 더 보이게 최대한 얇게 둔다(사용자 결정 2026-10-18: 누르기 편함보다 대본 면적).
 // 한때 36px로 키웠다가 툴바가 31→45px로 두꺼워져 되돌렸다. 지금 툴바 전체 ≈29px(칩 24 + 위아래 2 + 선 1).
-// 보이는 칩을 가리기·묶음·대사만·오답 4개로 줄이고 편집 기능은 오른쪽 끝 '고치기' 버튼 하나로 모아
+// 보이는 칩을 가리기·묶음·대사만 3개로 줄이고 편집 기능은 오른쪽 끝 '고치기' 버튼 하나로 모아
 // 390px 폭에서 가리기를 켜도 한 줄에 들어온다. 그보다 좁은 화면만 가로 스와이프(고치기 버튼은 늘 보임).
 // 아이콘은 lucide size 대신 클래스로 지정(SVG 속성보다 CSS가 우선).
 const CHIP_BASE = 'shrink-0 whitespace-nowrap inline-flex items-center justify-center gap-[min(0.9vw,4px)] px-[min(1.6vw,6px)] text-[min(3.1vw,13px)] font-bold transition-colors';
@@ -46,7 +46,6 @@ import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFavorites } from './hooks/useFavorites';
 import { useAppUpdate } from './hooks/useAppUpdate';
-import { useLearningProgress } from './hooks/useLearningProgress';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -189,7 +188,7 @@ const App = () => {
   const isAnalyzing = activeFile?.isAnalyzing || false;
   // 분석/전환 중이 아니라 본문 콘텐츠를 보여줄 준비가 됐는지 (배너·툴바 게이팅 공통 조건)
   const contentReady = !isAnalyzing && !isSwitchingFile;
-  // 툴바(가리기·묶음·대사만·오답·⋯)를 그릴 수 있는 상태인가 — 실제로 보이는지는 toolbarOpen/selectMode
+  // 툴바(가리기·묶음·대사만·고치기)를 그릴 수 있는 상태인가 — 실제로 보이는지는 toolbarOpen/selectMode
   const toolbarAvailable = !!activeFile && contentReady && !activeFile.error && transcriptData.length > 0;
 
   // [캐시 버저닝] 활성 파일의 분석이 옛 규칙(낮은 version)으로 만들어졌는지 판정 → 재분석 권장 배너.
@@ -207,22 +206,17 @@ const App = () => {
   // [자동 업데이트] 배포된 새 번들 감지 → 새로고침 안내 배너
   const updateReady = useAppUpdate();
 
-  // ─── 가리기 학습(클로즈) + 오답 복습 ───
-  // [주의] mistakeOnly는 useAudioPlayer보다 먼저 선언돼야 한다 — 아래 effLoopN이 이걸 읽는다.
+  // ─── 가리기 학습(클로즈) ───
   const [drillMode, setDrillMode] = useState(false);
   // 난이도·회차는 config에 있어 새로고침/앱 재시작 후에도 유지된다.
-  // (가리기 모드 on/off는 일부러 휘발로 둔다 — '고급/회상'으로 저장된 채 켜져 열리면
+  // (가리기 모드 on/off는 일부러 휘발로 둔다 — '고급/전체'로 저장된 채 켜져 열리면
   //  문장이 통째로 가려져 '대본이 안 보인다'가 되기 때문. 난이도 선택기는 drillMode일 때만
   //  렌더되므로, 저장된 난이도는 사용자가 가리기를 켤 때 칩 하이라이트로 바로 보인다.)
-  const difficulty = config.difficulty;  // 'easy' | 'mid' | 'hard' | 'recall'(번역 단서→원어 산출)
+  const difficulty = config.difficulty;  // 'easy' | 'mid' | 'hard' | 'full' (단어 약 25·50·75·100% 가림)
+  const showDrillTranslation = config.showDrillTranslation;  // 번역 단서(뜻→원어 산출). 난이도와 따로 켠다
   const drillRound = config.drillRound;  // '새 문제' 누를 때마다 +1 → 시드 변경(껐다 켜도 유지)
-  const [mistakeOnly, setMistakeOnly] = useState(false);
-  const prevLoopRef = useRef(false);                     // 오답 모드 진입 전 반복 상태 (복원용)
 
-  // 오답 복습 중에는 묶음 반복을 강제로 1문장으로 낮춘다.
-  // 오답 아닌 문장은 화면에서 아예 빠지는데(788행), 묶음 반복은 그 문장의 '소리'를 재생해버린다
-  // → 오답 모드의 존재 이유(숨긴 문장 소리 안 새게)와 정면충돌. 설정값은 보존되고, 모드를 나가면 복구된다.
-  const effLoopN = mistakeOnly ? 1 : clampLoopGroupSize(config.loopGroupSize);
+  const effLoopN = clampLoopGroupSize(config.loopGroupSize);
 
   // Hooks
   const {
@@ -269,9 +263,6 @@ const App = () => {
     return slidingGroupBounds(transcriptData, loopAnchorIdx, effLoopN);
   }, [isGlobalLoopActive, effLoopN, loopAnchorIdx, transcriptData]);
 
-  const learnFileKey = activeFile?.file ? `${activeFile.file.name}_${activeFile.file.size}` : null;
-  const { mark: markProgress, wrongIndices, isWrong, clearFile: clearLearnProgress } = useLearningProgress(learnFileKey, transcriptData);
-
   // 묶음 반복 중이면 ←/→는 '묶음 단위'로 움직인다(다음/이전 묶음의 첫 문장으로).
   // 기준은 반드시 앵커(loopTargetIdxRef, 동기 ref) — 하이라이트(activeSentenceIdx)를 쓰면
   // 묶음 [10~14]에서 12번을 듣던 중 →를 눌렀을 때 17로 튀어 15·16이 통째로 스킵된다.
@@ -300,94 +291,26 @@ const App = () => {
     return true;
   }, [isGlobalLoopActive, effLoopN, transcriptData, loopTargetIdxRef, jumpToSentence]);
 
-  // [함정 #1] 화면은 걸러진 목록이지만 점프는 '원래 문장 번호'로. wrongIndices(원래 인덱스)를 그대로 사용.
   // [함정 #4] 반복 재조준은 jumpToSentence가 loopTargetIdxRef를 갱신하므로 자동 해결.
   const goNext = useCallback((fromArg) => {
     const cur = (typeof fromArg === 'number' && fromArg >= 0) ? fromArg : (activeIdxRef.current ?? -1);
-    if (mistakeOnly) {
-      if (wrongIndices.length === 0) return;
-      if (cur < 0) { jumpToSentence(wrongIndices[0]); return; } // [함정 #6] 미재생 → 첫 오답
-      const nx = wrongIndices.find(w => w > cur);
-      jumpToSentence(nx !== undefined ? nx : wrongIndices[0]); // 없으면 순환(첫 오답)
-    } else {
-      if (transcriptData.length === 0) return;
-      if (stepLoopGroup(1, cur)) return;                        // 묶음 반복 중 → 다음 묶음
-      if (cur < 0) { jumpToSentence(0); return; }               // [함정 #6] 미재생 → 첫 문장(건너뜀 방지)
-      handleNext(cur);
-    }
-  }, [mistakeOnly, wrongIndices, jumpToSentence, handleNext, activeIdxRef, transcriptData.length, stepLoopGroup]);
+    if (transcriptData.length === 0) return;
+    if (stepLoopGroup(1, cur)) return;                        // 묶음 반복 중 → 다음 묶음
+    if (cur < 0) { jumpToSentence(0); return; }               // [함정 #6] 미재생 → 첫 문장(건너뜀 방지)
+    handleNext(cur);
+  }, [jumpToSentence, handleNext, activeIdxRef, transcriptData.length, stepLoopGroup]);
 
   const goPrev = useCallback((fromArg) => {
     const cur = (typeof fromArg === 'number' && fromArg >= 0) ? fromArg : (activeIdxRef.current ?? -1);
-    if (mistakeOnly) {
-      if (wrongIndices.length === 0) return;
-      if (cur < 0) { jumpToSentence(wrongIndices[0]); return; } // 미재생 → 첫 오답
-      let prev;
-      for (let i = wrongIndices.length - 1; i >= 0; i--) { if (wrongIndices[i] < cur) { prev = wrongIndices[i]; break; } }
-      jumpToSentence(prev !== undefined ? prev : wrongIndices[wrongIndices.length - 1]); // 없으면 순환(마지막 오답)
-    } else {
-      if (transcriptData.length === 0) return;
-      if (stepLoopGroup(-1, cur)) return;                       // 묶음 반복 중 → 이전 묶음
-      if (cur < 0) { jumpToSentence(0); return; }               // 미재생 → 첫 문장
-      handlePrev(cur);
-    }
-  }, [mistakeOnly, wrongIndices, jumpToSentence, handlePrev, activeIdxRef, transcriptData.length, stepLoopGroup]);
+    if (transcriptData.length === 0) return;
+    if (stepLoopGroup(-1, cur)) return;                       // 묶음 반복 중 → 이전 묶음
+    if (cur < 0) { jumpToSentence(0); return; }               // 미재생 → 첫 문장
+    handlePrev(cur);
+  }, [jumpToSentence, handlePrev, activeIdxRef, transcriptData.length, stepLoopGroup]);
 
-  // 정답 후 자가표시 저장. 오답 모드에서 '알았음'이면 목록서 빠지므로 다음 오답으로 이동.
-  // [함정 #5/#11] goNext(stale wrongIndices)로 자기 자신에 점프하는 문제 → idx 제외한 remaining으로 직접 계산.
-  const markAnswer = useCallback((idx, known) => {
-    markProgress(transcriptData[idx], known);
-    if (known && mistakeOnly) {
-      const remaining = wrongIndices.filter(w => w !== idx);
-      if (remaining.length) {
-        const nx = remaining.find(w => w > idx);
-        jumpToSentence(nx !== undefined ? nx : remaining[0]);
-      }
-      // 남은 오답 없으면 점프하지 않음 → 정복 화면이 조용히 뜸
-    }
-  }, [markProgress, transcriptData, mistakeOnly, wrongIndices, jumpToSentence]);
-
-  const toggleMistakeOnly = useCallback(() => {
-    if (!mistakeOnly) {
-      prevLoopRef.current = isGlobalLoopActive; // 진입 전 반복 상태 기억
-      setMistakeOnly(true);
-    } else {
-      setMistakeOnly(false);
-      setLoopActive(prevLoopRef.current);       // 이탈 시 원래 반복 상태 복원
-    }
-  }, [mistakeOnly, isGlobalLoopActive, setLoopActive]);
-
-  // 오답 모드 동안 반복 강제 ON → 소리가 숨긴(오답 아닌) 문장으로 새지 않게.
-  useEffect(() => {
-    if (mistakeOnly && !isGlobalLoopActive) setLoopActive(true);
-  }, [mistakeOnly, isGlobalLoopActive, setLoopActive]);
-
-  // [함정 #2] 오답 모드 진입 시 현재 위치가 오답이 아니면 '절대 최근접' 오답으로 스냅 (진입 시 1회).
-  useEffect(() => {
-    if (!mistakeOnly || wrongIndices.length === 0) return;
-    const cur = activeIdxRef.current ?? -1;
-    if (!wrongIndices.includes(cur)) {
-      const target = cur < 0
-        ? wrongIndices[0]
-        : wrongIndices.reduce((best, w) => Math.abs(w - cur) < Math.abs(best - cur) ? w : best, wrongIndices[0]);
-      // [회귀방지] 일시정지 상태를 존중 — 자동 재생 없이 커서/하이라이트만 이동 (restoreTo).
-      restoreTo(target, transcriptData[target]?.seconds);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mistakeOnly]);
-
-  // [함정 #3/#9] 파일 전환 시 오답 모드 해제 + 반복 복원 (새 파일의 가짜 정복 화면/데드락 방지).
-  useEffect(() => {
-    if (mistakeOnly) {
-      setMistakeOnly(false);
-      setLoopActive(prevLoopRef.current);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFileId]);
-
-  // [함정 #8] 잠금화면/알림(MediaSession)의 이전·다음도 화면 ◀▶와 같은 goPrev/goNext(오답 모드·묶음 반복 인식).
+  // [함정 #8] 잠금화면/알림(MediaSession)의 이전·다음도 화면 ◀▶와 같은 goPrev/goNext(묶음 반복 인식).
   // 등록은 여기 한 곳, 한 번만 — 핸들러는 ref로 최신 함수를 부른다. 예전엔 useAudioPlayer도 따로 등록해
-  // 대본이 바뀔 때마다(분석 배치·편집) 그쪽이 다시 덮어써, 잠금화면 버튼만 오답·묶음을 무시했다.
+  // 대본이 바뀔 때마다(분석 배치·편집) 그쪽이 다시 덮어써, 잠금화면 버튼만 묶음을 무시했다.
   // 알림 버튼 탭은 사용자 제스처라 백그라운드에서도 seek+play가 정상 동작한다.
   const goPrevRef = useRef(goPrev);
   const goNextRef = useRef(goNext);
@@ -810,7 +733,9 @@ const App = () => {
           anchor={toolbarPopover.anchor}
           difficulty={difficulty}
           onPickDifficulty={(v) => updateField('difficulty', v)}
-          onNewRound={() => { updateField('drillRound', r => r + 1); clearLearnProgress(); }}
+          showTranslation={showDrillTranslation}
+          onToggleTranslation={() => updateField('showDrillTranslation', v => !v)}
+          onNewRound={() => updateField('drillRound', r => r + 1)}
           onClose={closeToolbarPopover}
         />
       )}
@@ -896,9 +821,9 @@ const App = () => {
         // 툴바를 그릴 수 있을 때만 버튼을 보인다. 선택 모드 중엔 편집 버튼 줄이 툴바 자리라 늘 열려 있다.
         onToggleToolbar={toolbarAvailable && !selectMode ? toggleToolbar : null}
         toolbarOpen={toolbarOpen}
-        // 숨긴 채 '화면을 바꾸는' 모드(가리기·오답만)가 켜져 있으면 버튼에 점 — '왜 대본이 가려졌지/줄었지'를 알 수 있게.
+        // 숨긴 채 '화면을 바꾸는' 모드(가리기)가 켜져 있으면 버튼에 점 — '왜 대본이 가려졌지'를 알 수 있게.
         // 대사만은 재생만 바꾸고 화면은 그대로라 뺐다(설정처럼 유지되는 값이라 넣으면 점이 늘 떠 뜻이 없어진다 — 사용자 지적).
-        toolbarModesOn={drillMode || mistakeOnly}
+        toolbarModesOn={drillMode}
       />
 
       {/* [자동 업데이트] 새 번들 배포 감지 → 새로고침 안내 (모바일 stale 번들 방지) */}
@@ -947,11 +872,11 @@ const App = () => {
                 <div className="max-w-3xl mx-auto px-3 md:px-6 py-0.5 flex items-center justify-between gap-1.5">
                   {!selectMode ? (
                     <>
-                    {/* 보이는 칩은 공부에 쓰는 4개(가리기·묶음·대사만·오답)뿐. 줄바꿈 금지(한 줄 고정) —
+                    {/* 보이는 칩은 공부에 쓰는 3개(가리기·묶음·대사만)뿐. 줄바꿈 금지(한 줄 고정) —
                         390px 폭이면 스크롤 없이 들어오고, 더 좁으면 이 줄만 가로 스와이프. */}
                     <div className="flex items-center gap-1 overflow-x-auto min-w-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       {/* 🙈 가리기 학습 (클로즈): 왼쪽 = 켜기/끄기, 켜져 있으면 오른쪽 = 난이도·새 문제 팝오버.
-                          켜진 동안 왼쪽은 눈 아이콘만 — 옆의 난이도 이름이 '가리기 중'을 알려 주고, 그래야 오답 칩까지 한 줄에 든다 */}
+                          켜진 동안 왼쪽은 눈 아이콘만 — 옆의 난이도 이름이 '가리기 중'을 알려 주고, 그래야 칩이 한 줄에 든다 */}
                       <div className={`shrink-0 h-6 inline-flex items-stretch rounded-lg border overflow-hidden ${drillMode ? 'border-indigo-600' : 'border-indigo-100 dark:border-indigo-900'}`}>
                         <button
                           onClick={() => setDrillMode(d => !d)}
@@ -969,30 +894,26 @@ const App = () => {
                             className={`${CHIP_BASE} border-l border-indigo-400 bg-indigo-600 text-white hover:bg-indigo-700`}
                           >
                             {DRILL_LEVELS.find(([v]) => v === difficulty)?.[1] || '초급'}
+                            {showDrillTranslation && <Languages className={CHIP_ICON} aria-label="번역 보기 켜짐" />}
                             <ChevronDown className={CHIP_ICON} />
                           </button>
                         )}
                       </div>
 
                       {/* 🔁 묶음 반복: 한 번에 몇 문장을 묶어 반복할지 (1 = 기존 한 문장 반복).
-                          탭 → 팝오버에서 −/+·프리셋. 오답 모드에선 잠금(숨긴 문장 소리가 새지 않도록) */}
+                          탭 → 팝오버에서 −/+·프리셋 */}
                       <button
                         onClick={(e) => setToolbarPopover({ kind: 'loop', anchor: anchorOf(e.currentTarget) })}
-                        disabled={mistakeOnly}
-                        title={mistakeOnly
-                          ? '오답 복습 중에는 한 문장씩 반복합니다 (숨긴 문장 소리가 새지 않도록)'
-                          : '반복을 켰을 때 한 번에 반복할 문장 수 — 탭해서 고르기'}
+                        title="반복을 켰을 때 한 번에 반복할 문장 수 — 탭해서 고르기"
                         aria-label="묶음 문장 수 바로 선택"
                         aria-haspopup="dialog"
-                        className={`${CHIP} disabled:opacity-50 ${mistakeOnly
-                          ? 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
-                          : effLoopN > 1
-                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-slate-500 dark:text-slate-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        className={`${CHIP} ${effLoopN > 1
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-slate-500 dark:text-slate-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                       >
-                        <Repeat className={`${CHIP_ICON} ${effLoopN > 1 && !mistakeOnly ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                        <Repeat className={`${CHIP_ICON} ${effLoopN > 1 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`} />
                         묶음
-                        <span className={`font-black tabular-nums ${effLoopN > 1 && !mistakeOnly ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>{effLoopN}</span>
+                        <span className={`font-black tabular-nums ${effLoopN > 1 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`}>{effLoopN}</span>
                       </button>
 
                       {/* 🎧 대사만 재생: 반복 시 대사 끝~다음 대사 사이 긴 배경음악/무음 건너뛰기.
@@ -1026,16 +947,6 @@ const App = () => {
                         )}
                       </button>
 
-                      {/* ❗ 오답만 보기 (오답 있을 때 표시 — 모드 중엔 0개여도 유지해 빠져나갈 수 있게) */}
-                      {(wrongIndices.length > 0 || mistakeOnly) && (
-                        <button
-                          onClick={toggleMistakeOnly}
-                          aria-pressed={mistakeOnly}
-                          className={`${CHIP} ${mistakeOnly ? 'bg-amber-500 text-white border-amber-500 dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-500' : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800'}`}
-                        >
-                          <AlertTriangle className={CHIP_ICON} /> 오답 {wrongIndices.length}
-                        </button>
-                      )}
                     </div>
 
                     {/* 고치기: 한 번 탭 = 문장 골라서 고치기(선택 모드). 예전 '⋯' 메뉴는 두 번 눌러야 했다(사용자 2026-11-18).
@@ -1046,7 +957,7 @@ const App = () => {
                       title="문장 골라서 고치기 — 다시 전사·분석·삭제·나누기·복구·휴지통"
                       className={`${CHIP} ${drillMode ? 'min-w-8' : ''} text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700`}
                     >
-                      {/* 가리기 중엔 아이콘만 — 327px에서 가리기+오답 칩까지 켜지면 글자 때문에 칩 줄이 9px 넘쳤다(실측).
+                      {/* 가리기 중엔 아이콘만 — 327px에서 칩 줄이 넘치지 않게.
                           가리기 칩이 켜진 동안 눈 아이콘만 남기는 것과 같은 규칙 */}
                       <Wand2 className={CHIP_ICON} />{!drillMode && ' 고치기'}
                     </button>
@@ -1215,57 +1126,41 @@ const App = () => {
                 ) : (
                   <div key={activeFileId} className="space-y-1 min-h-[200px] relative">
                     <ErrorBoundary>
-                      {mistakeOnly && wrongIndices.length === 0 ? (
-                        <div className="text-center py-20">
-                          <div className="text-4xl mb-3">🎉</div>
-                          <p className="text-slate-600 dark:text-slate-300 font-bold">이 영상의 오답을 다 맞혔어요!</p>
-                          <button
-                            onClick={toggleMistakeOnly}
-                            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-100 dark:shadow-black/40"
-                          >
-                            전체 대본으로 돌아가기
-                          </button>
-                        </div>
-                      ) : (
-                        transcriptData.map((item, idx) => {
-                          // [함정 #1] 오답 모드: 원래 idx는 유지한 채 오답 아닌 문장만 렌더에서 제외
-                          if (mistakeOnly && !isWrong(idx)) return null;
-                          const isActive = idx === activeSentenceIdx;
-                          const compositeKey = `${activeFileId}-${idx}-${item.seconds}`;
-                          return (
-                            <TranscriptItem
-                              key={compositeKey}
-                              item={item}
-                              idx={idx}
-                              isActive={isActive}
-                              manualScrollNonce={isActive ? manualScrollNonce : 0}
-                              seekTo={seekTo}
-                              jumpToSentence={jumpToSentence}
-                              toggleLoop={toggleLoop}
-                              isLooping={isActive && isGlobalLoopActive}
-                              isGlobalLooping={isGlobalLoopActive}
-                              showAnalysis={showAnalysis}
-                              showBreakdown={showBreakdown}
-                              toggleGlobalAnalysis={toggleGlobalAnalysis}
-                              selectMode={selectMode}
-                              isSelected={selectedIdxs.has(idx)}
-                              onToggleSelect={toggleSelectIdx}
-                              onRetryAnalysis={handleRetryOne}
-                              onCoverageRetry={handleCoverageRetry}
-                              onRetranscribe={handleRetranscribeOne}
-                              speechEndMissing={speechEndMissingIdxs.has(idx)}
-                              onSpeechEndFix={handleSpeechEndFix}
-                              drillMode={drillMode}
-                              difficulty={difficulty}
-                              drillRound={drillRound}
-                              onMarkAnswer={markAnswer}
-                              isWrong={isWrong(idx)}
-                              inLoopGroup={!!loopGroup && idx >= loopGroup.start && idx <= loopGroup.end}
-                              groupLoopOn={!!loopGroup}
-                            />
-                          );
-                        })
-                      )}
+                      {transcriptData.map((item, idx) => {
+                        const isActive = idx === activeSentenceIdx;
+                        const compositeKey = `${activeFileId}-${idx}-${item.seconds}`;
+                        return (
+                          <TranscriptItem
+                            key={compositeKey}
+                            item={item}
+                            idx={idx}
+                            isActive={isActive}
+                            manualScrollNonce={isActive ? manualScrollNonce : 0}
+                            seekTo={seekTo}
+                            jumpToSentence={jumpToSentence}
+                            toggleLoop={toggleLoop}
+                            isLooping={isActive && isGlobalLoopActive}
+                            isGlobalLooping={isGlobalLoopActive}
+                            showAnalysis={showAnalysis}
+                            showBreakdown={showBreakdown}
+                            toggleGlobalAnalysis={toggleGlobalAnalysis}
+                            selectMode={selectMode}
+                            isSelected={selectedIdxs.has(idx)}
+                            onToggleSelect={toggleSelectIdx}
+                            onRetryAnalysis={handleRetryOne}
+                            onCoverageRetry={handleCoverageRetry}
+                            onRetranscribe={handleRetranscribeOne}
+                            speechEndMissing={speechEndMissingIdxs.has(idx)}
+                            onSpeechEndFix={handleSpeechEndFix}
+                            drillMode={drillMode}
+                            difficulty={difficulty}
+                            drillRound={drillRound}
+                            showDrillTranslation={showDrillTranslation}
+                            inLoopGroup={!!loopGroup && idx >= loopGroup.start && idx <= loopGroup.end}
+                            groupLoopOn={!!loopGroup}
+                          />
+                        );
+                      })}
                     </ErrorBoundary>
                   </div>
                 )}

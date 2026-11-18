@@ -133,14 +133,14 @@ npx vitest run src/utils/__tests__/speechSegments.test.js   # 파일 하나만
 - `extractOriginalAudio` — 비디오에서 오디오 트랙을 무변환(demuxing) 적출. SharedArrayBuffer 불필요. 실패 시 원본 파일 그대로 전송하는 폴백 존재.
 - `splitAudio` — 오디오 Blob을 시간 기준으로 청크 분할 (무변환 copy). 청크 분할 전사에서 사용.
 
-### 학습 기능 (가리기 학습/클로즈 + 오답 복습)
+### 학습 기능 (가리기 학습/클로즈)
 
 Stage 2가 만든 **의미 청크**(`item.analysis`의 `**원어 청크**: 뜻` 줄)를 재료로 하는 학습 드릴. 상단 툴바 토글로 켠다. 이 앱만의 자산인 '한 번에 따라 말하는 덩어리(청크)' 데이터가 빈칸의 재료다.
 
-- **파싱/출제**: `utils/analysisParser.js#parseChunks`가 analysis 문자열을 `[{chunk, meaning}]`로. `utils/clozeUtils.js#buildCloze`가 시드(`idx + round + difficulty`) 기반 `mulberry32` 난수로 가릴 청크 선택 — **초급 1~2개 / 중급 절반 이상~(N-1)개 / 고급 전체 / 회상 전체+번역 단서**, 초·중급은 최소 1청크 문맥 유지. 시드 덕에 토글을 껐다 켜도 같은 문제, '새 문제'(`drillRound++`)나 난이도 변경 때만 재섞임. 회상 모드는 `buildCloze`의 `recall` 플래그로 `ClozeDrill`이 번역 단서 박스를 렌더(뜻→원어 산출 연습) — 단서 박스는 stopPropagation 필수(안 하면 onJump로 정답 음성 누설).
-- **드릴 UI**: `components/ClozeDrill.jsx` — 빈칸 탭→공개(채점 없음, 공개된 청크 다시 탭하면 재가리기 토글), 전부 공개되면 알았음/몰랐음 자가표시. `TranscriptItem`이 `drillMode`일 때 원문/분석 대신 `ClozeDrill`을 렌더하므로 정답지(분석)가 자동으로 숨겨짐. round/difficulty 변경 시 `key`로 remount해 공개/표시 상태 초기화.
-- **오답 복습**: '몰랐음'=오답. 문장 앞 ❗배지 + '오답만 보기' 토글(오답 문장만 렌더 + 반복 강제 ON + 하단 이전/다음이 오답만 순회·순환). `App.jsx`의 `goNext`/`goPrev`가 `mistakeOnly`면 `wrongIndices`(**원래 인덱스**)만 순회하고, 키보드 ←/→와 MediaSession도 동일 함수를 경유(3경로 동기화). '새 문제'는 `clearFile`로 이 영상 오답 기록도 초기화.
-- **주의 — 리뷰로 확정·수정된 4대 함정**: ①걸러진 목록에서 원래 인덱스 보존(`return null`), ②오답0/정복 화면 탈출 경로('오답만 보기' 버튼은 `mistakeOnly`인 동안 유지 + 정복 화면 '돌아가기' 버튼 + 파일 전환 시 리셋), ③키보드/버튼/MediaSession 동일 네비게이션(잠금화면 이전/다음은 **App 한 곳에서 한 번만** 등록하고 ref로 최신 goPrev/goNext를 부른다 — 2026-09 전엔 useAudioPlayer도 따로 등록해, App 등록이 '같은 커밋에서 늦게 도는 effect 순서'와 'goNext가 activeFile에 딸려 매번 새로 생기는 우연'에 기대 이기고 있었다. 실측으로는 재현 안 됐지만 둘 중 하나만 바뀌어도 잠금화면이 오답·묶음을 무시하게 돼 구조로 막았다. 브라우저에서 setActionHandler를 가로채 핸들러를 직접 호출해 묶음 반복 4→6→8, 반복 끔 4→5→6, 삭제·재생 링크 교체 후에도 재등록 0회·동작 유지 확인. 휴대폰 실제 잠금화면에서 묶음별 이동도 사용자가 확인함, 2026-09-29), ④점프 시 반복 타겟 재조준(`jumpToSentence`가 `loopTargetIdxRef` 갱신).
+- **파싱/출제**: `utils/analysisParser.js#parseChunks`가 analysis 문자열을 `[{chunk, meaning}]`로. `utils/clozeUtils.js#buildCloze`가 시드(`idx + round + difficulty`) 기반 `mulberry32` 난수로 가릴 **단어** 선택 — **초급 약 25% / 중급 약 50% / 고급 약 75% / 전체 100%**(2026-11-18, 사용자 요청: 청크 개수 기준은 초급도 37~46%·통째 가림 21~37%로 너무 많았음. 시험 영상 2개 379문장). 낱말 경계는 뜻풀이 괄호의 원어 단어로 잡아 `khẩu vị`가 갈리지 않고(일치 99~100%), 일부만 가리는 난이도는 최소 1단어를 남긴다. 시드 덕에 토글을 껐다 켜도 같은 문제, '새 문제'(`drillRound++`)나 난이도 변경 때만 재섞임. 옛 '회상' 난이도는 **`전체` + `번역 보기`** 로 나뉘었다(2026-11-18, 저장값 `recall`은 읽을 때 옮김). `번역 보기`(config `showDrillTranslation`)는 어떤 난이도와도 함께 쓰며 켜고 꺼도 빈칸은 그대로, `ClozeDrill`이 번역 단서 박스를 렌더(뜻→원어 산출 연습) — 단서 박스는 stopPropagation 필수(안 하면 onJump로 정답 음성 누설).
+- **드릴 UI**: `components/ClozeDrill.jsx` — 빈칸을 아무거나 탭하면 **문장의 빈칸 전부 공개**(채점 없음), 공개된 단어를 탭하면 전부 다시 가림(2026-11-18 사용자 요청). `TranscriptItem`이 `drillMode`일 때 원문/분석 대신 `ClozeDrill`을 렌더하므로 정답지(분석)가 자동으로 숨겨짐. round/difficulty 변경 시 `key`로 remount해 공개 상태 초기화.
+- **오답 복습은 지웠다 (2026-11-18, 사용자 결정)**: 회화 연습과 거리가 있고 거의 쓰지 않았다(휴대폰 기록 2문장). `알았음/몰랐음` 버튼, `오답` 칩, 문장 앞 `!`, 오답만 보기, `useLearningProgress`가 모두 빠졌다. 이미 저장된 `miniapp_learn_progress`는 지우지도 읽지도 않는다.
+- **주의 — 이전·다음 이동**: ①키보드/버튼/MediaSession 동일 네비게이션(잠금화면 이전/다음은 **App 한 곳에서 한 번만** 등록하고 ref로 최신 goPrev/goNext를 부른다 — 2026-09 전엔 useAudioPlayer도 따로 등록해, App 등록이 '같은 커밋에서 늦게 도는 effect 순서'와 'goNext가 activeFile에 딸려 매번 새로 생기는 우연'에 기대 이기고 있었다. 실측으로는 재현 안 됐지만 둘 중 하나만 바뀌어도 잠금화면이 묶음을 무시하게 돼 구조로 막았다. 브라우저에서 setActionHandler를 가로채 핸들러를 직접 호출해 묶음 반복 4→6→8, 반복 끔 4→5→6, 삭제·재생 링크 교체 후에도 재등록 0회·동작 유지 확인. 휴대폰 실제 잠금화면에서 묶음별 이동도 사용자가 확인함, 2026-09-29), ②점프 시 반복 타겟 재조준(`jumpToSentence`가 `loopTargetIdxRef` 갱신).
 
 ### 문장 편집 — 구간 재전사 · 문장 나누기 (2026-09)
 
@@ -234,8 +234,8 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 - **State**: `App.jsx`가 최상위 상태 관리 (files 배열, activeFileId 등)
 - **툴바 팝오버(묶음·가리기·고치기)**: `components/ToolbarPopovers.jsx`(`LoopPopover`·`DrillPopover`·`FixMenuPopover`, 공용 틀 `AnchoredPopover`). App은 `toolbarPopover`({kind, anchor}) 하나로 한 번에 하나만 연다. 묶음 칩 탭 → −/+(창 유지)·[1,2,3,5,10,15,20] 프리셋(고르면 닫힘). **툴바가 overflow-x-auto + backdrop-blur(fixed의 containing block)라 반드시 body 포털(createPortal)로 띄워야 함** — 툴바 안에 absolute/fixed로 넣으면 잘리거나 좌표가 틀어짐. 가로 위치는 그린 패널 폭을 재서 `utils/toolbarMenu.js#placePopoverLeft`로 정한다(가운데/오른쪽 끝 맞춤, 화면 안 8px 여백).
 - **Settings**: `hooks/useSettings.js` - 모든 설정을 하나의 `config` 객체로 관리. `updateField(field, value)`로 개별 필드 업데이트 시 localStorage에 **즉시** 동기화(모든 값이 즉시 영속됨). `value`에 함수를 넘기면 이전 값을 받는다(`updateField('showAnalysis', prev => !prev)`) — **토글 콜백은 반드시 이 형태로 쓸 것.** 현재 값을 클로저로 잡으면 deps에 넣어야 하고, 그러면 콜백 참조가 매번 바뀌어 memo된 `TranscriptItem`들이 재생 틱마다 전부 리렌더된다. `setItem`은 try/catch로 감싸 저장 실패해도 화면 상태는 유지된다(캐시가 5MB를 채우면 실제로 던진다).
-  - **⚠️ 무엇을 config에 넣을지의 경계**: 툴바에서 조작해도 '마지막 설정'으로 유지되는 게 이로운 것만 넣는다(난이도·분석표시·회차·묶음N·대사만). **유지하면 안 되는 것**: `mistakeOnly`(켜진 채 열리면 대본 대부분이 사라지고 반복 강제 ON + 묶음 잠금, 오답 0이면 '정복 화면'으로 시작 — 왜 대본이 없는지 알 수 없다), `selectMode`(파괴적 편집 모드 + selectedIdxs가 대본별 인덱스라 오염), 모달 열림 상태, 검색어. 이건 실수가 아니라 설계다 — 파일 전환 시 강제 해제 코드(App.jsx의 '가짜 정복 화면/데드락 방지')와 같은 이유. `drillMode`(가리기 on/off)도 일부러 뺐다: 저장된 난이도가 '고급/회상'이면 켜진 채 열릴 때 문장이 통째로 가려진다. 테스트가 이 제외 목록을 단정한다. 설정 항목: apiKey, stage1Model, stage2Model, stage3Model(재전사/재분석 전용), bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled. **즉시 영속되므로 SettingsModal의 'Cancel'은 진입 시 스냅샷을 떠 변경 필드만 되돌린다(그냥 닫으면 유지).**
-- **Custom Hooks**: `useMediaAnalysis` (파일 업로드/분석/취소, **순차 분석 큐**), `useMediaCache` (캐시 로드/삭제, Stage 2 abort 연동), `useAudioPlayer` (재생 제어, 싱크 엔진, `setLoopActive`로 반복 강제/복원), `useLearningProgress` (알았음/몰랐음 저장), `useKeyboardShortcuts`, `useEscapeToClose` (모달 ESC 닫기 — 겹친 모달은 LIFO 스택으로 최상위 하나만)
+  - **⚠️ 무엇을 config에 넣을지의 경계**: 툴바에서 조작해도 '마지막 설정'으로 유지되는 게 이로운 것만 넣는다(난이도·번역 보기·분석표시·회차·묶음N·대사만). **유지하면 안 되는 것**: `selectMode`(파괴적 편집 모드 + selectedIdxs가 대본별 인덱스라 오염), 모달 열림 상태, 검색어. `drillMode`(가리기 on/off)도 일부러 뺐다: 저장된 난이도가 '고급/전체'면 켜진 채 열릴 때 문장이 통째로 가려진다. 테스트가 이 제외 목록을 단정한다. 설정 항목: apiKey, stage1Model, stage2Model, stage3Model(재전사/재분석 전용), bufferTime, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled. **즉시 영속되므로 SettingsModal의 'Cancel'은 진입 시 스냅샷을 떠 변경 필드만 되돌린다(그냥 닫으면 유지).**
+- **Custom Hooks**: `useMediaAnalysis` (파일 업로드/분석/취소, **순차 분석 큐**), `useMediaCache` (캐시 로드/삭제, Stage 2 abort 연동), `useAudioPlayer` (재생 제어, 싱크 엔진, `setLoopActive`로 반복 강제/복원), `useKeyboardShortcuts`, `useEscapeToClose` (모달 ESC 닫기 — 겹친 모달은 LIFO 스택으로 최상위 하나만)
 - **Cache**: localStorage에 `gemini_analysis_{파일명}_{크기}` 키로 전사+분석 결과 저장. `utils/cacheUtils.js`의 `parseCacheEntry`/`saveCacheEntry`로 통합 관리. Stage 1 완료 시 중간 저장 후 Stage 2 진행.
 - **Media Storage**: IndexedDB (`MediaStore.js`) - 원본 미디어 파일 blob 저장. 캐시 로드 시 미디어 복원에 사용.
 - **순차 분석 큐**: 여러 파일 동시 업로드 시 `useMediaAnalysis`의 `analysisQueueRef`+`processAnalysisQueue`가 하나씩 끝까지(Stage1+Stage2) 직렬 처리(캐시 히트는 큐 밖에서 즉시 복원). `runFullAnalysis({awaitStage2:true})`로 다음 파일 전에 Stage2 완료 대기. **주의: `stage1AbortRef`/`stage2AbortRef`는 여전히 전역 공유라, 큐 진행 중 대화형 편집(reanalyze/retranscribe/recoverGap/retry/cancelStage1)이 큐가 처리 중인 다른 파일을 중단시킬 수 있음(파일별 AbortController 미도입 — 알려진 한계). 큐 워커는 AbortError 시 무한 스피너 대신 재시도 카드로 전환.**
@@ -245,14 +245,13 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 - **파일을 다시 올려도 남은 분석을 이어서 한다 (2026-10-11)**: `processFiles`의 캐시 히트 경로는 예전엔 대본만 복원하고 끝나, 분석이 덜 끝난 영상 파일을 다시 올리면 남은 문장이 영영 분석되지 않았다(점검 #19: "Analyzing Details (233/258)"만 뜨고 요청 0건 — 목록에서 열면 정상). 지금은 미분석 문장이 있으면 `loadCache`처럼 `runStage2`로 이어 간다. 같은 영상이 다른 항목으로 열려 전사·분석 중이면 건너뛴다(아래 loadCache 재시작 방지와 같은 이유). 실측: 4번 영상 마지막 30문장의 분석을 비운 저장본에 같은 파일을 다시 올리자 132~161번만 요청(25+5, 뭉침 재요청 2문장) → 162/162·completed, 대사 끝 162개 유지.
 - **`loadCache`는 Stage 2가 도는 중이면 재개를 건너뛴다** — 안 그러면 `runStage2` 첫 줄의 `abort()`가 진행 중이던 배치를 죽이고 마지막 저장 지점부터 다시 돌아 **동시 2~3배치 × 25문장이 중복 분석**된다(비용). `loadCloud`에는 같은 가드가 없다(매번 새 `cloud-` id라 카운터로 판별 불가 — 클라우드를 다시 켤 때 함께 손볼 것).
 - **목록 순서(첫 화면·기록 창 공통, 2026-09)**: 즐겨찾기 묶음이 위, 나머지가 아래. 각 묶음 안은 **마지막으로 열었거나 별을 누른** 영상이 맨 위(`utils/recentOpen.js`, `miniapp_recent_open` = `{ "{name}_{size}": 시각 }`, 이 기기에만). 기록 시점: `loadCache`/`loadCloud` **시작 시**(미디어 로딩을 기다린 뒤에 적으면 그사이 목록으로 돌아왔을 때 순서가 안 바뀐다 — 실측), `processFiles`(올린 파일), 별 추가(`useFavorites`). '이 기기에서 삭제'(`purgeLocal`)는 기록도 지운다. 기록이 없으면(첫 실행) 캐시의 `metadata.savedAt`으로 **한 번만** 채운다 — 목록이 그릴 때마다 큰 대본 JSON을 파싱하지 않게.
-- **Learning Progress**: `useLearningProgress`가 문장별 알았음/몰랐음을 localStorage(`miniapp_learn_progress`)에 저장. 키는 배열 인덱스가 아니라 **안정 ID(`${seconds}|${text 앞 24자}`)** — 문장 삭제/복구로 인덱스가 밀려도 올바른 문장에 매핑(오답노트·SRS 확장 대비). `wrongIndices`/`isWrong`는 현재 대본에서 매번 재계산.
 - **Stage 2 실패 문장**: 분석 실패 문장은 `analysisFailed` 플래그가 붙어 `TranscriptItem`이 무한 스피너 대신 '다시 시도' UI를 렌더(`reanalyzeSentences`로 그 문장만 재분석).
 
 ### Component Props 패턴
 
 - `SettingsModal`은 `{config, updateField, onLockVault, onClose}` props 수신 (개별 setter 대신 `updateField` 함수 사용)
 - `EmptyState`도 동일하게 `{config, updateField}`로 설정을 전달
-- `TranscriptItem`은 카드 내에서 문장 종결 부호(`.` `?` `!`) 기준 시각적 줄바꿈 처리. drill 관련 props(`drillMode/difficulty/drillRound/onMarkAnswer/isWrong`) 추가됨. **memo 컴포넌트이므로 App은 콜백을 안정 참조(useCallback/idx는 컴포넌트 내부에서 바인딩)로 넘겨 재생 중 currentTime 틱마다 전체 카드가 리렌더되지 않게 함.**
+- `TranscriptItem`은 카드 내에서 문장 종결 부호(`.` `?` `!`) 기준 시각적 줄바꿈 처리. drill 관련 props(`drillMode/difficulty/drillRound/showDrillTranslation`) 추가됨. **memo 컴포넌트이므로 App은 콜백을 안정 참조(useCallback/idx는 컴포넌트 내부에서 바인딩)로 넘겨 재생 중 currentTime 틱마다 전체 카드가 리렌더되지 않게 함.**
 - **모달 공통**: `SettingsModal`/`CacheHistoryModal`/`TrashModal`/`ConfirmModal`은 `useEscapeToClose` + backdrop `onClick`(내용은 `stopPropagation`)로 ESC·배경 클릭 닫기. SettingsModal의 ESC/배경은 '유지', 명시적 Cancel만 스냅샷 복원.
 
 ### Key Utilities
@@ -270,8 +269,8 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 
 `/impeccable critique` 점검(26/40)의 P0(탭·글자 크기)·P1(툴바 넘침)을 고쳤다. 디자인 언어(인디고 강조·보라 활성 문장·카드)는 그대로, 크기·배치·누르는 자리만.
 - **툴바는 최대한 얇게가 우선(사용자 결정)**: 처음엔 칩을 36px로 키웠는데 툴바가 31→45px로 두꺼워지자 사용자가 "누르기 편한 것보다 작은 화면에 대본을 최대한 많이 보는 게 목표"라고 정했다 → 칩 24px(`h-6`)·위아래 2px, 툴바 ≈28px(작업 전보다 4px 얇음). 선택 모드 버튼도 같은 높이(`SEL_BTN`)라 모드를 바꿔도 안 튄다. **대본 면적을 잡아먹는 크기 키우기는 하지 말 것** — 카드 타임스탬프·배지처럼 투명 가상요소로 누르는 자리만 넓히는 건 괜찮다(높이 0).
-- **툴바는 평소 숨김, 제목 줄 버튼(슬라이더 아이콘, ? 왼쪽)으로 연다 (사용자 결정 — '스크롤로 자동 숨김'보다 버튼을 골랐다).** 열림 여부는 일부러 저장하지 않는다(App `toolbarOpen`, 앱을 새로 열면 숨김 — 열어 두고 잊으면 '평소 숨김'이 깨짐). 숨긴 채 가리기·오답만·대사만이 켜져 있으면 버튼 오른쪽 위에 점(대본이 왜 가려졌는지 알게). 선택 모드 중엔 편집 버튼 줄이 툴바 자리라 늘 보이고 버튼은 사라진다('그 문장 보기' 안내로 선택 모드에 들어와도 보임). 숨기면 대본이 29px 더 보인다. e2e: 처음 숨김·열기·숨기기·점 켜짐/꺼짐·선택 모드 중 버튼 없음.
-- **툴바**: 보이는 칩은 가리기·묶음·대사만·오답(있을 때만) + 오른쪽 끝 **'⋯ 고치기' 메뉴**(문장 골라서 고치기 = 예전 '재전사/분석' 선택 모드, 휴지통, 빠진 대사 끝 다시 감지). 항목은 `toolbarMenu.js#fixMenuItems`. 칩 높이 24px 고정, 글자·여백만 vw 비례. **가리기**는 왼쪽 = 켜기/끄기, 켜지면 오른쪽에 지금 난이도(`초급 ▾`) → 난이도 4단·새 문제 팝오버. 켜진 동안 왼쪽은 눈 아이콘만(aria-label '가리기 끄기') — 그래야 오답 칩까지 한 줄에 든다. **묶음 −/+는 팝오버 안(40px 버튼)으로 옮겼다**(칩 안에 두면 한 줄에 안 들어감). **'대사만' 칩의 `!N` 배지는 누르는 자리가 아닌 점**으로 바꾸고 재감지는 고치기 메뉴로(칩 안 탭 자리 둘 → 하나).
+- **툴바는 평소 숨김, 제목 줄 버튼(슬라이더 아이콘, ? 왼쪽)으로 연다 (사용자 결정 — '스크롤로 자동 숨김'보다 버튼을 골랐다).** 열림 여부는 일부러 저장하지 않는다(App `toolbarOpen`, 앱을 새로 열면 숨김 — 열어 두고 잊으면 '평소 숨김'이 깨짐). 숨긴 채 가리기가 켜져 있으면 버튼 오른쪽 위에 점(대본이 왜 가려졌는지 알게). 선택 모드 중엔 편집 버튼 줄이 툴바 자리라 늘 보이고 버튼은 사라진다('그 문장 보기' 안내로 선택 모드에 들어와도 보임). 숨기면 대본이 29px 더 보인다. e2e: 처음 숨김·열기·숨기기·점 켜짐/꺼짐·선택 모드 중 버튼 없음.
+- **툴바**: 보이는 칩은 가리기·묶음·대사만 + 오른쪽 끝 **'⋯ 고치기' 메뉴**(문장 골라서 고치기 = 예전 '재전사/분석' 선택 모드, 휴지통, 빠진 대사 끝 다시 감지). 항목은 `toolbarMenu.js#fixMenuItems`. 칩 높이 24px 고정, 글자·여백만 vw 비례. **가리기**는 왼쪽 = 켜기/끄기, 켜지면 오른쪽에 지금 난이도(`초급 ▾`) → 난이도 4단·번역 보기·새 문제 팝오버. 켜진 동안 왼쪽은 눈 아이콘만(aria-label '가리기 끄기') — 그래야 칩이 한 줄에 든다. **묶음 −/+는 팝오버 안(40px 버튼)으로 옮겼다**(칩 안에 두면 한 줄에 안 들어감). **'대사만' 칩의 `!N` 배지는 누르는 자리가 아닌 점**으로 바꾸고 재감지는 고치기 메뉴로(칩 안 탭 자리 둘 → 하나).
 - **실측(Playwright, 가리기 켬 + 오답 1개)**: 390px 칩 줄 299px(가로 스크롤 없음), 360px 281px. 더 좁으면 칩 줄만 가로 스와이프되고 ⋯는 줄 밖이라 늘 보인다. 옛 구조는 390px에서 49px 넘쳤다.
 - **'⋯ 고치기' 메뉴 → '고치기' 버튼 하나 (2026-11-18, 가지 `fixbtn`, 사용자 요청)**: 메뉴는 두 번 눌러야 고치기가 켜졌다. 지금은 툴바 오른쪽 끝(스와이프 줄 밖)에 **'고치기' 버튼**(`Wand2`, aria-label '문장 골라서 고치기') — 한 번 탭 = 선택 모드. `FixMenuPopover`·`fixMenuItems`는 지웠다(위 항목들의 '⋯ 고치기 메뉴' 설명은 옛 구조). **가리기를 켠 동안은 아이콘만**(327px에서 가리기+오답 칩까지 켜지면 글자 때문에 칩 줄이 9px 넘쳤다 — 실측). 휴지통과 '빠진 대사 끝 다시 감지'는 **고치기 줄(선택 모드) 오른쪽 끝으로** 옮겼다: `toolbarMenu.js#selectRowExtras` — 휴지통은 지운 문장이 있을 때만 `휴지통 N`(아이콘은 삭제와 겹치지 않게 `ArchiveRestore`), 재감지는 빠진 문장이 있고 감지 중이 아닐 때만 `빠진 대사 N`, **문장을 하나라도 고르면 둘 다 숨김**(1개를 고르면 '나누기'가 생겨 휴지통까지 두면 버튼 줄이 2줄 57px → 3줄 85px로 늘었다 — 실측). 삭제하면 선택 모드가 끝나므로 휴지통은 고치기를 다시 눌러야 보인다. 사용자에게 '휴지통·고치기 둘 다 툴바에 꺼내기'도 물었으나 이 안을 골랐다(툴바의 휴지통 모양은 '지우기'로 읽힘 + 폭). 실측(창 없는 크롬 327px, 다크·라이트): 평소 고치기 54.5px·칩 줄 넘침 0, 가리기+오답 32px·넘침 0, 툴바 29px 그대로, 고치기 줄 2줄 57px(휴지통만/빠진 대사만/1개 선택 모두), 삭제 → 고치기 → 휴지통 1 → 복구 → 버튼 사라짐, 빠진 대사 3 → 확인창. 휴지통과 빠진 대사가 **둘 다** 있고 아무것도 안 고른 드문 경우는 3줄이 될 수 있다(재지 않음, 폭 계산상 약 46px 넘침). 테스트 `toolbarMenu.test.js` 6개, 변이 4개(선택 중 숨김·휴지통 조건·감지 중 조건·개수 표시) 각각 실패 확인.
 - **카드**: 타임스탬프 알약은 보이는 16px 그대로 + 투명 가상요소로 누르는 자리 40px(`HIT_TS`), 글자 10→11px. 배지(누락·뭉침·전사의심·대사 끝 없음) 9→11px, 누르는 자리 36px 이상(`HIT_BADGE`). 가상요소는 카드 높이를 안 늘린다.
@@ -315,14 +314,14 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 
 ### 사용자 피드백 3건 (2026-10-18 밤, 가지 `fix5`)
 
-- **도구 칩의 점은 가리기·오답만일 때만** — '대사만'은 설정처럼 유지되는 값이라 넣으면 점이 늘 떠 뜻이 없다(사용자: "오렌지색 원이 왜 떠 있지"). 화면을 바꾸는 모드만 센다(`App.jsx` toolbarModesOn).
+- **도구 칩의 점은 가리기일 때만** — '대사만'은 설정처럼 유지되는 값이라 넣으면 점이 늘 떠 뜻이 없다(사용자: "오렌지색 원이 왜 떠 있지"). 화면을 바꾸는 모드만 센다(`App.jsx` toolbarModesOn).
 - **'다시 전사' 창 맨 위에 문장 미리보기**(`SentenceEditDialogs.jsx#SentencePreview`, 대사 끝 맞추기 창과 같은 부품): 1개면 시각+문장, 여러 개면 첫·마지막 + '… 사이 N문장 …'(고른 문장 기준). 구간을 ±0.5초로 맞추는 동안 어느 문장인지 보이게(사용자 제안).
 - **TimeAdjuster 시각 숫자 `whitespace-nowrap`** — Inter로 바꾼 뒤 휴대폰에서 `03:33.2 / 0`으로 두 줄로 꺾였다(사용자 캡처). 15px.
 - 검증: 브라우저 10개(대사만 켜도 점 없음·가리기 켜면 점·미리보기 1개/3개·시각 한 줄 136×23) + 터치 19 + 다크 묶음 12 통과.
 
 ### Keyboard Shortcuts (구현: `hooks/useKeyboardShortcuts.js`, 표시: `components/ShortcutsHelp.jsx`)
 
-Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문장 이동(**오답 모드에선 오답만 순회**), ↑/↓: 5초 탐색, `[`/`]`: 배속 -/+, `?`: 도움말 토글. **단축키를 추가하면 `ShortcutsHelp.jsx`의 목록도 함께 갱신할 것**(둘이 따로 관리됨). ←/→는 App의 `goPrev`/`goNext`에 위임(모드 인식).
+Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문장 이동(묶음 반복 중엔 묶음 단위), ↑/↓: 5초 탐색, `[`/`]`: 배속 -/+, `?`: 도움말 토글. **단축키를 추가하면 `ShortcutsHelp.jsx`의 목록도 함께 갱신할 것**(둘이 따로 관리됨). ←/→는 App의 `goPrev`/`goNext`에 위임(모드 인식).
 
 ### 라이트/다크 모드 (2026-10-18, 가지 `dark`)
 
@@ -336,7 +335,7 @@ Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문
 ## Configuration
 
 - 모든 설정은 `useSettings` 훅에서 `config` 객체로 통합 관리
-- localStorage 키는 `miniapp_` 접두사 사용 (예: `miniapp_gemini_key`, `miniapp_stage1_model`, `miniapp_anti_recitation`, `miniapp_chunk_enabled`, `miniapp_chunk_minutes`, `miniapp_loop_active`, `miniapp_playback_rate`). 학습 진행은 예외적으로 접두사 붙은 단일 키 `miniapp_learn_progress`에 `{ [fileKey]: { [stableId]: {status,seconds,miss,ts} } }` 구조로 저장. 캐시(`gemini_analysis_*`)만 접두사 없음.
+- localStorage 키는 `miniapp_` 접두사 사용 (예: `miniapp_gemini_key`, `miniapp_stage1_model`, `miniapp_anti_recitation`, `miniapp_chunk_enabled`, `miniapp_chunk_minutes`, `miniapp_loop_active`, `miniapp_playback_rate`). 캐시(`gemini_analysis_*`)만 접두사 없음.
 - 지원 모델: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite` + **`claude-sonnet-5-5`(2단계 분석 전용)** (목록은 `constants/models.js` 단일 출처, 단계별 목록은 `modelsForStage(stage)` — Claude는 `stages: ['stage2']`). 기본값은 전사·분석·재전사 모두 `gemini-2.5-flash`. 목록에서 뺀 모델(`gemini-2-flash` 서비스 종료, `gemini-3.5-flash`·`gemini-3.6-flash` 실측 탈락)이 저장값에 남아 있거나 **그 단계 목록에 없는 모델(1·3단계에 Claude)**이 저장돼 있으면 `useSettings`의 `validModel(saved, fallback, stage)`이 기본값으로 교체한다 — **기본값 자체가 목록 안에 있어야 이 폴백이 성립한다**(테스트가 단정).
 
 ### Claude API — 2단계 분석에서만 선택 가능 (2026-10-18, 가지 `api`)
