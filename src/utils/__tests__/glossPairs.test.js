@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { splitGlossPairs, splitGlossWords } from '../analysisParser';
 
-// 괄호 안 단어 풀이를 "단어: 뜻 +" 묶음으로 나눈다 — 화면에서 한 쌍이 줄 끝에서 갈라지지 않게 묶고,
+// 괄호 안 단어 풀이를 "단어: 뜻 +" 묶음으로 나눈다 — 화면에서 단어를 하늘색으로,
 // 쌍점·더하기 기호를 흐리게 보여 주려고(2026-11-17).
 const texts = (s) => splitGlossPairs(s).map(u => u.parts.map(p => p.text).join(''));
 const afters = (s) => splitGlossPairs(s).map(u => u.after);

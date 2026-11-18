@@ -114,7 +114,7 @@ const ClozeDrill = ({ item, idx, difficulty, round, onMark, onJump }) => {
             {allRevealed && (
                 <div className="mb-2 space-y-0.5">
                     {drill.parts.filter(p => p.type === 'blank').map((p, i) => {
-                        // 뜻 뒤의 괄호 풀이는 대본 카드와 같은 모양(단어 하늘색·쌍 묶음)으로 보여 준다
+                        // 뜻 뒤의 괄호 풀이는 대본 카드와 같은 모양(단어 하늘색·기호 흐리게)으로 보여 준다
                         const [main, gloss, tail] = splitBreakdown(p.meaning || '');
                         return (
                             <div key={i} className="text-[13px] text-slate-600 dark:text-slate-300">
