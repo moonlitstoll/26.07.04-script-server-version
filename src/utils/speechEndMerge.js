@@ -74,6 +74,46 @@ export function mergeSpeechEnds(current, snapshot, requested, ends, duration = 0
     return { merged, applied, secondsMismatch, grafts };
 }
 
+/**
+ * 다시 전사·복구로 새로 들어온 문장 중 대사 끝을 찾아야 할 인덱스.
+ * 새 문장은 통째로 새 객체라 옛 speechEnd가 없다(같은 시각·같은 글자로 돌아와도 마찬가지).
+ * 이 영상에 감지를 한 번도 안 했으면(before에 값이 없으면) 쓰지도 않을 값에 비용을 들이지 않는다.
+ * fresh는 sanitizeData를 거친 값이어야 after와 seconds·text가 맞는다.
+ * @returns {Array<number>} after의 인덱스
+ */
+export function freshSpeechEndTargets(before, after, fresh) {
+    if (!before.some(d => typeof d.speechEnd === 'number')) return [];
+    const keyOf = (d) => `${d.seconds}|${d.text}`;
+    const keys = new Set(fresh.map(keyOf));
+    const out = [];
+    after.forEach((d, i) => { if (typeof d.speechEnd !== 'number' && keys.has(keyOf(d))) out.push(i); });
+    return out;
+}
+
+/**
+ * 자동 감지 결과를 '지금 대본'의 번호로 옮긴다. 감지하는 사이 다른 문장을 다시 전사하면 문장 수가 바뀌어 번호가 밀리고,
+ * 실행취소하면 다른 문장이 그 자리에 돌아온다 → 시각과 글자가 모두 같은 문장에만 넣는다.
+ * @returns {{requested:Set<number>, ends:Map<number,number>}} 지금 대본 기준 — mergeSpeechEnds(current, current, …)에 넘긴다
+ */
+export function alignSpeechEnds(current, snapshot, requested, ends) {
+    const keyOf = (d) => `${d.seconds}|${d.text}`;
+    const slots = new Map();
+    current.forEach((d, i) => {
+        const k = keyOf(d);
+        if (!slots.has(k)) slots.set(k, []);
+        slots.get(k).push(i);
+    });
+    const outRequested = new Set();
+    const outEnds = new Map();
+    for (const i of [...requested].sort((a, b) => a - b)) {
+        const at = snapshot[i] ? slots.get(keyOf(snapshot[i]))?.shift() : undefined;
+        if (at === undefined) continue;
+        outRequested.add(at);
+        if (ends.has(i)) outEnds.set(at, ends.get(i));
+    }
+    return { requested: outRequested, ends: outEnds };
+}
+
 // ─── 대사 끝 직접 맞추기 (선택 모드 '대사만' → 직접 맞추기) ─────────────────
 // AI가 끝을 못 찾은(판단 불가) 문장이나 틀리게 찾은 문장을 사용자가 ±버튼·미리 듣기로 맞춘다.
 

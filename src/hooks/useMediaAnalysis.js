@@ -10,7 +10,7 @@ import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency, isClaudeModel } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd } from '../utils/speechSegments';
-import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds } from '../utils/speechEndMerge';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds, freshSpeechEndTargets, alignSpeechEnds } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
 import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
@@ -80,6 +80,8 @@ export const useMediaAnalysis = ({
     // Stage 2가 자기 스냅샷으로 상태/캐시를 통째로 덮어쓸 때, 그 사이 감지가 채운 speechEnd가
     // 지워지지 않도록 덮어쓰기 직전에 여기서 이식한다(상태는 지연 갱신이라 ref가 필요).
     const speechEndGraftRef = useRef(new Map());
+    // 다시 전사·복구로 새로 생겨 대사 끝을 찾아야 할 문장: fileId → { seconds:Set, data:그 편집 직후 대본 }
+    const pendingSpeechEndRef = useRef(new Map());
     // 1단계가 구글 파일 저장소에 올린 전체 오디오(utils/audioReuse) — '대사만' 감지가 다시 올리지 않고 재사용
     const stage1AudioRef = useRef(new Map());
     const stage1AbortRef = useRef(null);
@@ -892,11 +894,13 @@ export const useMediaAnalysis = ({
         let replacedCount = 0;
         let failedCount = 0;
         let firstError = null;
+        const allFresh = [];
         for (let k = blocks.length - 1; k >= 0; k--) {
             const b = blocks[k];
             const fresh = perWindow[k]?.sentences;
             if (fresh && fresh.length > 0) {
                 newData.splice(b.lo, b.hi - b.lo + 1, ...fresh); // 새 문장은 isAnalyzed:false 상태
+                allFresh.push(...fresh);
                 replacedCount++;
             } else {
                 failedCount++; // 실패 → 원본 유지
@@ -915,6 +919,7 @@ export const useMediaAnalysis = ({
                 message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
                 type: 'success'
             });
+            queueFreshSpeechEnds(fileId, targetFile, currentData, cleanData, allFresh, duration);
             // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
             runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
         } else {
@@ -1000,10 +1005,13 @@ export const useMediaAnalysis = ({
      */
     // indices: 특정 문장 인덱스만 재감지(선택 재감지 A2). 넘기면 onlyMissing은 무시하고 그 문장들만
     //   — 이미 감지됐어도(부정확·포기) 포함해 새 값으로 덮어쓴다. 오디오는 문장별 클립만 전송(비용 비례).
-    const detectSpeechEndsForFile = async (fileId, { onlyMissing = false, indices = null } = {}) => {
-        if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return false; }
+    // baseData: 방금 고친 대본(filesRef는 화면 반영 뒤에야 바뀐다). silent: 자동 실행 — 결과는 카드 배지로 보이므로
+    //   안내를 띄우지 않는다. 저장 실패 안내만은 그대로 띄운다(안 보이면 결과가 조용히 사라진다).
+    const detectSpeechEndsForFile = async (fileId, { onlyMissing = false, indices = null, baseData = null, silent = false } = {}) => {
+        const toast = (t) => { if (!silent && showToast) showToast(t); };
+        if (isOffline()) { toast({ message: OFFLINE_MESSAGE, type: 'error' }); return false; }
         if (!apiKey) {
-            if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
+            toast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return false;
         }
         if (speechBusyRef.current) return false; // 중복 실행 방지 (ref — 자동 실행 경로의 stale state 회피)
@@ -1015,7 +1023,7 @@ export const useMediaAnalysis = ({
         const base0 = (filesRef?.current || []).find(p => p.id === fileId);
         const targetFile = base0?.file || null;
         const targetUrl = base0?.url || null;
-        const snapshot = base0?.data || null;
+        const snapshot = baseData || base0?.data || null;
         if (!targetFile || !Array.isArray(snapshot) || snapshot.length === 0) {
             console.warn('[SpeechEnd] 대상 파일을 찾지 못해 중단', { fileId, 목록수: (filesRef?.current || []).length });
             return false;
@@ -1027,7 +1035,7 @@ export const useMediaAnalysis = ({
             // 요청할 문장 고르기(선택 재감지 = 형제 포함 / onlyMissing = 미감지·미포기만) — utils/speechEndMerge
             const { sentences, selective } = selectSpeechEndTargets(snapshot, { onlyMissing, indices });
             if (sentences.length === 0) {
-                if (showToast) showToast({ message: selective ? '선택한 문장을 찾지 못했어요.' : '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: selective ? 'error' : 'success' });
+                toast({ message: selective ? '선택한 문장을 찾지 못했어요.' : '더 감지할 문장이 없어요. (남은 문장은 소리로 끝을 판단하기 어려운 구간이에요)', type: selective ? 'error' : 'success' });
                 return !selective;
             }
 
@@ -1050,7 +1058,7 @@ export const useMediaAnalysis = ({
             if (!ends) {
                 const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, 'SpeechEnd');
                 if (!fileForAnalysis) {
-                    if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                    toast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
                     return false;
                 }
                 try { duration = await getMediaDuration(fileForAnalysis); } catch { /* 0이면 상한 클램프 생략 */ }
@@ -1060,6 +1068,12 @@ export const useMediaAnalysis = ({
                 } else {
                     ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
                 }
+            }
+
+            // 자동 실행에서 답이 하나도 없으면(연결 실패 등) '판단 불가'로 표시하지 않고 그대로 둔다 — 배지가 남아 다시 할 수 있다
+            if (silent && ends.size === 0) {
+                console.warn('[SpeechEnd] 자동 감지 응답 없음', { fileId, 요청수: sentences.length });
+                return false;
             }
 
             // 최신 상태에 병합. 채택 조건(환각 방어): 시작+MIN_SPEECH_SEC 이후, MAX_SENTENCE_SEC 이내, 영상 길이 이내.
@@ -1086,7 +1100,13 @@ export const useMediaAnalysis = ({
             const seenIds = (filesRef?.current || []).map(x => x.id);
             if (baseEntry) {
                 // 병합 규칙(요청한 인덱스만 · 시각 일치 검사 · 채택 기준 · 포기 표시)은 utils/speechEndMerge
-                const r = mergeSpeechEnds(baseEntry.data, snapshot, requested, ends, duration);
+                // 자동 감지는 그동안 다른 문장이 고쳐졌을 수 있어 번호 대신 시각·글자로 자리를 찾는다
+                const r = baseData
+                    ? (() => {
+                        const a = alignSpeechEnds(baseEntry.data, snapshot, requested, ends);
+                        return mergeSpeechEnds(baseEntry.data, baseEntry.data, a.requested, a.ends, duration);
+                    })()
+                    : mergeSpeechEnds(baseEntry.data, snapshot, requested, ends, duration);
                 applied = r.applied;
                 secondsMismatch = r.secondsMismatch;
                 // 동기 사본(graft ref)에도 기록 — 진행 중인 Stage 2가 스냅샷으로 덮어써도 이식돼 살아남는다
@@ -1109,7 +1129,7 @@ export const useMediaAnalysis = ({
                     모델응답수: ends.size, 요청수: requested.size,
                     스냅샷문장수: snapshot.length, 시각불일치: secondsMismatch,
                 }));
-                if (showToast) showToast({ message: '대사 구간을 감지하지 못했어요. 잠시 후 다시 시도해 주세요.', type: 'error' });
+                toast({ message: '대사 구간을 감지하지 못했어요. 잠시 후 다시 시도해 주세요.', type: 'error' });
                 return false;
             }
             const status = saveStatusOf(latestData);
@@ -1142,7 +1162,7 @@ export const useMediaAnalysis = ({
             // 판단 불가(끝을 못 찾아 비어 있는) 문장 — 예전엔 안내에 안 보여 '전체 N문장 완료'로만 떴다
             const unresolved = unresolvedSpeechEnds(latestData, duration);
             const unresolvedNote = unresolved.length > 0 ? ` · ${unresolved.length}개는 대사 끝을 못 찾아 그 뒤를 안 건너뜁니다` : '';
-            if (showToast) {
+            if (showToast && !silent) {
                 if (selective) {
                     // 선택 재감지: 고른 문장만 다시 잰 것 — 전체 개수/미감지 배지 문구를 쓰지 않는다.
                     // 판단 불가(SKIP)로 안 바뀐 문장은 '기존값 유지'임을 솔직히 알린다(확인창의 '교체' 약속 보정).
@@ -1178,13 +1198,46 @@ export const useMediaAnalysis = ({
         } catch (e) {
             if (e.name !== 'AbortError') {
                 console.error('[SpeechEnd] 감지 실패:', e);
-                if (showToast) showToast({ message: `대사 구간 감지 실패: ${e.message || e}`, type: 'error' });
+                toast({ message: `대사 구간 감지 실패: ${e.message || e}`, type: 'error' });
             }
             return false;
         } finally {
             speechBusyRef.current = false;
             setSpeechDetectBusy(null);
+            flushFreshSpeechEnds(); // 감지하는 동안 또 고친 문장이 있으면 이어서
         }
+    };
+
+    // 기다리는 새 문장의 대사 끝을 찾는다. 감지는 한 번에 하나라, 도는 중이면 끝날 때 다시 불린다.
+    const flushFreshSpeechEnds = () => {
+        const pending = pendingSpeechEndRef.current;
+        for (const [fileId, job] of pending) {
+            if (speechBusyRef.current) return;
+            pending.delete(fileId);
+            const indices = [];
+            job.data.forEach((d, i) => { if (job.seconds.has(d.seconds) && typeof d.speechEnd !== 'number') indices.push(i); });
+            if (indices.length > 0) detectSpeechEndsForFile(fileId, { indices, baseData: job.data, silent: true });
+        }
+    };
+
+    /**
+     * [다시 전사 뒤 대사 끝 자동 감지] 다시 전사·복구는 문장을 새 객체로 바꿔 대사 끝이 비고, 그러면 '대사만'이 그 뒤를
+     * 못 건너뛴다(휴대폰 실측 2026-11-19: 04:53.00 → 없음). 새 문장만 짧은 구간을 들려 다시 찾는다.
+     * before: 고치기 전 대본 / after: sanitizeData를 거친 고친 뒤 대본 / fresh: 새로 받은 문장.
+     * runStage2보다 먼저 불러야 한다 — 같은 시각의 옛 감지값이 분석 저장 때 새 문장에 다시 붙지 않게 지운다.
+     */
+    const queueFreshSpeechEnds = (fileId, targetFile, before, after, fresh, duration) => {
+        const idxs = freshSpeechEndTargets(before, after, sanitizeData(fresh, duration));
+        if (idxs.length === 0) return;
+        const pending = pendingSpeechEndRef.current;
+        const job = pending.get(fileId) || { seconds: new Set(), data: after };
+        job.data = after;
+        for (const i of idxs) {
+            job.seconds.add(after[i].seconds);
+            speechEndGraftRef.current.delete(`${targetFile.name}_${targetFile.size}|${after[i].seconds}`);
+        }
+        pending.set(fileId, job);
+        flushFreshSpeechEnds();
     };
 
     /**
@@ -1322,6 +1375,7 @@ export const useMediaAnalysis = ({
         if (refreshCacheKeys) refreshCacheKeys();
 
         if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
+        queueFreshSpeechEnds(fileId, targetFile, currentData, cleanData, fresh, duration);
         // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
         runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
     });
@@ -1542,6 +1596,7 @@ export const useMediaAnalysis = ({
             action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, currentData, removed, '구간 재전사를 취소했습니다.') },
             duration: 10000,
         });
+        queueFreshSpeechEnds(fileId, targetFile, currentData, clean, fresh, duration);
         runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     });
 

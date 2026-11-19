@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, initialSpeechEnd, speechEndEditBounds, applyManualSpeechEnd, speechEndSkipInfo, unresolvedSpeechEnds, speechEndMissingSet, defaultSpeechEndMode } from '../speechEndMerge';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, initialSpeechEnd, speechEndEditBounds, applyManualSpeechEnd, speechEndSkipInfo, unresolvedSpeechEnds, speechEndMissingSet, defaultSpeechEndMode, freshSpeechEndTargets, alignSpeechEnds } from '../speechEndMerge';
 import { gapSkipTarget } from '../speechSegments';
 import { sanitizeData } from '../mediaUtils';
 
@@ -210,5 +210,81 @@ describe("'대사 끝' 창의 처음 선택", () => {
     it('못 찾았어도 옛 값이나 같은 시각 형제의 끝이 있으면 AI가 기본', () => {
         expect(defaultSpeechEndMode([S(10, 'a', { speechEndSkipped: true, speechEnd: 12 })], 0)).toBe('ai');
         expect(defaultSpeechEndMode([S(10, 'a', { speechEndSkipped: true }), S(10, 'b', { speechEnd: 12 })], 0)).toBe('ai');
+    });
+});
+
+describe('다시 전사로 새로 생긴 문장 고르기', () => {
+    it('시각만 같거나 글자만 같은 값 없는 문장은 새 문장이 아니다', () => {
+        const before = [S(10, 'a', { speechEnd: 11 }), S(20, 'b'), S(30, 'c')];
+        const after = [S(10, 'a', { speechEnd: 11 }), S(20, 'b'), S(30, 'c'), S(40, '새 문장')];
+        expect(freshSpeechEndTargets(before, after, [S(20, '다른 글자'), S(99, 'c'), S(40, '새 문장')])).toEqual([3]);
+    });
+
+    // 휴대폰 실측(2026-11-19, Circle K): 04:50.5 문장을 다시 전사하자 시작이 290.41로 바뀌고 끝 293이 사라졌다
+    const before = [
+        S(287.2, 'Tôi biết chỉ có anh trên đây', { speechEnd: 290 }),
+        S(290.5, 'Không biết lần cuối hai người gặp cô Nga là khi nào.', { speechEnd: 293 }),
+        S(310.2, 'Thật sự thì mình không biết', { speechEnd: 314.5 }),
+    ];
+    const fresh = [S(290.41, 'Không biết lần cuối hai người gặp cô gái là khi nào.')];
+    const after = [before[0], fresh[0], before[2]];
+
+    it('새 문장만 고른다', () => {
+        expect(freshSpeechEndTargets(before, after, fresh)).toEqual([1]);
+    });
+
+    it('시각·글자가 그대로 돌아와도 끝이 비었으면 고른다', () => {
+        const same = [S(290.5, before[1].text)];
+        expect(freshSpeechEndTargets(before, [before[0], same[0], before[2]], same)).toEqual([1]);
+    });
+
+    it('이 영상에 감지를 한 적이 없으면 고르지 않는다(비용)', () => {
+        const never = before.map(d => S(d.seconds, d.text));
+        expect(freshSpeechEndTargets(never, [never[0], fresh[0], never[2]], fresh)).toEqual([]);
+    });
+
+    it('끝이 이미 있는 문장과 다른 문장의 빈 끝은 건드리지 않는다', () => {
+        const old = S(300, '예전부터 끝이 없던 문장');
+        const b = [...before, old];
+        const a = [before[0], fresh[0], old, before[2]];
+        expect(freshSpeechEndTargets(b, a, [...fresh, S(287.2, before[0].text)])).toEqual([1]);
+    });
+
+    it('시각 문자열로 온 새 문장도 sanitizeData를 거치면 찾는다', () => {
+        const raw = [{ s: '04:50.41', seconds: 0, o: 'Câu mới.', text: 'Câu mới.', isAnalyzed: false }];
+        const clean = sanitizeData([before[0], ...raw, before[2]]);
+        expect(freshSpeechEndTargets(before, clean, sanitizeData(raw))).toEqual([1]);
+    });
+});
+
+describe('자동 감지 결과를 지금 대본 번호로 옮기기', () => {
+    const snapshot = [S(10, 'a'), S(20, 'b'), S(30, 'c')];
+
+    it('앞 문장이 둘로 늘어 번호가 밀려도 같은 문장에 넣는다', () => {
+        const current = [S(10, 'a1'), S(12, 'a2'), S(20, 'b'), S(30, 'c')];
+        const r = alignSpeechEnds(current, snapshot, new Set([1]), new Map([[1, 22.5]]));
+        expect([...r.requested]).toEqual([2]);
+        expect(r.ends.get(2)).toBe(22.5);
+        expect(mergeSpeechEnds(current, current, r.requested, r.ends).merged[2].speechEnd).toBe(22.5);
+    });
+
+    it('실행취소로 시각은 같고 글자가 다른 옛 문장이 돌아오면 넣지 않는다', () => {
+        const current = [S(10, 'a'), S(20, '옛 문장', { speechEnd: 21 }), S(30, 'c')];
+        const r = alignSpeechEnds(current, snapshot, new Set([1]), new Map([[1, 25]]));
+        expect(r.requested.size).toBe(0);
+        expect(mergeSpeechEnds(current, current, r.requested, r.ends).merged[1].speechEnd).toBe(21);
+    });
+
+    it('답이 없는 문장은 요청 목록에만 남아 판단 불가로 처리된다', () => {
+        const r = alignSpeechEnds(snapshot, snapshot, new Set([0, 2]), new Map([[2, 31]]));
+        expect([...r.requested]).toEqual([0, 2]);
+        expect([...r.ends.keys()]).toEqual([2]);
+    });
+
+    it('시각·글자가 같은 문장이 둘이면 순서대로 하나씩 맡는다', () => {
+        const twin = [S(5, '네'), S(5, '네')];
+        const r = alignSpeechEnds(twin, twin, new Set([0, 1]), new Map([[0, 6], [1, 7]]));
+        expect(r.ends.get(0)).toBe(6);
+        expect(r.ends.get(1)).toBe(7);
     });
 });

@@ -1167,7 +1167,7 @@ const App = () => {
                             onRetryAnalysis={handleRetryOne}
                             onCoverageRetry={handleCoverageRetry}
                             onRetranscribe={handleRetranscribeOne}
-                            speechEndMissing={speechEndMissingIdxs.has(idx)}
+                            speechEndMissing={speechDetectBusy !== activeFileId && speechEndMissingIdxs.has(idx)}
                             onSpeechEndFix={handleSpeechEndFix}
                             drillMode={drillMode}
                             difficulty={difficulty}
