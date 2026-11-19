@@ -10,10 +10,11 @@ import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency, isClaudeModel } from '../constants/models';
 import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
 import { validSpeechEnd } from '../utils/speechSegments';
-import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds, freshSpeechEndTargets, alignSpeechEnds } from '../utils/speechEndMerge';
+import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds, freshSpeechEndTargets, alignSpeechEnds, speechEndMissingSet } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
 import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
+import { lineKey, locateLines, replaceLines, revertEdit, restoreSpeechEnds, syncBusyFlags } from '../utils/liveMerge';
 import { isOffline, OFFLINE_MESSAGE } from '../utils/online';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
@@ -21,16 +22,6 @@ import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdop
 const mbText = (bytes) => bytes < 1048576
     ? `${Math.max(1, Math.round(bytes / 1024))}KB`
     : `${(bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1 : 0)}MB`;
-
-// 재전사 로딩 표시(isRetranscribing) 해제 클로저 생성: 지정 파일의 모든 문장에서 플래그 제거.
-const makeClearRetranscribingFlag = (setFiles, fileId) => () => {
-    setFiles(prev => prev.map(p => p.id === fileId
-        ? { ...p, data: p.data.map(d => {
-            if (!d.isRetranscribing) return d;
-            const c = { ...d }; delete c.isRetranscribing; return c;
-        }) }
-        : p));
-};
 
 // 인덱스 범위 [from, to]의 문장 텍스트를 순서대로 수집(빈 문자열 제외). 앞뒤 문맥 문장 추출용.
 const collectTexts = (data, from, to) => {
@@ -85,6 +76,12 @@ export const useMediaAnalysis = ({
     // 1단계가 구글 파일 저장소에 올린 전체 오디오(utils/audioReuse) — '대사만' 감지가 다시 올리지 않고 재사용
     const stage1AudioRef = useRef(new Map());
     const stage1AbortRef = useRef(null);
+    // [다시 전사 줄 세우기] 다시 전사·복구·구간 전사는 한 번에 하나씩 돈다. 예전엔 두 번째를 누르면 첫 번째가 말없이 취소됐다.
+    const retranscribeQueueRef = useRef(Promise.resolve());
+    const retranscribeJobsRef = useRef(new Map()); // 작업 번호 → { fileId, keys:Set<lineKey> } — 아직 안 끝난 작업이 맡은 문장
+    const retranscribeSeqRef = useRef(0);
+    const retranscribeEpochRef = useRef(0); // 도는 작업이 중단되면 올린다 → 기다리던 작업도 시작하지 않는다
+    const stage2ModelRef = useRef(new Map()); // fileId → 마지막으로 돈 분석의 모델(멈췄다가 이을 때 같은 모델로)
     const analysisQueueRef = useRef([]);   // 순차 분석 대기 파일 목록
     const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
     const stage2RunIdRef = useRef(0); // 최신 Stage 2 실행만 진행배너를 정리(옛 실행이 새 배너를 지우지 않게)
@@ -135,6 +132,22 @@ export const useMediaAnalysis = ({
         return null;
     };
 
+    // 지금 대본(최신 사본). 편집·작업 결과는 번호가 아니라 여기서 문장을 다시 찾아 넣는다(utils/liveMerge).
+    const liveEntry = (fileId) => (filesRef?.current || []).find(p => p.id === fileId) || null;
+    // 화면 상태는 다음 그리기 때 바뀌므로, 바로 이어 도는 작업(줄 선 다음 전사 등)이 옛 대본을 읽지 않게 사본도 같이 바꾼다.
+    const commitData = (fileId, data) => {
+        if (filesRef?.current) filesRef.current = filesRef.current.map(p => (p.id === fileId ? { ...p, data } : p));
+        setFiles(prev => prev.map(p => (p.id === fileId ? { ...p, data } : p)));
+    };
+    // 이 파일에서 아직 안 끝난 다시 전사 작업이 맡은 문장들
+    const busyKeysOf = (fileId) => {
+        const keys = new Set();
+        for (const job of retranscribeJobsRef.current.values()) {
+            if (job.fileId === fileId) for (const k of job.keys) keys.add(k);
+        }
+        return keys;
+    };
+
     const persistCache = (fileInfo, data, status) => {
         const res = saveCacheEntry(fileInfo, data, status);
         if (res && res.ok) {
@@ -170,6 +183,7 @@ export const useMediaAnalysis = ({
     const runStage2 = async (fileId, ...rest) => {
         const m = stage2ActiveRef?.current;
         if (m) m.set(fileId, (m.get(fileId) || 0) + 1);
+        stage2ModelRef.current.set(fileId, rest[3]); // rest = [fileInfo, transcript, apiKey, modelId, opts]
         try {
             return await runStage2Inner(fileId, ...rest);
         } finally {
@@ -202,6 +216,10 @@ export const useMediaAnalysis = ({
                     if (typeof se === 'number') data[i] = { ...data[i], speechEnd: se };
                 }
             }
+            // '다시 전사 중' 표시는 이 사본이 아니라 지금 도는 작업 기준으로 맞춘다 — 안 하면 사본을 뜬 뒤에 끝난
+            // 다시 전사의 표시가 묶음마다 되살아나 그 카드를 못 누르게 된다(위 이식과 같이 배열 항목을 바꿔 저장에도 반영)
+            const flagged = syncBusyFlags(data, busyKeysOf(fileId));
+            if (flagged !== data) for (let i = 0; i < data.length; i++) data[i] = flagged[i];
             setFiles(prev => prev.map(f => f.id === fileId ? { ...f, data: [...data] } : f));
         };
 
@@ -760,67 +778,134 @@ export const useMediaAnalysis = ({
         }
     };
 
+    // 다시 전사가 결과 없이 끝났을 때, 시작하며 멈춰 둔 분석을 다시 켠다.
+    // 예전엔 남은 문장이 '분석 중' 표시만 단 채 멈춰 있었다(대본을 다시 열어야 이어짐, 2026-11-19 재현).
+    // 그사이 다른 분석이 새로 시작됐으면(중단 채널이 새것) 건드리지 않는다 — 다시 부르면 도는 요청을 끊어 비용이 두 번 든다.
+    const resumeAnalysis = (fileId, targetFile, model) => {
+        if (!apiKey) return;
+        if (stage2AbortRef.current && !stage2AbortRef.current.signal.aborted) return;
+        const live = liveEntry(fileId)?.data;
+        if (!Array.isArray(live) || !live.some(d => !d.isAnalyzed && !d.analysisFailed)) return;
+        runStage2(fileId, targetFile, live, apiKey, model || stage2Model);
+    };
+
     /**
      * [재전사 계열 공통 뼈대] 문장별 재전사·빈칸 복구·구간 재전사가 똑같이 하던 앞뒤 처리.
-     *  API 키 확인 → 최신 대본 읽기 → 기능별 사전 검사(prepare) → 진행 중인 분석 멈춤 → 대상 문장 '다시 전사 중' 표시
-     *  → Stage 1 중단 채널 교체 → 원본 미디어 확보·길이 계산 → 기능별 본문(work) → 예외 시 표시 해제·안내.
-     * 기능마다 다른 부분(어느 구간을 들을지, 결과를 끼워 넣는 방식, 저장·실행취소·휴지통)은 work가 그대로 맡는다.
-     *  - prepare(currentData): 부작용 전 검사. falsy면 조용히 중단. 반환값은 isTarget·work에 prep으로 전달.
+     *  누를 때: API 키 확인 → 지금 대본 읽기 → 기능별 사전 검사(prepare) → 진행 중인 분석 멈춤 → 대상 문장 '다시 전사 중' 표시 → 줄 서기
+     *  차례가 오면: 대본을 다시 읽고 대상 문장을 시각·글자로 다시 찾음 → Stage 1 중단 채널 교체 → 원본 미디어 확보 → 기능별 본문(work)
+     *  끝날 때: work가 ctx.land(대본)으로 결과를 반영하거나 ctx.fail()로 표시를 지우고 멈춰 둔 분석을 이어 간다.
+     * 한 번에 하나만 돈다. 도는 중에 또 누르면 취소하지 않고 줄을 세운다(둘 다 '다시 전사 중' 표시).
+     *  - picked: 사용자가 고른 문장 번호(누른 시점). 기다리는 사이 번호가 밀려도 다시 찾아 prepare·work에 넘긴다.
+     *  - prepare(currentData, pickedNow): 부작용 전 검사. falsy면 조용히 중단. 반환값은 isTarget·work에 prep으로 전달.
      *  - isTarget(d, i, prep): '다시 전사 중' 표시할 문장
-     *  - work(ctx): 결과 반영. '결과 없음'으로 끝낼 땐 ctx.clearFlag()로 표시를 직접 지운다.
+     *  - work(ctx): 결과는 시작 때 사본(currentData)이 아니라 '지금 대본'(ctx.live())에 넣어야 한다 —
+     *    전사는 20~60초가 걸려 그사이 사용자가 다른 문장을 지우거나 자른다.
      */
-    const runRetranscribeJob = async (fileId, { label, failPrefix, missingToast = null, prepare = () => ({}), isTarget }, work) => {
+    const runRetranscribeJob = (fileId, { label, failPrefix, missingToast = null, picked = [], prepare = () => ({}), isTarget }, work) => {
         if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return; }
         if (!apiKey) {
             if (showToast) showToast({ message: '설정에서 Gemini API 키를 먼저 입력하세요.', type: 'error' });
             return;
         }
         // 최신 사본(filesRef)에서 동기적으로 읽는다 — setFiles 업데이터 안에서 값을 꺼내면 늦게 돌 때 조용히 실패했다
-        const base = (filesRef?.current || []).find(p => p.id === fileId);
+        const base = liveEntry(fileId);
         const targetFile = base?.file || null;
-        const targetUrl = base?.url || null;
-        const currentData = base?.data || null;
-        if (!targetFile || !Array.isArray(currentData) || currentData.length === 0) {
+        const requestData = base?.data || null;
+        if (!targetFile || !Array.isArray(requestData) || requestData.length === 0) {
             console.warn(`[${label}] 대상 파일/데이터 없음`, { fileId });
             if (missingToast && showToast) showToast({ message: missingToast, type: 'error' });
             return;
         }
-        const prep = prepare(currentData);
-        if (!prep) return;
+        const prep0 = prepare(requestData, picked);
+        if (!prep0) return;
 
-        // 진행 중인 Stage 2 중단 (교체 후 기능별로 재개)
+        const jobId = ++retranscribeSeqRef.current;
+        const job = { fileId, keys: new Set(requestData.filter((d, i) => isTarget(d, i, prep0)).map(lineKey)) };
+        retranscribeJobsRef.current.set(jobId, job);
+        const pickedItems = picked.map(i => requestData[i]).filter(Boolean);
+        const epoch = retranscribeEpochRef.current;
+
+        // 진행 중인 분석을 멈춘다(결과를 넣은 뒤 다시 돌린다). 결과 없이 끝나면 같은 모델로 이어 간다.
+        const resumeModel = stage2ActiveRef?.current?.get(fileId) ? stage2ModelRef.current.get(fileId) : null;
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
 
         // 대상 문장에 '다시 전사 중' 표시
-        const clearFlag = makeClearRetranscribingFlag(setFiles, fileId);
-        setFiles(prev => prev.map(p => p.id === fileId
-            ? { ...p, data: p.data.map((d, i) => isTarget(d, i, prep) ? { ...d, isRetranscribing: true } : d) }
-            : p));
+        commitData(fileId, syncBusyFlags(requestData, busyKeysOf(fileId)));
 
-        // 재전사도 Stage 1 계열 → 같은 abort 채널 사용 (파일 전환 시 함께 취소됨)
-        if (stage1AbortRef.current) stage1AbortRef.current.abort();
-        stage1AbortRef.current = new AbortController();
-        const { signal } = stage1AbortRef.current;
+        // 이 작업의 표시만 지운다. 아직 안 끝난 다른 작업의 문장은 그대로 둔다.
+        const clearFlag = () => {
+            retranscribeJobsRef.current.delete(jobId);
+            const cur = liveEntry(fileId)?.data;
+            if (!Array.isArray(cur)) return;
+            const next = syncBusyFlags(cur, busyKeysOf(fileId));
+            if (next !== cur) commitData(fileId, next);
+        };
+        const fail = () => { clearFlag(); resumeAnalysis(fileId, targetFile, resumeModel); };
+        // 결과 반영: 정리(sanitizeData)한 대본을 화면·사본에 넣고 돌려준다. 다른 작업의 '다시 전사 중' 표시는 남긴다.
+        const landWith = (duration) => (rawData) => {
+            retranscribeJobsRef.current.delete(jobId);
+            const clean = syncBusyFlags(sanitizeData(rawData, duration), busyKeysOf(fileId));
+            commitData(fileId, clean);
+            return clean;
+        };
 
-        try {
-            // 온디맨드/클라우드 파일 + 캐시 복원 자리표시자 대응 (3단 폴백) — 예전엔 자리표시자를 그대로 넘겨
-            // createObjectURL이 터지고 복구가 조용히 실패했다
-            const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, label);
-            if (!fileForAnalysis) {
-                clearFlag();
-                if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+        const execute = async () => {
+            // 앞 작업이 중단됐으면(다른 영상의 전사가 시작됨 등) 기다리던 작업도 시작하지 않는다 — 시작하면 그 전사를 끊는다
+            if (epoch !== retranscribeEpochRef.current) {
+                fail();
+                if (showToast) showToast({ message: '앞선 전사가 중단돼 기다리던 다시 전사도 취소했어요. 다시 눌러 주세요.', type: 'error' });
                 return;
             }
-            let duration = 0;
-            try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
+            const entry = liveEntry(fileId);
+            const currentData = entry?.data;
+            if (!entry || !Array.isArray(currentData) || currentData.length === 0) { retranscribeJobsRef.current.delete(jobId); return; }
+            // 기다리는 사이 앞 작업이 문장 수를 바꿨을 수 있다 → 고른 문장을 시각·글자로 다시 찾는다
+            const pickedNow = locateLines(currentData, pickedItems);
+            const prep = pickedItems.length > 0 && pickedNow.length === 0 ? null : prepare(currentData, pickedNow);
+            if (!prep) {
+                fail();
+                if (showToast) showToast({ message: '고치려던 문장이 그사이 바뀌어 다시 전사를 건너뛰었어요.', type: 'error' });
+                return;
+            }
+            const targetUrl = entry.url || null;
 
-            await work({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag, prep });
-        } catch (err) {
-            clearFlag();
-            if (err.name === 'AbortError') return;
-            console.error(`[${label}] 실패`, err);
-            if (showToast) showToast({ message: `${failPrefix}: ` + err.message, type: 'error' });
-        }
+            // 재전사도 Stage 1 계열 → 같은 abort 채널 사용 (새 영상 전사가 시작되면 함께 취소됨)
+            if (stage1AbortRef.current) stage1AbortRef.current.abort();
+            stage1AbortRef.current = new AbortController();
+            const { signal } = stage1AbortRef.current;
+
+            try {
+                // 온디맨드/클라우드 파일 + 캐시 복원 자리표시자 대응 (3단 폴백) — 예전엔 자리표시자를 그대로 넘겨
+                // createObjectURL이 터지고 복구가 조용히 실패했다
+                const fileForAnalysis = await resolveRealFile(targetFile, targetUrl, label);
+                if (!fileForAnalysis) {
+                    fail();
+                    if (showToast) showToast({ message: '원본 미디어를 읽을 수 없어요. 하단의 "연결하기"로 원본 파일을 연결한 뒤 다시 시도해 주세요.', type: 'error' });
+                    return;
+                }
+                let duration = 0;
+                try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn('duration 계산 실패:', e); }
+
+                await work({
+                    targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, prep, fail,
+                    live: () => liveEntry(fileId)?.data || currentData, // 대본이 닫혔으면 시작 때 사본(예전과 같은 동작)
+                    land: landWith(duration),
+                });
+            } catch (err) {
+                const aborted = err.name === 'AbortError';
+                if (aborted) retranscribeEpochRef.current++;
+                fail();
+                if (aborted) {
+                    if (showToast) showToast({ message: '다시 전사가 중단됐어요. 다시 눌러 주세요.', type: 'error' });
+                    return;
+                }
+                console.error(`[${label}] 실패`, err);
+                if (showToast) showToast({ message: `${failPrefix}: ` + err.message, type: 'error' });
+            }
+        };
+        const turn = retranscribeQueueRef.current.then(execute);
+        retranscribeQueueRef.current = turn.catch(() => {});
+        return turn;
     };
 
     /**
@@ -832,14 +917,15 @@ export const useMediaAnalysis = ({
     const retranscribeSentences = (fileId, indices) => runRetranscribeJob(fileId, {
         label: 'Retranscribe',
         failPrefix: '재전사 실패',
-        prepare: (currentData) => {
-            const sortedIdx = [...new Set(indices || [])]
+        picked: [...(indices || [])],
+        prepare: (currentData, pickedNow) => {
+            const sortedIdx = [...new Set(pickedNow || [])]
                 .filter(i => i >= 0 && i < currentData.length)
                 .sort((a, b) => a - b);
             return sortedIdx.length ? { sortedIdx } : null;
         },
         isTarget: (d, i, { sortedIdx }) => sortedIdx.includes(i),
-    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag, prep: { sortedIdx } }) => {
+    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, fail, live, land, prep: { sortedIdx } }) => {
         // 선택 문장을 '블록'(동일 시각으로 뭉친 연속 구간) 단위로 정규화.
         // 블록 시각 공유로 여러 문장이 같은 seconds를 가지면, 한 개만 교체 시 형제 문장이
         // 남아 중복이 생기므로 그 블록 전체를 통째로 교체한다. (보통은 lo===hi인 단일 문장)
@@ -889,46 +975,52 @@ export const useMediaAnalysis = ({
             concurrency: 3,                  // 유니온 추출 성공 시에만 병렬(실패 시 자동 순차)
         });
 
-        // 뒤 블록부터 splice 교체 (앞 인덱스 밀림 방지)
-        const newData = currentData.slice();
-        let replacedCount = 0;
+        // 결과는 '지금 대본'에 넣는다 — 전사하는 동안 지운 문장·맞춘 대사 끝을 되돌리지 않는다(utils/liveMerge)
         let failedCount = 0;
         let firstError = null;
-        const allFresh = [];
-        for (let k = blocks.length - 1; k >= 0; k--) {
-            const b = blocks[k];
+        const mergeBlocks = [];
+        blocks.forEach((b, k) => {
             const fresh = perWindow[k]?.sentences;
             if (fresh && fresh.length > 0) {
-                newData.splice(b.lo, b.hi - b.lo + 1, ...fresh); // 새 문장은 isAnalyzed:false 상태
-                allFresh.push(...fresh);
-                replacedCount++;
+                mergeBlocks.push({ old: currentData.slice(b.lo, b.hi + 1), fresh }); // 새 문장은 isAnalyzed:false 상태
             } else {
                 failedCount++; // 실패 → 원본 유지
                 if (!firstError && perWindow[k]?.error) firstError = perWindow[k].error;
             }
-        }
-
-        const cleanData = sanitizeData(newData, duration);
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
-
-        persistCache(targetFile, cleanData, saveStatusOf(cleanData));
-        if (refreshCacheKeys) refreshCacheKeys();
-
-        if (replacedCount > 0) {
-            if (showToast) showToast({
-                message: `${replacedCount}개 구간 재전사 완료${failedCount ? `, ${failedCount}개는 실패로 원본 유지` : ''}. 분석 진행 중...`,
-                type: 'success'
-            });
-            queueFreshSpeechEnds(fileId, targetFile, currentData, cleanData, allFresh, duration);
-            // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
-            runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
-        } else {
-            clearFlag();
+        });
+        if (mergeBlocks.length === 0) {
+            fail();
             if (showToast) showToast({
                 message: `재전사 실패: ${firstError || '결과 없음'}`,
                 type: 'error'
             });
+            return;
         }
+        const before = live();
+        const { data: newData, placed, skipped } = replaceLines(before, mergeBlocks);
+        if (placed.length === 0) {
+            // 전사하는 사이 사용자가 그 문장을 지우거나 잘랐다 — 손본 쪽을 남긴다
+            fail();
+            if (showToast) showToast({ message: '그 문장을 그사이 직접 고쳐서 다시 전사 결과는 넣지 않았어요.', type: 'error', duration: 6000 });
+            return;
+        }
+        const cleanData = land(newData);
+
+        persistCache(targetFile, cleanData, saveStatusOf(cleanData));
+        if (refreshCacheKeys) refreshCacheKeys();
+
+        const replacedCount = mergeBlocks.length - skipped;
+        const notes = [
+            failedCount ? `${failedCount}개는 실패로 원본 유지` : '',
+            skipped ? `${skipped}개는 그사이 직접 고쳐서 건너뜀` : '',
+        ].filter(Boolean).join(', ');
+        if (showToast) showToast({
+            message: `${replacedCount}개 구간 재전사 완료${notes ? `, ${notes}` : ''}. 분석 진행 중...`,
+            type: 'success'
+        });
+        queueFreshSpeechEnds(fileId, targetFile, before, cleanData, placed, duration);
+        // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
+        runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
     });
 
     /**
@@ -1254,16 +1346,18 @@ export const useMediaAnalysis = ({
         failPrefix: '구간 복구 실패',
         // 여기서 조용히 return 하면 '복구 버튼이 먹통'이 된다
         missingToast: '대상 대본을 찾지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
-        prepare: (currentData) => {
-            if (anchorIndex === null || anchorIndex === undefined || anchorIndex < 0 || anchorIndex >= currentData.length) return null;
-            return { anchorSec: currentData[anchorIndex].seconds };
+        picked: [anchorIndex],
+        // at = 앵커의 지금 번호(차례를 기다리는 사이 밀렸으면 다시 찾은 값)
+        prepare: (currentData, [at]) => {
+            if (at === null || at === undefined || at < 0 || at >= currentData.length) return null;
+            return { anchorSec: currentData[at].seconds, at };
         },
         // 로딩 표시: 앵커와 같은 시각(블록) 문장에 스피너
         isTarget: (d, i, { anchorSec }) => d.seconds === anchorSec,
-    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag, prep: { anchorSec } }) => {
+    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, fail, live, land, prep: { anchorSec, at } }) => {
         // 앵커 블록(동일 시각) 경계
-        let lo = anchorIndex; while (lo > 0 && currentData[lo - 1].seconds === anchorSec) lo--;
-        let hi = anchorIndex; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
+        let lo = at; while (lo > 0 && currentData[lo - 1].seconds === anchorSec) lo--;
+        let hi = at; while (hi < currentData.length - 1 && currentData[hi + 1].seconds === anchorSec) hi++;
         const sBlockText = currentData.slice(lo, hi + 1).map(d => d.text || '').join(' ');
 
         // 앞/뒤 이웃(살아있는 문장) 탐색
@@ -1296,7 +1390,7 @@ export const useMediaAnalysis = ({
         }
 
         if (winEnd - winStart < 0.5) {
-            clearFlag();
+            fail();
             if (showToast) showToast({ message: '복구할 구간이 없습니다.', type: 'error' });
             return;
         }
@@ -1358,7 +1452,7 @@ export const useMediaAnalysis = ({
         const merged = perWindow.flatMap(r => r?.sentences || []);
         const fresh = deduplicateOverlap(merged);
         if (!fresh || fresh.length === 0) {
-            clearFlag();
+            fail();
             const firstErr = perWindow.find(r => r?.error)?.error;
             if (showToast) showToast({
                 message: `복구할 내용이 없습니다 (${firstErr || '전사된 내용 없음'}).`,
@@ -1367,15 +1461,15 @@ export const useMediaAnalysis = ({
             return;
         }
 
-        // 기존 문장은 그대로 유지하고, 복구된(실측 시각) 문장만 삽입 → 정렬
-        const cleanData = sanitizeData([...currentData, ...fresh], duration);
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: cleanData } : p));
+        // 기존 문장은 그대로 유지하고, 복구된(실측 시각) 문장만 삽입 → 정렬. '지금 대본'에 넣는다(그사이 한 편집 유지)
+        const before = live();
+        const cleanData = land([...before, ...fresh]);
 
         persistCache(targetFile, cleanData, saveStatusOf(cleanData));
         if (refreshCacheKeys) refreshCacheKeys();
 
         if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
-        queueFreshSpeechEnds(fileId, targetFile, currentData, cleanData, fresh, duration);
+        queueFreshSpeechEnds(fileId, targetFile, before, cleanData, fresh, duration);
         // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
         runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
     });
@@ -1400,7 +1494,7 @@ export const useMediaAnalysis = ({
         // 안 멈추면 지운 문장이 다음 묶음이 끝날 때 되살아나 저장까지 된다. 남은 미분석 문장은 아래에서 이어서 분석.
         const wasAnalyzing = !!stage2ActiveRef?.current?.get(fileId);
         if (wasAnalyzing && stage2AbortRef.current) stage2AbortRef.current.abort();
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: newData } : p));
+        commitData(fileId, newData);
 
         // 휴지통에 보관 (10초 실행취소가 지나도 나중에 복구 가능)
         if (targetFile.name) {
@@ -1412,7 +1506,7 @@ export const useMediaAnalysis = ({
         if (showToast) showToast({
             message: `${idxSet.size}개 문장 삭제됨`,
             type: 'success',
-            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, deletedItems, '삭제를 취소했습니다.') },
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, { removed: deletedItems, before: prevData }, deletedItems, '삭제를 취소했습니다.') },
             duration: 10000, // 되돌릴 시간 여유
         });
         if (wasAnalyzing && apiKey && newData.some(d => !d.isAnalyzed && !d.analysisFailed)) {
@@ -1436,8 +1530,8 @@ export const useMediaAnalysis = ({
         const existing = new Set(curData.map(sentenceKey));
         const toAdd = items.filter(it => !existing.has(sentenceKey(it)));
         const merged = [...curData, ...toAdd];
-        const clean = sanitizeData(merged, 0); // 시각 기준 재정렬 → 원위치 복원
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: clean } : p));
+        const clean = syncBusyFlags(sanitizeData(merged, 0), busyKeysOf(fileId)); // 시각 기준 재정렬 → 원위치 복원
+        commitData(fileId, clean);
 
         const status = saveStatusOf(clean);
         persistCache(targetFile, clean, status);
@@ -1461,19 +1555,30 @@ export const useMediaAnalysis = ({
         cloudSaveMeta(targetFile, data, status, null, 0).catch(e => console.warn('[Cloud] 반영 실패:', e));
     };
 
-    // 편집 실행취소: 진행 중인 재분석을 멈추고 편집 전 데이터로 되돌린 뒤, 휴지통에 넣은 것도 뺀다.
-    // (재분석을 먼저 멈추지 않으면 끝난 배치가 되돌린 데이터를 자기 스냅샷으로 다시 덮어쓴다)
-    const makeEditUndo = (fileId, targetFile, prevData, trashed, message) => () => {
+    // 편집 실행취소: 그 편집만 되돌린다(utils/liveMerge). change = { removed, added, before } 또는 { ends }(대사 끝 맞추기).
+    // 예전엔 편집 전 대본 사본으로 통째로 되돌려서, 편집과 실행취소 사이에 끝난 다시 전사 결과가 같이 사라지고
+    // 사본에 찍혀 있던 '다시 전사 중' 표시가 되살아나 그 카드를 못 누르게 됐다.
+    // (재분석은 먼저 멈춘다 — 안 멈추면 끝난 배치가 되돌린 대본을 자기 스냅샷으로 다시 덮어쓴다)
+    const makeEditUndo = (fileId, targetFile, change, trashed, message) => () => {
+        const live = liveEntry(fileId)?.data;
+        if (!Array.isArray(live)) {
+            if (showToast) showToast({ message: '대본이 닫혀 있어 되돌리지 못했어요.', type: 'error' });
+            return;
+        }
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: prevData } : p));
-        persistEdit(targetFile, prevData);
+        const data = change.ends ? restoreSpeechEnds(live, change.ends) : revertEdit(live, change);
+        // 되돌려 없어진 문장의 대사 끝은 찾지 않는다(기다리던 자동 감지에서 뺀다)
+        const pend = pendingSpeechEndRef.current.get(fileId);
+        if (pend) for (const a of change.added || []) pend.seconds.delete(a.seconds);
+        commitData(fileId, data);
+        persistEdit(targetFile, data);
         if (targetFile.name && trashed.length) {
             removeFromTrash(targetFile.name, targetFile.size, trashed);
             if (onTrashChange) onTrashChange();
         }
         if (showToast) showToast({ message, type: 'success' });
         // 멈춘 재분석에 다른 문장(편집과 무관한 미분석분)이 있었으면 이어서
-        if (apiKey && prevData.some(d => !d.isAnalyzed && !d.analysisFailed)) runStage2(fileId, targetFile, prevData, apiKey, stage2Model);
+        if (apiKey && data.some(d => !d.isAnalyzed && !d.analysisFailed)) runStage2(fileId, targetFile, data, apiKey, stage2Model);
     };
 
     /**
@@ -1501,9 +1606,12 @@ export const useMediaAnalysis = ({
                 if (typeof d.speechEnd !== 'number') graft.delete(`${targetFile.name}_${targetFile.size}|${d.seconds}`);
             }
         }
-        const clean = sanitizeData(result.data, 0);
+        const clean = syncBusyFlags(sanitizeData(result.data, 0), busyKeysOf(fileId));
         if (stage2AbortRef.current) stage2AbortRef.current.abort();
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: clean } : p));
+        commitData(fileId, clean);
+        // 자른 조각(정리된 대본 기준 — 시각이 소수 둘째 자리로 맞춰진다)
+        const pieceKeys = new Set(sanitizeData(result.changed.map(i => result.data[i]), 0).map(lineKey));
+        const pieces = clean.filter(d => pieceKeys.has(lineKey(d)));
         if (targetFile.name && result.trashed.length) {
             addToTrash(targetFile.name, targetFile.size, result.trashed);
             if (onTrashChange) onTrashChange();
@@ -1514,9 +1622,14 @@ export const useMediaAnalysis = ({
         if (showToast) showToast({
             message: `${label}. 다시 분석 중...`,
             type: 'success',
-            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, result.trashed, '자르기를 취소했습니다.') },
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, { removed: [prevData[idx]], added: pieces, before: prevData }, result.trashed, '자르기를 취소했습니다.') },
             duration: 10000,
         });
+        // 끝이 잘려 대사 끝이 빈 조각은 다시 찾는다. 예전엔 비운 채로 둬서 '대사만'이 그 뒤를 못 건너뛰었다(2026-11-19 재현).
+        // 건너뛸 자리일 때만('대사 끝 없음' 배지가 붙는 문장과 같은 기준) — 바로 다음 문장이 이어지면 찾아도 쓸 데가 없다.
+        const missing = speechEndMissingSet(clean, 0);
+        const needEnd = clean.filter((d, i) => missing.has(i) && pieceKeys.has(lineKey(d)));
+        if (needEnd.length > 0) queueFreshSpeechEnds(fileId, targetFile, prevData, clean, needEnd, 0);
         if (apiKey) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     };
 
@@ -1529,17 +1642,17 @@ export const useMediaAnalysis = ({
         const targetFile = base?.file || null;
         const prevData = base?.data || null;
         if (!targetFile || !Array.isArray(prevData) || !prevData[idx] || !Number.isFinite(se)) return;
-        const { data: next } = applyManualSpeechEnd(prevData, idx, se);
+        const { data: next, changed } = applyManualSpeechEnd(prevData, idx, se);
         // 분석이 도는 중이면 멈췄다가 이어서 돌린다 — 분석은 시작 때 사본으로 통째로 덮어쓰고, 이식(speechEndGraftRef)은
         // '끝 시각이 빈 문장'만 채우므로 옛 감지값이 있던 문장은 맞춘 값이 다음 묶음 때 옛 값으로 되돌아간다.
         const wasAnalyzing = !!stage2ActiveRef?.current?.get(fileId);
         if (wasAnalyzing && stage2AbortRef.current) stage2AbortRef.current.abort();
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: next } : p));
+        commitData(fileId, next);
         persistEdit(targetFile, next);
         if (showToast) showToast({
             message: `대사 끝을 ${formatStamp(se)}로 맞췄어요.`,
             type: 'success',
-            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, prevData, [], '대사 끝 맞추기를 취소했습니다.') },
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, { ends: changed.map(i => prevData[i]) }, [], '대사 끝 맞추기를 취소했습니다.') },
             duration: 10000,
         });
         if (wasAnalyzing && apiKey && next.some(d => !d.isAnalyzed && !d.analysisFailed)) {
@@ -1557,7 +1670,7 @@ export const useMediaAnalysis = ({
         failPrefix: '구간 재전사 실패',
         prepare: (currentData) => (end > start ? { replacedIdx: new Set(indicesInRange(currentData, start, end)) } : null),
         isTarget: (d, i, { replacedIdx }) => replacedIdx.has(i),
-    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, clearFlag }) => {
+    }, async ({ targetFile, targetUrl, currentData, fileForAnalysis, duration, signal, fail, live, land }) => {
         const { prev, next } = rangeNeighbors(currentData, start, end);
         const prevText = prev >= 0 ? (currentData[prev].text || '') : '';
         const nextText = next >= 0 ? (currentData[next].text || '') : '';
@@ -1577,14 +1690,15 @@ export const useMediaAnalysis = ({
 
         const fresh = perWindow?.sentences;
         if (!fresh || fresh.length === 0) {
-            clearFlag();
+            fail();
             if (showToast) showToast({ message: `구간 재전사 실패 — 원래 문장을 그대로 뒀어요. (${perWindow?.error || '결과 없음'})`, type: 'error', duration: 8000 });
             return;
         }
 
-        const { data: merged, removed } = replaceRange(currentData, start, end, fresh);
-        const clean = sanitizeData(merged, duration);
-        setFiles(prev2 => prev2.map(p => p.id === fileId ? { ...p, data: clean } : p));
+        // '지금 대본'의 그 구간을 바꾼다(전사하는 동안 구간 밖에서 한 편집 유지)
+        const before = live();
+        const { data: merged, removed } = replaceRange(before, start, end, fresh);
+        const clean = land(merged);
         if (targetFile.name && removed.length) {
             addToTrash(targetFile.name, targetFile.size, removed);
             if (onTrashChange) onTrashChange();
@@ -1593,10 +1707,10 @@ export const useMediaAnalysis = ({
         if (showToast) showToast({
             message: `구간 재전사 완료: ${removed.length}개 → ${fresh.length}개 문장. 분석 진행 중...`,
             type: 'success',
-            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, currentData, removed, '구간 재전사를 취소했습니다.') },
+            action: { label: '실행취소', onClick: makeEditUndo(fileId, targetFile, { removed, added: sanitizeData(fresh, duration), before }, removed, '구간 재전사를 취소했습니다.') },
             duration: 10000,
         });
-        queueFreshSpeechEnds(fileId, targetFile, currentData, clean, fresh, duration);
+        queueFreshSpeechEnds(fileId, targetFile, before, clean, fresh, duration);
         runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     });
 
