@@ -107,6 +107,11 @@ const TranscriptItem = memo(({
     }
     const breakdownOpen = showBreakdown !== flipped;
 
+    // 문장을 고르는 중에는 재생 문장을 따라 화면을 옮기지 않는다 — 고르려던 문장이 손 밑에서 달아난다(2026-11-19 점검, 화면 재현).
+    // 직접 옮긴 것(◀▶·'그 문장 보기')만 따라간다. ref로 읽는 이유: deps에 넣으면 고르기를 켜고 끌 때마다 화면이 재생 문장으로 튄다.
+    const selectModeRef = useRef(selectMode);
+    useLayoutEffect(() => { selectModeRef.current = selectMode; }, [selectMode]);
+
     // 1. Focus Lock: Conditional Anchoring
     const prevActiveRef = useRef(isActive);
     const prevNonceRef = useRef(manualScrollNonce);
@@ -120,7 +125,12 @@ const TranscriptItem = memo(({
 
         const isAutoAdvancing = isActive && !isGlobalLooping;
 
-        const shouldScroll = isActive && (becameActive || isManualJump || isAutoAdvancing);
+        // manualScrollNonce는 '활성 문장'에만 내려오므로 저절로 넘어온 문장도 값이 바뀐 것으로 보인다 →
+        // 고르는 중에는 방금(1.5초 안) 누른 이동인지까지 본다. nonce 값이 누른 시각이다.
+        const recentJump = isManualJump && Date.now() - manualScrollNonce < 1500;
+        const shouldScroll = isActive && (selectModeRef.current
+            ? recentJump
+            : (becameActive || isManualJump || isAutoAdvancing));
 
         if (shouldScroll && itemRef.current) {
             itemRef.current.scrollIntoView({
@@ -132,7 +142,7 @@ const TranscriptItem = memo(({
 
     // 2. Resize Stabilization
     useLayoutEffect(() => {
-        if (isActive && itemRef.current) {
+        if (isActive && itemRef.current && !selectModeRef.current) {
             itemRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
         }
     }, [showAnalysis, showBreakdown, flipped, isActive]);
@@ -266,10 +276,11 @@ const TranscriptItem = memo(({
                 <div className="flex flex-wrap items-center justify-between gap-1.5 mb-0.5">
                     <div className="flex flex-wrap items-center gap-1.5">
                         <button
-                            // 묶음 반복 중엔 seekTo가 아니라 jumpToSentence로 간다.
-                            // seekTo는 반복 기준(앵커)을 안 옮기므로, 다른 묶음의 ▶를 누르면
-                            // 옛 묶음이 계속 반복되거나 누르자마자 묶음 처음으로 되감긴다.
-                            onClick={() => (groupLoopOn ? jumpToSentence(idx) : seekTo(item.seconds))}
+                            // 반복 중엔(한 문장·묶음 모두) seekTo가 아니라 jumpToSentence로 간다.
+                            // seekTo는 반복 기준(앵커)을 안 옮기므로, 다른 문장의 ▶를 누르면
+                            // 옛 구간이 계속 반복되거나 누르자마자 그 처음으로 되감긴다.
+                            // 한 문장 반복도 같았다 — 이웃(2초 안) 문장의 ▶는 0.25초 나오다 되감겼다(2026-11-19 점검, 화면 재현).
+                            onClick={() => ((groupLoopOn || isGlobalLooping) ? jumpToSentence(idx) : seekTo(item.seconds))}
                             className={`
                   ${HIT_TS} flex items-center gap-1 px-1.5 py-0 leading-4 rounded-full text-[11px] font-bold font-mono tracking-wide transition-all
                   ${isActive ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-200 border border-purple-200 dark:border-purple-800' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}

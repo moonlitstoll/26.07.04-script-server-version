@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { makeRemap } from '../utils/lineAnchors';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
 import { clampRate } from '../utils/playbackRates';
 import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, wrapSkipTarget, introSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
@@ -192,6 +193,38 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         return 0;
     }, []);
 
+    // [번호 따라가기] 반복 기준(앵커)과 강조 표시는 '몇 번째 문장'으로 기억한다. 그사이 문장 수가 바뀌면
+    // (앞 문장 삭제·실행취소·다시 전사) 같은 번호가 옆 문장을 가리켜 반복이 말없이 옆 문장으로 넘어갔다
+    // (2026-11-19 점검, 화면 재현). 대본이 바뀌면 같은 문장의 새 번호로 옮긴다(utils/lineAnchors).
+    // 아래 싱크 엔진(useEffect)보다 먼저 돌도록 layout effect.
+    const anchorBaseRef = useRef({ id: null, data: null });
+    const moveActive = useCallback((i) => {
+        activeIdxRef.current = i;
+        setActiveSentenceIdx(i);
+    }, []);
+    useLayoutEffect(() => {
+        const id = activeFile?.id ?? null;
+        const data = activeFile?.data ?? null;
+        const base = anchorBaseRef.current;
+        anchorBaseRef.current = { id, data };
+        if (base.id !== id || base.data === data || !Array.isArray(base.data) || !Array.isArray(data)) return;
+        const remap = makeRemap(base.data, data);
+        const target = loopTargetIdxRef.current;
+        if (typeof target === 'number' && target >= 0) {
+            const j = remap(target);   // 그 문장이 없어졌으면 null → 엔진이 지금 재생 위치로 다시 잡는다
+            if (j !== target) setAnchor(j);
+        }
+        const cur = activeIdxRef.current;
+        if (cur >= 0) {
+            let j = remap(cur);
+            if (j === null) {
+                const v = videoRef.current;
+                j = data.length === 0 ? -1 : (v ? findActiveIndex(v.currentTime, data) : Math.min(cur, data.length - 1));
+            }
+            if (j !== cur) moveActive(j);
+        }
+    }, [activeFile, setAnchor, findActiveIndex, moveActive]);
+
     // High-Resolution Sync Engine (Absolute Tracking)
     // videoNode는 deps에만 두어 '비디오 마운트 시 재실행' 트리거로 쓰고, 실제 요소는 ref로 읽는다.
     useEffect(() => {
@@ -273,7 +306,8 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                                 return;
                             }
 
-                            if (v.currentTime >= end - 0.1 || v.ended) {
+                            // 멈춰 있을 땐 되감지 않는다(아래 한 문장 반복과 같은 이유)
+                            if ((v.currentTime >= end - 0.1 && !v.paused) || v.ended) {
                                 lastActionTimeRef.current = Date.now();
                                 setIsPlaying(true);
                                 v.currentTime = start;
@@ -344,7 +378,10 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                     }
 
                     // 1. 루프 범위 체크 및 되돌리기
-                    if (v.currentTime >= end - 0.1 || v.ended) {
+                    // 멈춰 있을 땐 되감지 않는다 — 이 함수는 timeupdate에도 물려 있어, 되감기 직전(끝 0.1초 전~)에 누른
+                    // 일시정지가 바로 되감기+재생으로 덮여 무시됐다(2026-11-21 휴대폰 확인 중 발견, PC 재현).
+                    // 다시 틀면 그때 되감는다. 영상 끝(ended)은 멈춘 상태로 오므로 따로 본다.
+                    if ((v.currentTime >= end - 0.1 && !v.paused) || v.ended) {
                         // [4차 수정] 루프 재시작 시에도 버퍼 시간 보호
                         lastActionTimeRef.current = Date.now();
                         setIsPlaying(true);
@@ -425,8 +462,11 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                 pulseId = null;
             }
         };
-        const handlePlay = () => { runSync(); managePulse(); };
-        const handlePause = () => { managePulse(); };
+        // 재생 버튼 모양은 실제 재생 상태를 따라간다. 예전엔 앱이 누른 것만 반영해서, 앱 밖에서 멈추면
+        // (이어폰 뽑기·알림창 버튼·전화·다른 앱 소리) 버튼이 '일시정지' 모양 그대로였다(2026-11-19 점검, 화면 재현).
+        // 이벤트가 온 순간의 실제 상태(v.paused)를 본다 — 반복 되감기처럼 멈춤 직후 바로 다시 틀면 늦게 온 pause는 무시된다.
+        const handlePlay = () => { if (!v.paused) setIsPlaying(true); runSync(); managePulse(); };
+        const handlePause = () => { if (v.paused) setIsPlaying(false); managePulse(); };
         const handleLoadedMetadata = () => { setDuration(v.duration); };
 
         // 1. Event Listeners (Optimized)

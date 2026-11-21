@@ -9,7 +9,7 @@ import { touchRecent } from '../utils/recentOpen';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
 import { materializeFile } from '../utils/materializeFile';
 import { getStage2Concurrency, isClaudeModel } from '../constants/models';
-import { addToTrash, removeFromTrash, sentenceKey } from '../utils/trashUtils';
+import { addToTrash, removeFromTrash, sentenceKey, getTrash, withTieHints, mergeRestored } from '../utils/trashUtils';
 import { validSpeechEnd } from '../utils/speechSegments';
 import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpeechEnd, unresolvedSpeechEnds, freshSpeechEndTargets, alignSpeechEnds, speechEndMissingSet } from '../utils/speechEndMerge';
 import { incompleteNotice } from '../services/stage1Resume';
@@ -17,6 +17,7 @@ import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
 import { lineKey, locateLines, replaceLines, revertEdit, restoreSpeechEnds, syncBusyFlags, mergeAnalysis, restorePrev, settlePrev } from '../utils/liveMerge';
 import { isOffline, OFFLINE_MESSAGE } from '../utils/online';
+import { pickLineModels, batchesByModel, stampCarry, usableCarry } from '../utils/lineModels';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
 // 저장 안내의 용량 글자. 예전 toFixed(0)은 1MB 미만이 "(0MB)"로 나와 고장처럼 읽혔다.
@@ -77,12 +78,23 @@ export const useMediaAnalysis = ({
     // 1단계가 구글 파일 저장소에 올린 전체 오디오(utils/audioReuse) — '대사만' 감지가 다시 올리지 않고 재사용
     const stage1AudioRef = useRef(new Map());
     const stage1AbortRef = useRef(null);
+    // 중단 채널(stage1AbortRef)은 하나뿐이다. 지금 그 채널을 쥔 '첫 전사'의 fileId(다시 전사가 쥐고 있으면 null) —
+    // '전사 중단'이 다른 파일의 전사를 끊지 않게 한다.
+    const stage1OwnerRef = useRef(null);
+    // fileId → '전사 중단'을 누른 횟수. 첫 전사는 시작할 때 이 값을 기억하고, 요청을 보내기 전에 값이 바뀌었으면 멈춘다 —
+    // 시작 직후(파일 읽는 중)에는 아직 끊을 요청이 없어서, 예전엔 '취소했습니다'라고 보여 주고 전사는 그대로 나갔다(2026-11-21 재현).
+    const stage1GenRef = useRef(new Map());
+    // `이름_크기` → fileId: 첫 전사가 돌고 있거나 줄 서 있는 파일. 같은 파일을 또 올리면 새로 전사하지 않고 여기에 붙는다.
+    const stage1RunRef = useRef(new Map()); // `이름_크기` → 그 표시를 건 실행(아래 runFullAnalysis). 자기 표시만 지우게
+    const stage1KeysRef = useRef(new Map());
     // [다시 전사 줄 세우기] 다시 전사·복구·구간 전사는 한 번에 하나씩 돈다. 예전엔 두 번째를 누르면 첫 번째가 말없이 취소됐다.
     const retranscribeQueueRef = useRef(Promise.resolve());
     const retranscribeJobsRef = useRef(new Map()); // 작업 번호 → { fileId, keys:Set<lineKey> } — 아직 안 끝난 작업이 맡은 문장
     const retranscribeSeqRef = useRef(0);
     const retranscribeEpochRef = useRef(0); // 도는 작업이 중단되면 올린다 → 기다리던 작업도 시작하지 않는다
     const stage2ModelRef = useRef(new Map()); // fileId → 마지막으로 돈 분석의 모델(멈췄다가 이을 때 같은 모델로)
+    // fileId → Map(문장 열쇠 → 모델): 지금 도는(또는 방금 중단된) 분석이 아직 못 끝낸 문장의 모델(utils/lineModels)
+    const stage2CarryRef = useRef(new Map());
     const analysisQueueRef = useRef([]);   // 순차 분석 대기 파일 목록
     const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
     const stage2RunIdRef = useRef(0); // 최신 Stage 2 실행만 진행배너를 정리(옛 실행이 새 배너를 지우지 않게)
@@ -228,6 +240,17 @@ export const useMediaAnalysis = ({
             .filter(x => !x.item.isAnalyzed)
             .map(x => x.idx);
         const owned = new Set(pendingIndices);
+        // [문장별 모델] 앞 분석이 끝내지 못한 문장은 그 분석의 모델로 이어 간다. 이번에 새로 맡은 문장만 받은 모델(currentModelId)로 돈다.
+        // 예전엔 전부 받은 모델로 돌아, 첫 분석 중 한 문장을 다시 전사하면 남은 문장 전체가 재분석 모델로 넘어갔다.
+        // 기억은 '그때 설정'과 지금 설정이 같을 때만 쓴다 — 끊긴 뒤 사용자가 모델을 바꿨거나 Claude 키를 지웠으면 지금 설정을 따른다.
+        // (끊긴 분석의 기억이 남아, 모델을 바꾼 뒤에도 옛 모델로 요청이 나갔다 — 2026-11-21 독립 검토에서 실행 재현)
+        const settingsNow = `${stage2Model}|${stage3Model}|${claudeApiKey ? 1 : 0}`;
+        const lineModel = pickLineModels(transcript, pendingIndices, usableCarry(stage2CarryRef.current.get(fileId), settingsNow), currentModelId);
+        const modelAt = (idx) => lineModel.get(lineKey(transcript[idx])) || currentModelId;
+        const modelsUsed = [...new Set(pendingIndices.map(modelAt))];
+        if (pendingIndices.length > 0) stage2CarryRef.current.set(fileId, stampCarry(lineModel, settingsNow));
+        else stage2CarryRef.current.delete(fileId);
+        const carry = stage2CarryRef.current.get(fileId) || null; // 끝낸 문장은 여기서 지운다
 
         // [지금 대본에 넣기] 분석은 시작할 때 뜬 사본(workingData)으로 일하지만, 화면·저장에는 사본을 통째로 쓰지 않고
         // 이 실행이 맡은 문장의 번역·분석만 '지금 대본'에 넣는다(utils/liveMerge#mergeAnalysis).
@@ -286,17 +309,18 @@ export const useMediaAnalysis = ({
 
         // [Claude 2단계] 호출부는 늘 Gemini 키를 넘긴다(1단계가 Gemini라 항상 있음). 고른 모델이 Claude면 여기서 Claude 키로
         // 바꿔 끼운다 — 키가 없으면 요청을 하나도 보내지 않고 실패 카드+안내(Gemini로 몰래 바꾸지 않는다, 사용자 결정 Q5).
-        const useClaude = isClaudeModel(currentModelId);
+        const useClaude = modelsUsed.some(isClaudeModel);
         if (useClaude && !claudeApiKey) {
             // 요청을 안 보내고 바로 끝나므로 '지금 대본'이 아직 이 대본으로 안 바뀌었을 수 있다(호출부가 방금 화면에 올림)
             // → 여기서는 받은 대본에 직접 표시한다. 재분석 중이던 문장은 실패 표시 대신 옛 분석으로 되돌린다.
             const failed = syncBusyFlags(transcript.map((d, i) => (owned.has(i) ? (restorePrev(d) || { ...d, analysisFailed: true }) : d)), busyKeysOf(fileId));
             commitData(fileId, failed);
             persistCache(fileInfo, failed, saveStatusOf(failed) === 'completed' ? 'completed' : 'partial');
+            if (carry && stage2CarryRef.current.get(fileId) === carry) stage2CarryRef.current.delete(fileId);
             if (showToast) showToast({ message: '2단계 모델이 Claude인데 Claude 키가 없어요. 설정에서 키를 넣거나 2단계를 Gemini로 바꿔 주세요.', type: 'error', duration: 10000 });
             return { total: pendingIndices.length, success: 0, failedIndices: pendingIndices, keptOld: pendingIndices.filter(i => transcript[i]._prev), aborted: false, data: failed };
         }
-        const keyForModel = useClaude ? claudeApiKey : currentApiKey;
+        const keyFor = (modelId) => (isClaudeModel(modelId) ? claudeApiKey : currentApiKey);
         // 묶음이 사유를 달고 실패하면(Claude 키·크레딧) 마지막 사유를 안내 문구에 쓴다
         let failReason = '';
         const noteFailReason = (results) => {
@@ -315,11 +339,10 @@ export const useMediaAnalysis = ({
         };
 
         const BATCH_SIZE = 25;
-        const CONCURRENCY = getStage2Concurrency(currentModelId);
-        const batches = [];
-        for (let i = 0; i < pendingIndices.length; i += BATCH_SIZE) {
-            batches.push(pendingIndices.slice(i, i + BATCH_SIZE));
-        }
+        // 모델이 섞이면 가장 좁은 동시 실행 수에 맞춘다
+        const CONCURRENCY = Math.min(...(modelsUsed.length ? modelsUsed : [currentModelId]).map(getStage2Concurrency));
+        // 묶음은 모델별로 나눈다(각 묶음에 .model). 이번에 받은 모델의 묶음(사용자가 방금 시킨 문장)이 먼저 나간다.
+        const batches = batchesByModel(pendingIndices, modelAt, BATCH_SIZE, currentModelId);
 
         console.log(`[Stage 2] Split into ${batches.length} batches (Max ${CONCURRENCY} concurrent).`);
 
@@ -348,7 +371,7 @@ export const useMediaAnalysis = ({
                 .slice(0, 40) // 폭주 방지 상한
                 .map(idx => ({ index: idx, text: workingData[idx].text }));
             try {
-                const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, contextItems, false, true, onBatchStatus);
+                const results = await analyzeBatchSentences(batchItems, keyFor(batchIndices.model), batchIndices.model, signal, contextItems, false, true, onBatchStatus);
                 noteFailReason(results);
                 if (results && !signal.aborted) {
                     let groupSuccess = 0;
@@ -362,6 +385,7 @@ export const useMediaAnalysis = ({
                                 av: ANALYSIS_VERSION, // 이 문장을 분석한 규칙 버전(cacheUtils#analysisVersionOf)
                                 isAnalyzed: true
                             };
+                            if (carry) carry.delete(lineKey(transcript[res.index])); // 끝낸 문장: 다음에 다시 분석하라면 그때 모델로
                             groupSuccess++;
                         }
                     });
@@ -405,15 +429,14 @@ export const useMediaAnalysis = ({
             // [비용 절감] 뭉친 문장을 문장당 개별 호출하지 않고 BATCH_SIZE 단위로 묶어 forceSplit 재분석
             //  → 대형 프롬프트 프리픽스 재전송이 L회 → ⌈L/BATCH_SIZE⌉회로 감소. 파싱은 INDEX별 독립,
             //    'better' 가드(더 잘 쪼개졌을 때만 채택)는 그대로라 퇴행 없음(품질 동등 이상).
-            const splitBatches = [];
-            for (let i = 0; i < lumped.length; i += BATCH_SIZE) splitBatches.push(lumped.slice(i, i + BATCH_SIZE));
+            const splitBatches = batchesByModel(lumped, modelAt, BATCH_SIZE, currentModelId);
 
             let splitCursor = 0;
             const processSplitBatch = async (idxGroup) => {
                 const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
                     // 문맥 생략(속도) + forceSplit=true 로 강제 분할 요청
-                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], true, true, onBatchStatus);
+                    const results = await analyzeBatchSentences(batchItems, keyFor(idxGroup.model), idxGroup.model, signal, [], true, true, onBatchStatus);
                     if (results && !signal.aborted) {
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
@@ -461,13 +484,12 @@ export const useMediaAnalysis = ({
             didRetry = true;
             console.log(`[Stage 2] 누락 ${missingIdx.length}개 (라운드 ${round + 1}/${MAX_MISSING_RETRIES}) → 재분석(배치)`);
             setNote(`빠진 단어 ${missingIdx.length}문장 다시 분석 (${round + 1}/${MAX_MISSING_RETRIES})`);
-            const missBatches = [];
-            for (let i = 0; i < missingIdx.length; i += BATCH_SIZE) missBatches.push(missingIdx.slice(i, i + BATCH_SIZE));
+            const missBatches = batchesByModel(missingIdx, modelAt, BATCH_SIZE, currentModelId);
             let missCursor = 0;
             const processMissBatch = async (idxGroup) => {
                 const batchItems = idxGroup.map(idx => ({ index: idx, text: workingData[idx].text }));
                 try {
-                    const results = await analyzeBatchSentences(batchItems, keyForModel, currentModelId, signal, [], false, true, onBatchStatus);
+                    const results = await analyzeBatchSentences(batchItems, keyFor(idxGroup.model), idxGroup.model, signal, [], false, true, onBatchStatus);
                     if (results && !signal.aborted) {
                         results.forEach(res => {
                             if (res && res.translation && !res.failed) {
@@ -505,6 +527,9 @@ export const useMediaAnalysis = ({
             const shown = updateGlobalState(workingData); // 그사이 다른 저장(복구·감지)이 있었으면 그 위에 넣는다
             if (shown) persistCache(fileInfo, shown, saveStatusOf(shown));
         }
+
+        // 끝까지 돌았으면 문장별 모델 기억을 지운다. 중단됐으면 남겨 둔다 — 이어받는 분석이 남은 문장을 같은 모델로 돈다.
+        if (!signal.aborted && carry && stage2CarryRef.current.get(fileId) === carry) stage2CarryRef.current.delete(fileId);
 
         // 이 실행이 최신일 때만 진행배너 정리 (옛 실행이 새 배너를 지우지 않게)
         if (stage2RunIdRef.current === myRun) setStage2Progress(null);
@@ -585,6 +610,7 @@ export const useMediaAnalysis = ({
         // 기존 Stage 1 중단
         if (stage1AbortRef.current) stage1AbortRef.current.abort();
         stage1AbortRef.current = new AbortController();
+        stage1OwnerRef.current = fileId; // '전사 중단'은 이 파일 것일 때만 이 채널을 끊는다
         const { signal } = stage1AbortRef.current;
 
         // 호출부에서 이미 계산했으면 재사용, 아니면 여기서 계산 (중복 계산 방지)
@@ -634,7 +660,35 @@ export const useMediaAnalysis = ({
     // 신규 업로드(processFiles)와 재시도(retryAnalysis)가 공유한다.
     //  - saveMedia: 원본을 IndexedDB에 저장 (재생 복원용)
     //  - syncCloud: 원본 영상 업로드 + 대본 저장 (다른 기기 열람용)
-    const runFullAnalysis = async (fileId, sourceFile, { saveMedia = false, syncCloud = false, awaitStage2 = false } = {}) => {
+    // [같은 파일 표시] 전사가 끝나 저장될 때까지 `이름_크기 → fileId`를 걸어 둔다. 그사이 같은 파일을 또 올리면(홈으로 나갔다 오거나
+    // 목록에서 다시 올림) processFiles가 새 전사를 시작하지 않고 이 전사에 붙는다 — 예전엔 전사가 두 번 나갔다(2026-11-21 재현).
+    const runFullAnalysis = async (fileId, sourceFile, opts = {}) => {
+        const runKey = `${sourceFile.name}_${sourceFile.size}`;
+        const run = {};
+        stage1KeysRef.current.set(runKey, fileId);
+        stage1RunRef.current.set(runKey, run);
+        // 자기가 건 표시일 때만 지운다. 취소 → '다시 시도'는 같은 fileId로 새 실행이 표시를 다시 거는데, 취소된 앞 실행이
+        // 뒤늦게 끝나며 그 표시를 지워 같은 파일을 또 올리면 전사가 두 번 나갔다(2026-11-21 독립 검토에서 실행 재현).
+        const release = () => {
+            if (stage1RunRef.current.get(runKey) !== run) return;
+            stage1RunRef.current.delete(runKey);
+            if (stage1KeysRef.current.get(runKey) === fileId) stage1KeysRef.current.delete(runKey);
+        };
+        try {
+            return await runFullAnalysisInner(fileId, sourceFile, opts, release);
+        } finally {
+            release();
+        }
+    };
+
+    const runFullAnalysisInner = async (fileId, sourceFile, { saveMedia = false, syncCloud = false, awaitStage2 = false, gen: startGen } = {}, release = () => {}) => {
+        // 시작한 뒤 '전사 중단'을 눌렀으면 전사 요청을 보내기 전에 멈춘다(파일 읽기·길이 재기 사이에 눌린 경우)
+        // startGen: 호출부가 더 일찍(버튼을 누른 순간) 읽어 둔 값 — '다시 시도'는 여기 오기 전에 기다림이 있다
+        const gen = startGen ?? (stage1GenRef.current.get(fileId) || 0);
+        const stopIfCancelled = () => {
+            if ((stage1GenRef.current.get(fileId) || 0) !== gen) throw new DOMException('Aborted', 'AbortError');
+        };
+        stopIfCancelled();
         // 인터넷이 없으면 소리 꺼내기(32MB 도구 내려받기)부터 헛돈다 → 바로 안내. 실패 화면이 이 문구를 제목으로 쓴다(failureNotice).
         if (isOffline()) throw new Error(OFFLINE_MESSAGE);
         if (!apiKey) throw new Error("Please set Gemini API Key in Settings.");
@@ -652,17 +706,20 @@ export const useMediaAnalysis = ({
             console.warn('[Stage 1] 메모리 적재 실패 → 원본 파일로 진행:', e.message);
             fileForAnalysis = sourceFile;
         }
+        stopIfCancelled();
 
         // 미디어 길이는 한 번만 계산해 Stage 1 전사와 클라우드 메타에서 공유 (중복 계산 제거)
         let duration = 0;
         try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn("Failed to get media duration:", e); }
 
+        stopIfCancelled(); // 바로 아래 runStage1이 중단 채널을 만든다 — 그 뒤로는 '전사 중단'이 채널을 끊는다
         const { data, incomplete } = await runStage1(fileId, fileForAnalysis, duration, sourceFile);
 
         // 끝까지 못 받았으면 그 지점을 대본에 남긴다(화면 띠 + 저장) — 예전엔 12초 안내가 지나가면 '완료된 대본'과 구별이 안 됐다
         setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data, isAnalyzing: false, incomplete: incomplete || null } : p));
 
         persistCache(sourceFile, data, 'extracted', { incomplete: incomplete || null });
+        release(); // 저장됐다 — 이제 같은 파일을 올리면 저장된 대본을 연다
         if (refreshCacheKeys) refreshCacheKeys();
 
         // [자동 감지 옵션] 전사+분석이 '완료된 뒤' 대사 구간 감지를 자동 실행 (설정, 기본 꺼짐).
@@ -753,21 +810,41 @@ export const useMediaAnalysis = ({
 
         console.log("[Upload] Processing files...", fileList);
 
-        const newFiles = Array.from(fileList).map(file => ({
-            id: crypto.randomUUID(),
-            file,
-            url: URL.createObjectURL(file), // 재생은 항상 원본 파일로 (원래 동작 보존)
-            data: [],
-            isAnalyzing: true,
-            error: null
-        }));
+        // [같은 파일] 지금 첫 전사가 돌고 있거나 줄 서 있는 파일을 또 올리면 새로 전사하지 않는다(비용 두 번).
+        // 그 전사의 항목이 화면에 있으면 그리로 가고, 없으면(홈으로 나갔다 옴) 같은 번호로 항목을 다시 만든다 —
+        // 돌고 있는 전사가 그 번호로 진행 상황과 결과를 넣는다.
+        const order = [];      // 올린 순서대로의 항목 번호(화면에 띄울 순서)
+        const newFiles = [];
+        const reopened = [];
+        let joined = 0;
+        for (const file of Array.from(fileList)) {
+            const runId = stage1KeysRef.current.get(`${file.name}_${file.size}`);
+            if (runId) {
+                joined++;
+                order.push(runId);
+                const open = (filesRef?.current || []).some(p => p.id === runId) || reopened.some(p => p.id === runId);
+                if (!open) reopened.push({ id: runId, file, url: URL.createObjectURL(file), data: [], isAnalyzing: true, error: null });
+                continue;
+            }
+            const item = {
+                id: crypto.randomUUID(),
+                file,
+                url: URL.createObjectURL(file), // 재생은 항상 원본 파일로 (원래 동작 보존)
+                data: [],
+                isAnalyzing: true,
+                error: null
+            };
+            newFiles.push(item);
+            order.push(item.id);
+        }
+        if (joined > 0 && showToast) showToast({ message: '이미 전사 중인 파일이에요. 새로 시작하지 않고 진행 중인 전사를 이어서 보여 드려요.', type: 'success' });
 
-        setFiles(prev => [...prev, ...newFiles]);
+        setFiles(prev => [...prev, ...reopened.filter(r => !prev.some(p => p.id === r.id)), ...newFiles]);
         // 목록 정렬: 방금 올린(연) 영상이 맨 위. 여러 개면 첫 파일이 가장 위(화면에 먼저 뜨는 파일)
         newFiles.slice().reverse().forEach((f, i) => touchRecent(`${f.file.name}_${f.file.size}`, Date.now() + i));
 
-        if (newFiles.length > 0) {
-            setActiveFileId(newFiles[0].id);
+        if (order.length > 0) {
+            setActiveFileId(order[0]);
         }
         setIsSwitchingFile(false);
 
@@ -817,6 +894,7 @@ export const useMediaAnalysis = ({
                 }
 
                 // 캐시 없음 → 순차 큐에 넣고 워커 가동 (여러 파일이 서로를 중단시키지 않게 하나씩 완료)
+                stage1KeysRef.current.set(`${fItem.file.name}_${fItem.file.size}`, fItem.id); // 줄 서 있는 동안에도 같은 파일 표시
                 analysisQueueRef.current.push(fItem);
                 processAnalysisQueue();
             } catch (err) {
@@ -828,6 +906,7 @@ export const useMediaAnalysis = ({
     };
 
     const retryAnalysis = async (fileId) => {
+        const gen = stage1GenRef.current.get(fileId) || 0; // 누른 순간의 취소 세대 — 아래 기다림 사이에 '전사 중단'을 누르면 전사를 보내지 않는다
         // 인터넷이 없으면 아래에서 대본을 비우기 전에 멈춘다
         if (isOffline()) { if (showToast) showToast({ message: OFFLINE_MESSAGE, type: 'error' }); return; }
         // 기존 Stage 2 중단
@@ -849,7 +928,7 @@ export const useMediaAnalysis = ({
                 saveMedia = typeof Blob !== 'undefined' && targetFile instanceof Blob && targetFile.size > 0
                     && !(await mediaStore.getFile(targetFile.name, targetFile.size));
             } catch (e) { console.warn('[Retry] 저장된 영상 확인 실패:', e); }
-            await runFullAnalysis(fileId, targetFile, { saveMedia });
+            await runFullAnalysis(fileId, targetFile, { saveMedia, gen });
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error("Retry Analysis Error", err);
@@ -951,6 +1030,7 @@ export const useMediaAnalysis = ({
             // 재전사도 Stage 1 계열 → 같은 abort 채널 사용 (새 영상 전사가 시작되면 함께 취소됨)
             if (stage1AbortRef.current) stage1AbortRef.current.abort();
             stage1AbortRef.current = new AbortController();
+            stage1OwnerRef.current = null; // 첫 전사가 아니다 — 첫 전사 화면의 '전사 중단'이 이 작업을 끊지 않는다
             const { signal } = stage1AbortRef.current;
 
             try {
@@ -1169,6 +1249,9 @@ export const useMediaAnalysis = ({
                 return old || d;
             });
             if (back.length === 0) return;
+            // 옛 분석으로 되돌린 문장은 더는 '하다 만 문장'이 아니다 → 모델 기억에서 뺀다
+            const carried = stage2CarryRef.current.get(fileId);
+            if (carried) for (const d of back) carried.delete(lineKey(d));
             commitData(fileId, restored);
             persistCache(targetFile, restored, saveStatusOf(restored));
             if (refreshCacheKeys) refreshCacheKeys();
@@ -1378,7 +1461,7 @@ export const useMediaAnalysis = ({
                         message: `대사 구간 감지 완료 (${latestData.length}문장 중 ${latestData.length - unresolved.length}개)${unresolvedNote}`,
                         type: 'success',
                         duration: 15000, // 읽고 버튼을 누를 시간(10초는 실측에서 누르기 전에 닫혔다)
-                        ...(onRevealSentence ? { action: { label: '그 문장 보기', onClick: () => onRevealSentence(fileId, unresolved[0]) } } : {}),
+                        ...(onRevealSentence ? { action: { label: '그 문장 보기', onClick: () => onRevealSentence(fileId, unresolved[0], latestData[unresolved[0]]) } } : {}),
                     });
                 } else {
                     showToast({
@@ -1599,7 +1682,8 @@ export const useMediaAnalysis = ({
 
         // 휴지통에 보관 (10초 실행취소가 지나도 나중에 복구 가능)
         if (targetFile.name) {
-            addToTrash(targetFile.name, targetFile.size, deletedItems);
+            // 같은 시각으로 묶인 문장은 묶음 안 순서를 같이 적어 둔다 → 되살릴 때 제자리(trashUtils#withTieHints)
+            addToTrash(targetFile.name, targetFile.size, withTieHints(prevData, deletedItems, getTrash(targetFile.name, targetFile.size)));
             if (onTrashChange) onTrashChange();
         }
         persistEdit(targetFile, newData);
@@ -1630,7 +1714,7 @@ export const useMediaAnalysis = ({
 
         const existing = new Set(curData.map(sentenceKey));
         const toAdd = items.filter(it => !existing.has(sentenceKey(it)));
-        const merged = [...curData, ...toAdd];
+        const merged = mergeRestored(curData, toAdd); // 같은 시각 묶음은 지울 때 적어 둔 순서 자리에, 나머지는 뒤에(아래 정렬이 제자리로)
         const clean = syncBusyFlags(sanitizeData(merged, 0), busyKeysOf(fileId)); // 시각 기준 재정렬 → 원위치 복원
         commitData(fileId, clean);
 
@@ -1850,8 +1934,15 @@ export const useMediaAnalysis = ({
 
     // 진행 중인 Stage1 전사를 사용자가 취소.
     // abort 후 해당 파일을 취소 상태로 전환 → 무한 스피너 대신 재시도 가능한 에러 카드 노출.
+    // [시작 전·줄 서 있을 때] 아직 끊을 요청이 없다 → 횟수를 올려 두면 그 전사가 요청을 보내기 전에 스스로 멈춘다(runFullAnalysisInner).
+    //   줄에서도 뺀다. 예전엔 '취소했습니다'만 보이고 전사는 그대로 나가 대본까지 저장됐다.
+    // [다른 파일] 중단 채널은 하나라, 그 채널을 쥔 전사가 이 파일일 때만 끊는다 — 예전엔 줄 서 있는 파일에서 누르면
+    //   돌고 있던 다른 파일의 전사가 끊기고, 정작 누른 파일은 나중에 전사됐다(2026-11-21 재현).
     const cancelStage1 = (fileId) => {
-        if (stage1AbortRef.current) stage1AbortRef.current.abort();
+        stage1GenRef.current.set(fileId, (stage1GenRef.current.get(fileId) || 0) + 1);
+        analysisQueueRef.current = analysisQueueRef.current.filter(x => x.id !== fileId);
+        for (const [k, id] of stage1KeysRef.current) if (id === fileId) stage1KeysRef.current.delete(k);
+        if (stage1OwnerRef.current === fileId && stage1AbortRef.current) stage1AbortRef.current.abort();
         setFiles(prev => prev.map(p => p.id === fileId
             ? { ...p, isAnalyzing: false, error: "전사를 취소했습니다. 다시 시도할 수 있습니다." }
             : p));

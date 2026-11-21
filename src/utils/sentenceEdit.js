@@ -69,6 +69,13 @@ export function splitTimeBounds(data, idx, duration = 0) {
 }
 
 /**
+ * 나눈 뒷부분이 원래 시각을 그대로 써야 하는가 — 같은 시각으로 묶인 문장이 뒤에 더 있을 때.
+ * 대본은 시각으로만 줄을 세운다. 뒷부분에 새 시각을 주면 묶음의 남은 문장들 뒤로 밀려나
+ * [A, B, C]에서 A를 나눈 결과가 [A앞, B, C, A뒤]가 됐다(2026-11-19 점검, 화면 재현). 같은 시각을 쓰면 [A앞, A뒤, B, C].
+ */
+export const splitKeepsGroupTime = (data, idx) => !!data?.[idx + 1] && data[idx + 1].seconds === data[idx]?.seconds;
+
+/**
  * 문장 하나를 wordIndex번째 단어 앞에서 나눈다.
  *  mode 'dropHead' : 앞부분 삭제 → 뒷부분만 남고 시작이 splitSeconds로 옮겨진다
  *  mode 'dropTail' : 뒷부분 삭제 → 앞부분만 남는다(대사 끝 시각은 비움)
@@ -83,7 +90,7 @@ export function applySplit(data, idx, { wordIndex, mode, splitSeconds }) {
     const k = Math.min(Math.max(1, wordIndex), words.length - 1);
     const headText = words.slice(0, k).join(' ');
     const tailText = words.slice(k).join(' ');
-    const t = Number.isFinite(splitSeconds) ? splitSeconds : it.seconds;
+    const t = splitKeepsGroupTime(data, idx) ? it.seconds : (Number.isFinite(splitSeconds) ? splitSeconds : it.seconds);
 
     const head = unanalyzed(withText(it, headText));
     const tail = unanalyzed(withStart(withText(it, tailText), t));
@@ -93,6 +100,17 @@ export function applySplit(data, idx, { wordIndex, mode, splitSeconds }) {
     else if (mode === 'dropTail') { pieces = [withoutSpeechEnd(head)]; trashed = [withoutSpeechEnd(tail)]; }
     else if (mode === 'keepBoth') { pieces = [withoutSpeechEnd(head), tail]; trashed = []; }
     else throw new Error(`알 수 없는 나누기 방식: ${mode}`);
+
+    // 묶음 안의 문장이면, 지운 조각에 묶음 순서를 적어 둔다 — 휴지통에서 되살릴 때 제자리로 (trashUtils#mergeRestored)
+    const [lo, hi] = blockBounds(data, idx);
+    if (hi > lo && trashed.length) {
+        const order = [];
+        for (let j = lo; j <= hi; j++) {
+            if (j === idx) order.push(headText, tailText);
+            else order.push(String(data[j].text ?? data[j].o ?? '').trim());
+        }
+        trashed = trashed.map(x => ({ ...x, _tie: order }));
+    }
 
     const out = [...data.slice(0, idx), ...pieces, ...data.slice(idx + 1)];
     return { data: out, trashed, changed: pieces.map((_, i) => idx + i) };

@@ -3,7 +3,7 @@ import { Play, Square, AlertTriangle, Scissors, AudioLines, FastForward } from '
 import { useEscapeToClose } from '../hooks/useEscapeToClose';
 import { usePreviewPlayer } from '../hooks/usePreviewPlayer';
 import {
-    formatStamp, splitWords, sentenceEndOf, estimateSplitTime, splitTimeBounds,
+    formatStamp, splitWords, sentenceEndOf, estimateSplitTime, splitTimeBounds, splitKeepsGroupTime,
     rangeFromSelection, indicesInRange, clampRange, LONG_RANGE_WARN_SEC,
 } from '../utils/sentenceEdit';
 import { speechEndEditBounds, initialSpeechEnd, speechEndSkipInfo, defaultSpeechEndMode } from '../utils/speechEndMerge';
@@ -250,7 +250,10 @@ export function SplitDialog({ data, idx, duration, mediaUrl, playbackRate, onPau
         const est = estimateSplitTime(item.seconds, sentenceEndOf(data, idx, duration), item.text, k);
         setT(Math.min(bounds.max, Math.max(bounds.min, est)));
     };
-    const needsTime = mode === 'dropHead' || mode === 'keepBoth';
+    // 같은 시각으로 묶인 문장이 뒤에 더 있으면 뒷부분도 그 시각을 쓴다(순서가 안 뒤바뀌게) → 시각 조정 칸을 안 보인다
+    const tied = splitKeepsGroupTime(data, idx);
+    const tailStays = mode === 'dropHead' || mode === 'keepBoth';
+    const needsTime = tailStays && !tied;
     const close = () => { preview.stop(); onClose(); };
     const ready = cut != null && mode != null;
 
@@ -307,6 +310,9 @@ export function SplitDialog({ data, idx, duration, mediaUrl, playbackRate, onPau
                         <PreviewButton preview={preview} name="split" label={`여기서부터 ${PREVIEW_SEC}초`} start={t} end={t + PREVIEW_SEC} />
                     </div>
                 </div>
+            )}
+            {cut != null && tailStays && tied && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">같은 시각으로 묶인 문장이라, 남는 뒷부분도 그 시각을 그대로 씁니다.</p>
             )}
             {mode && mode !== 'keepBoth' && (
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">지운 부분은 휴지통에 보관돼요. 남은 문장은 자동으로 다시 분석합니다.</p>

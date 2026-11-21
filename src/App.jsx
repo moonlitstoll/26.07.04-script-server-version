@@ -72,6 +72,8 @@ import { getPassphrase, setPassphrase as persistPassphrase, CLOUD_ENABLED } from
 import { getLastPos, setLastPos } from './utils/viewPosition';
 import { mediaStore } from './utils/MediaStore';
 import { getTrash, clearTrash } from './utils/trashUtils';
+import { makeRemap, remapIndices } from './utils/lineAnchors';
+import { lineKey } from './utils/liveMerge';
 import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
 
 
@@ -123,9 +125,13 @@ const App = () => {
   const showConfirm = useCallback((opts) => setConfirmState(opts), []);
   // 토스트 자리는 하나. '실행취소' 버튼이 달린 토스트가 떠 있는 동안 뒤따르는 보통 안내(재분석 시작 등)가
   // 그걸 덮어 실행취소 기회가 사라졌다 → 버튼 달린 토스트는 오류 안내에만 밀린다.
-  const showToast = useCallback((opts) => setToastState(prev =>
-    (prev?.action && !opts?.action && opts?.type !== 'error') ? prev : opts
-  ), []);
+  // _k: 안내마다 다른 번호 → <Toast key>. 없으면 같은 길이의 안내가 이어 뜰 때 앞 안내의 남은 시간을 물려받아
+  // 새 '실행취소' 안내가 2~3초 만에 사라졌다(2026-11-19 점검, 화면 재현).
+  const toastSeqRef = useRef(0);
+  const showToast = useCallback((opts) => {
+    const next = opts ? { ...opts, _k: ++toastSeqRef.current } : opts;
+    setToastState(prev => ((prev?.action && !next?.action && next?.type !== 'error') ? prev : next));
+  }, []);
 
   // 보관함 잠그기: 이 기기에 저장된 암호를 지우고 암호 입력창으로 복귀 (클라우드 대본은 보존)
   const lockVault = useCallback(() => {
@@ -359,7 +365,7 @@ const App = () => {
     apiKey, claudeApiKey: config.claudeApiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
     showToast,
     onTrashChange: () => setTrashNonce(n => n + 1),
-    onRevealSentence: (fileId, idx) => revealSentenceRef.current && revealSentenceRef.current(fileId, idx),
+    onRevealSentence: (fileId, idx, item) => revealSentenceRef.current && revealSentenceRef.current(fileId, idx, item),
   });
 
   // [회귀방지] TranscriptItem(memo)에 넘길 콜백을 안정화 — 재생 중 currentTime 틱마다
@@ -373,22 +379,32 @@ const App = () => {
   // 확인창을 거치는 이유: 배지는 헤더에 상시 노출이라 오탭 한 번이 곧 API 호출(비용)이기 때문.
   const retranscribeRef = useRef(retranscribeSentences);
   useEffect(() => { retranscribeRef.current = retranscribeSentences; });
+  // 확인창이 떠 있는 사이 문장 수가 바뀔 수 있다(진행 중이던 다시 전사가 끝남 등) → 띄울 때의 대본을 잡아 두고,
+  // [확인]을 누른 순간 같은 문장의 지금 번호로 바꿔 실행한다. 그 문장이 없어졌으면 실행하지 않고 알린다.
+  const resolveNow = useCallback((fileId, opened, idxs) => {
+    const cur = activeFileRef.current;
+    const now = (cur?.id === fileId && Array.isArray(cur.data) && Array.isArray(opened)) ? remapIndices(opened, cur.data, idxs) : [];
+    if (now.length === 0) showToast({ message: '그 문장이 그사이 바뀌었어요. 다시 눌러 주세요.', type: 'error' });
+    return now;
+  }, [showToast]);
   const handleCoverageRetry = useCallback((i) => {
+    const opened = activeFileRef.current?.data;
     showConfirm({
       message: '이 문장만 다시 분석할까요? (문장 1개 분석 비용이 발생합니다)',
       confirmText: '재분석',
       danger: false,
-      onConfirm: () => reanalyzeRef.current(activeFileId, [i]),
+      onConfirm: () => { const now = resolveNow(activeFileId, opened, [i]); if (now.length) reanalyzeRef.current(activeFileId, now); },
     });
-  }, [activeFileId, showConfirm]);
+  }, [activeFileId, showConfirm, resolveNow]);
   const handleRetranscribeOne = useCallback((i) => {
+    const opened = activeFileRef.current?.data;
     showConfirm({
       message: '이 문장 구간의 오디오만 다시 전사할까요? (구간 오디오 전송 비용이 발생하고, 해당 구간이 새 전사 결과로 교체된 뒤 자동 재분석됩니다)',
       confirmText: '다시 전사',
       danger: false,
-      onConfirm: () => retranscribeRef.current(activeFileId, [i]),
+      onConfirm: () => { const now = resolveNow(activeFileId, opened, [i]); if (now.length) retranscribeRef.current(activeFileId, now); },
     });
-  }, [activeFileId, showConfirm]);
+  }, [activeFileId, showConfirm, resolveNow]);
 
   // [대사만 재생] 칩 동작: 감지 데이터 없으면 확인창 → 감지 1회 실행(성공 시 자동 켜기),
   // 있으면 켜기/끄기 토글만 (감지 결과는 캐시에 저장돼 있어 추가 비용 0).
@@ -464,6 +480,50 @@ const App = () => {
   // 확인창에서 '문장별로 다시'(기존, 기본값)와 '한 구간으로 다시'(시각 조정·미리 듣기) 중 고른다.
   // editDialog: null | { kind: 'retranscribe', fileId, idxs:Set } | { kind: 'split' | 'speechEnd', fileId, idx }
   const [editDialog, setEditDialog] = useState(null);
+
+  // [번호 따라가기] 고른 문장과 편집 창의 문장은 '몇 번째'로 기억한다. 그사이 문장 수가 바뀌면(실행취소로 문장이 돌아옴,
+  // 다시 전사가 끝나 문장이 늘어남, 휴지통 복구) 같은 번호가 옆 문장을 가리켜 고른 문장 대신 옆 문장이 지워지거나 잘렸다
+  // (2026-11-19 점검, 화면 재현). 대본이 바뀌면 같은 문장의 새 번호로 옮기고, 없어진 문장은 선택에서 뺀다.
+  // (렌더 중 상태 조정 — 위 '파일이 바뀌면 선택 모드 해제'와 같은 패턴)
+  const liveData = activeFile?.data;
+  const [selBase, setSelBase] = useState({ id: activeFileId, data: liveData });
+  if (selBase.id !== activeFileId || selBase.data !== liveData) {
+    setSelBase({ id: activeFileId, data: liveData });
+    if (selBase.id === activeFileId && Array.isArray(selBase.data) && Array.isArray(liveData)
+      && (selectedIdxs.size > 0 || editDialog?.fileId === activeFileId)) {
+      const remap = makeRemap(selBase.data, liveData);
+      const move = (set) => {
+        const next = new Set();
+        for (const i of set) { const j = remap(i); if (j !== null) next.add(j); }
+        const same = next.size === set.size && [...next].every(j => set.has(j));
+        return same ? set : next;
+      };
+      if (selectedIdxs.size > 0) {
+        const next = move(selectedIdxs);
+        if (next !== selectedIdxs) setSelectedIdxs(next);
+      }
+      if (editDialog?.fileId === activeFileId) {
+        let next = editDialog;
+        if (editDialog.kind === 'retranscribe') {
+          const idxs = move(editDialog.idxs);
+          next = idxs.size === 0 ? null : (idxs === editDialog.idxs ? editDialog : { ...editDialog, idxs });
+        } else {
+          const j = remap(editDialog.idx);
+          next = j === null ? null : (j === editDialog.idx ? editDialog : { ...editDialog, idx: j });
+        }
+        if (next !== editDialog) setEditDialog(next);
+        if (next === null) showToast({ message: '고치려던 문장이 그사이 바뀌어 창을 닫았어요. 다시 골라 주세요.', type: 'error' });
+      }
+    }
+  }
+  // 확인창이 떠 있는 사이에도 번호가 바뀔 수 있다 → 확인을 누른 순간의 선택을 쓴다
+  const selectedIdxsRef = useRef(selectedIdxs);
+  useEffect(() => { selectedIdxsRef.current = selectedIdxs; }, [selectedIdxs]);
+  const liveSelection = (fileId) => {
+    const idxs = activeFileRef.current?.id === fileId ? [...selectedIdxsRef.current] : [];
+    if (idxs.length === 0) showToast({ message: '고른 문장이 그사이 없어졌어요. 다시 골라 주세요.', type: 'error' });
+    return idxs;
+  };
   const confirmRetranscribe = () => {
     if (!activeFile || selectedIdxs.size === 0) return;
     setEditDialog({ kind: 'retranscribe', fileId: activeFile.id, idxs: new Set(selectedIdxs) });
@@ -480,11 +540,15 @@ const App = () => {
   }, [activeFileId, speechDetectBusy]);
   // 감지 완료 안내의 [그 문장 보기]: 그 문장으로 이동하고 선택해 둔다 → 바로 '대사 끝'으로 직접 맞추기
   useEffect(() => {
-    revealSentenceRef.current = (fileId, idx) => {
-      if (activeFileRef.current?.id !== fileId || !activeFileRef.current?.data?.[idx]) return; // 그사이 다른 영상으로 옮겼으면 무시
+    revealSentenceRef.current = (fileId, idx, item) => {
+      const data = activeFileRef.current?.id === fileId ? activeFileRef.current?.data : null; // 그사이 다른 영상으로 옮겼으면 무시
+      if (!data) return;
+      // 안내가 떠 있는 동안(15초) 문장 수가 바뀌었을 수 있다 → 번호가 아니라 그 문장으로 찾는다
+      const at = item ? data.findIndex(d => lineKey(d) === lineKey(item)) : (data[idx] ? idx : -1);
+      if (at < 0) return;
       setSelectMode(true);
-      setSelectedIdxs(new Set([idx]));
-      jumpToSentence(idx);
+      setSelectedIdxs(new Set([at]));
+      jumpToSentence(at);
     };
   });
   // 미리 듣기 전에 본 플레이어를 멈춘다(소리 겹침 방지)
@@ -533,14 +597,14 @@ const App = () => {
   // 빈칸 구간 복구 — 선택 문장은 그대로 두고, 그 앞·뒤 이웃 사이 빈칸에서 지워진 문장 복구
   const confirmRecover = () => {
     if (!activeFile || selectedIdxs.size !== 1) return;
-    const anchorIndex = [...selectedIdxs][0];
     const fileId = activeFile.id;
     showConfirm({
       message: `선택한 문장은 그대로 두고, 그 앞·뒤 이웃 문장 사이에서 실수로 지워진 문장을 다시 듣고 복구합니다. (양쪽 자동 확인, 실측 시각·자동 분석) 진행할까요?`,
       confirmText: '복구',
       danger: false,
       onConfirm: () => {
-        recoverGap(fileId, anchorIndex, 'both');
+        const now = liveSelection(fileId);
+        if (now.length === 1) recoverGap(fileId, now[0], 'both');
         exitSelectMode();
       },
     });
@@ -556,7 +620,8 @@ const App = () => {
       confirmText: '분석 다시',
       danger: false,
       onConfirm: () => {
-        reanalyzeSentences(fileId, idxs);
+        const now = liveSelection(fileId);
+        if (now.length > 0) reanalyzeSentences(fileId, now);
         exitSelectMode();
       },
     });
@@ -576,7 +641,8 @@ const App = () => {
       confirmText: '끝 다시 찾기',
       danger: false,
       onConfirm: () => {
-        detectSpeechEndsForFile(fileId, { indices: idxs });
+        const now = liveSelection(fileId);
+        if (now.length > 0) detectSpeechEndsForFile(fileId, { indices: now });
         exitSelectMode();
       },
     });
@@ -594,7 +660,13 @@ const App = () => {
       message: `${scope}의 번역·분석을 최신 규칙으로 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
       confirmText: '전체 재분석',
       danger: false,
-      onConfirm: () => reanalyzeSentences(fileId, allIdxs),
+      // [확인]을 누른 순간의 대본으로 다시 고른다(그사이 문장 수가 바뀌었을 수 있다)
+      onConfirm: () => {
+        const cur = activeFileRef.current;
+        if (cur?.id !== fileId || !Array.isArray(cur.data)) return;
+        const now = cur.data.map((d, i) => (d.av === ANALYSIS_VERSION ? -1 : i)).filter(i => i >= 0);
+        if (now.length > 0) reanalyzeRef.current(fileId, now);
+      },
     });
   };
 
@@ -643,6 +715,24 @@ const App = () => {
   // (재생 하이라이트 기반 저장은 제거됨: activeFile 재생성 시 낡은 idx로 스크롤 저장을 덮어쓰는
   //  버그가 있었음. 재생 중엔 활성 문장 자동 스크롤 → onScroll → 스크롤 저장으로 이미 위치가 기록됨.)
 
+  // 목록에서 대본 열기. 지금 열려 있는 대본을 다시 누른 경우(재생 주소를 되살리려고 누르기도 한다) 듣던 문장을 기억해 둔다 —
+  // 예전엔 loadCache가 재생 위치를 0초로 돌린 뒤, '이미 복원한 대본'이라 복원을 건너뛰어 처음으로 돌아갔다(2026-11-19 점검, 화면 재현).
+  const reopenPosRef = useRef(null);
+  const openTranscript = (key) => {
+    const cur = activeFileRef.current;
+    if (cur?.file?.name && !cur.isAnalyzing && key === `gemini_analysis_${cur.file.name}_${cur.file.size}`) {
+      // 연달아 두 번 누르면 둘째는 재생 위치가 이미 0으로 돌아간 뒤다 → 방금(3초 안) 기억한 자리가 있으면 그대로 둔다
+      const kept = reopenPosRef.current;
+      if (!(kept && kept.id === cur.id && Date.now() - kept.at < 3000)) {
+        const idx = activeIdxRef.current;
+        const item = cur.data?.[idx];
+        reopenPosRef.current = item ? { id: cur.id, idx, key: lineKey(item), at: Date.now() } : null;
+      }
+      restoredForRef.current = null; // 아래 위치 복원이 한 번 더 돌게
+    }
+    return loadCache(key);
+  };
+
   // [위치 복원] 대본이 렌더된 직후, 화면에 그리기 '전에' 저장 위치로 스크롤 (맨 위 깜빡임 방지)
   useLayoutEffect(() => {
     if (!activeFile || activeFile.isAnalyzing || isSwitchingFile) return;
@@ -651,6 +741,20 @@ const App = () => {
     restoredForRef.current = activeFile.id;
 
     const pos = getLastPos(activeFile.file.name, activeFile.file.size);
+    // 열려 있던 대본을 다시 연 경우: 재생 자리는 듣던 문장으로, 화면은 보던 자리(없으면 그 문장)로
+    const keep = reopenPosRef.current?.id === activeFile.id ? reopenPosRef.current : null;
+    reopenPosRef.current = null;
+    if (keep) {
+      let at = activeFile.data.findIndex(d => lineKey(d) === keep.key);
+      if (at < 0 && activeFile.data[keep.idx]) at = keep.idx;
+      if (at >= 0) {
+        const view = pos && activeFile.data[pos.idx] ? pos.idx : at;
+        const el = scrollContainerRef.current?.querySelector(`[data-idx="${view}"]`);
+        if (el) el.scrollIntoView({ block: 'start' });
+        restoreTo(at, activeFile.data[at].seconds);
+        return;
+      }
+    }
     const item = pos ? activeFile.data[pos.idx] : null;
     if (!item) return;
 
@@ -681,6 +785,10 @@ const App = () => {
         onConfirm: () => doRemoveFile(id),
       });
       return;
+    }
+    // 전사 중인 항목을 닫아도 전사는 멈추지 않는다(홈으로 나갈 때와 같다) → 그 사실을 알린다
+    if (files.some(f => f.id === id && f.isAnalyzing)) {
+      showToast({ message: "닫아도 전사는 계속되고, 끝나면 목록에 저장돼요. 멈추려면 '전사 중단'을 누르세요.", type: 'success', duration: 6000 });
     }
     doRemoveFile(id);
   };
@@ -729,8 +837,12 @@ const App = () => {
         onConfirm: doHome,
       });
     } else if (files.some(f => f.isAnalyzing)) {
+      // 사실대로 알린다: 홈으로 나가도 전사·분석은 멈추지 않고 끝나면 목록에 저장된다(사용자 결정: 멈추지 않는다).
+      // 예전 문구는 '작업이 사라집니다'였고 버튼도 '삭제'였다 — 실제로는 비용이 그대로 나가고 대본이 저장됐다.
       showConfirm({
-        message: "분석이 진행 중입니다. 홈으로 나가면 현재 화면의 작업이 사라집니다. 계속할까요? (완료된 대본은 히스토리에 저장됩니다)",
+        message: "전사가 진행 중입니다. 홈으로 나가도 전사와 분석은 계속되고(AI 비용 포함), 끝나면 목록에 저장됩니다. 멈추려면 취소한 뒤 '전사 중단'을 누르세요.",
+        confirmText: '나가기',
+        danger: false,
         onConfirm: doHome,
       });
     } else {
@@ -752,6 +864,7 @@ const App = () => {
       )}
       {toastState && (
         <Toast
+          key={toastState._k}
           message={toastState.message}
           type={toastState.type}
           action={toastState.action}
@@ -828,7 +941,7 @@ const App = () => {
         updateField={updateField}
         onLockVault={CLOUD_ENABLED ? lockVault : null}
         cacheKeys={cacheKeys}
-        loadCache={loadCache}
+        loadCache={openTranscript}
         deleteLocal={deleteLocal}
         deleteServer={deleteServer}
         clearLocalCache={clearLocalCache}
@@ -1304,7 +1417,7 @@ const App = () => {
           activeFileId={activeFileId}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          loadCache={loadCache}
+          loadCache={openTranscript}
           processFiles={processFiles}
           removeFile={removeFile}
           setActiveFileId={setActiveFileId}
