@@ -10,6 +10,7 @@ import {
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
+import { waitUntilOnline } from "../utils/online";
 import { isLeakedFrom, formatStamp } from "../utils/sentenceEdit";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
 import { splitMergedSentences, splitIntoSentences, groupSentences, mergeTinyFragments } from "../utils/sentenceSplitter";
@@ -592,7 +593,7 @@ async function transcribeStream(model, parts, {
  *  - segStart/segEnd: 이 요청이 맡은 구간(절대 초). firstParts의 오디오가 이 구간이다.
  *  - cutAudio(start, dur): 이어받을 구간 오디오(Blob)를 잘라 주는 함수(start = 절대 초)
  *  - onIncomplete({at, reason}): 끝내 다 못 받았을 때 알림(받은 데까지는 반환한다)
- *  - makePart/backoffMs/timeouts: 테스트 주입용(기본값이 실제 동작)
+ *  - makePart/backoffMs/timeouts/waitOnline: 테스트 주입용(기본값이 실제 동작)
  * 테스트가 가짜 모델로 이 '실제' 루프를 돌리기 위해 export 한다.
  */
 export async function transcribeWithResume(model, firstParts, {
@@ -610,6 +611,7 @@ export async function transcribeWithResume(model, firstParts, {
     markerInterval = 2,
     onIncomplete = null,
     backoffMs = (attempt) => Math.min(8000, 2000 * 2 ** attempt),
+    waitOnline = waitUntilOnline,
     timeouts = {},
     label = 'Stage 1',
 } = {}) {
@@ -663,8 +665,15 @@ export async function transcribeWithResume(model, firstParts, {
                 return giveUp(received, err, next.resumeAt);
             }
 
-            // 서버가 과부하·한도를 알렸으면 잠깐 기다린다(멈춤·연결 끊김은 바로 다시)
+            // 서버가 과부하·한도를 알렸으면 잠깐 기다린다(멈춤은 바로 다시).
+            // 연결 끊김도 기다린다 — 예전엔 바로 다시 보내서, 인터넷이 몇 초만 끊겨도 이어받기 3번이 1초 안에 다 실패하고
+            // 뒷부분이 빠진 대본이 저장됐다(2026-11-19 재현). 기기가 '인터넷 없음'이라고 알리면 다시 연결될 때까지(최대 60초)
+            // 먼저 기다리고, 그 뒤 2·4·8초 간격을 둔다.
             if (isServerBusyError(err.cause)) await abortableSleep(backoffMs(attempt), signal);
+            else if (err.reason === 'network') {
+                await waitOnline(60000, signal);
+                await abortableSleep(backoffMs(attempt), signal);
+            }
 
             if (received.length === 0) {
                 // 한 줄도 못 받았다 → 원래 요청을 그대로 다시(오디오를 다시 자를 필요 없음)

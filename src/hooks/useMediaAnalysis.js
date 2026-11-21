@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips } from '../services/gemini';
-import { parseCacheEntry, saveCacheEntry } from '../utils/cacheUtils';
+import { parseCacheEntry, saveCacheEntry, clearCacheIncomplete } from '../utils/cacheUtils';
+import { ANALYSIS_VERSION } from '../services/prompts';
 import { saveStatusOf } from '../utils/cacheStatus';
 import { touchRecent } from '../utils/recentOpen';
 import { uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta } from '../services/cloudSync';
@@ -14,7 +15,7 @@ import { selectSpeechEndTargets, withNextStarts, mergeSpeechEnds, applyManualSpe
 import { incompleteNotice } from '../services/stage1Resume';
 import { rememberAudio, reusableAudio, forgetAudio } from '../utils/audioReuse';
 import { applySplit, replaceRange, rangeNeighbors, indicesInRange, formatStamp } from '../utils/sentenceEdit';
-import { lineKey, locateLines, replaceLines, revertEdit, restoreSpeechEnds, syncBusyFlags } from '../utils/liveMerge';
+import { lineKey, locateLines, replaceLines, revertEdit, restoreSpeechEnds, syncBusyFlags, mergeAnalysis, restorePrev, settlePrev } from '../utils/liveMerge';
 import { isOffline, OFFLINE_MESSAGE } from '../utils/online';
 import { missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../utils/analysisCoverage';
 
@@ -86,6 +87,8 @@ export const useMediaAnalysis = ({
     const queueRunningRef = useRef(false);  // 큐 워커 실행 중 여부
     const stage2RunIdRef = useRef(0); // 최신 Stage 2 실행만 진행배너를 정리(옛 실행이 새 배너를 지우지 않게)
     const quotaWarnedRef = useRef(false); // 용량 경고 세션당 1회만(반복 저장 스팸 방지)
+    const unsavedRef = useRef(new Map()); // `${name}_${size}` → 저장에 실패한 마지막 내용 { fileInfo, data, status, extra }
+    const [unsavedKeys, setUnsavedKeys] = useState(() => new Set()); // 화면 띠 표시용(위 Map의 키)
 
     // saveCacheEntry 래퍼: 저장 실패 시 사용자에게 명시적으로 알림('조용한 실패' 제거).
     // 용량 초과면 "오래된 기록 삭제" 안내, 그 외는 일반 에러 알림. 성공 시 경고 플래그 해제.
@@ -148,18 +151,35 @@ export const useMediaAnalysis = ({
         return keys;
     };
 
-    const persistCache = (fileInfo, data, status) => {
-        const res = saveCacheEntry(fileInfo, data, status);
+    // 저장에 실패한 대본은 마지막으로 저장하려던 내용을 들고 있는다(unsavedRef) — 화면에 '저장 안 됨' 띠를 계속 띄우고,
+    // 공간이 생기면(다른 대본 삭제) 다시 저장한다. 예전엔 2.5초 안내 한 번뿐이라 화면엔 분석이 다 된 것처럼 보이고
+    // 다시 열면 사라져 있었다(2026-11-19 재현: 화면 4/4, 저장본 1/4).
+    const markSaved = (key, ok, pending) => {
+        if (ok) unsavedRef.current.delete(key); else unsavedRef.current.set(key, pending);
+        setUnsavedKeys(prev => {
+            if (prev.has(key) === !ok) return prev;
+            const next = new Set(prev);
+            if (ok) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
+    const persistCache = (fileInfo, data, status, extra) => {
+        const res = saveCacheEntry(fileInfo, data, status, extra);
+        const key = fileInfo && fileInfo.name ? `${fileInfo.name}_${fileInfo.size}` : null;
         if (res && res.ok) {
             quotaWarnedRef.current = false;
+            if (key) markSaved(key, true);
             return res;
         }
+        // 앞서 보관한 부가 정보('끝까지 못 받음' 표시 등)는 이번 저장이 따로 말하지 않으면 그대로 이어 간다
+        if (key && res) markSaved(key, false, { fileInfo, data, status, extra: { ...(unsavedRef.current.get(key)?.extra || {}), ...(extra || {}) } });
         if (res && res.reason === 'quota') {
             if (!quotaWarnedRef.current) {
                 quotaWarnedRef.current = true;
                 if (showToast) showToast({
-                    message: '⚠️ 저장 공간이 꽉 찼습니다. 목록에서 오래된 기록을 삭제한 뒤 다시 시도하세요. (이번 세션엔 보이지만 새로고침 시 사라질 수 있어요)',
+                    message: '저장 공간이 꽉 차서 저장하지 못했어요. 목록에서 안 쓰는 대본을 지우면 자동으로 다시 저장합니다. (그 전에 새로고침하면 방금 바뀐 내용이 사라져요)',
                     type: 'error',
+                    duration: 10000,
                 });
             }
         } else if (res && showToast) {
@@ -203,30 +223,57 @@ export const useMediaAnalysis = ({
         stage2AbortRef.current = new AbortController();
         const { signal } = stage2AbortRef.current;
 
-        // [필드 보존] Stage 2는 시작 시점 스냅샷(workingData)을 통째로 상태/캐시에 덮어쓴다.
-        // 분석이 도는 사이 '대사 끝 감지'가 채운 speechEnd는 이 스냅샷에 없어 배치가 끝날 때마다
-        // 지워지는 경합이 있다 → 덮어쓰기 직전에 감지 결과(ref)를 스냅샷에 이식한다.
-        // (배열 항목을 직접 교체하므로 바로 뒤따르는 persistCache도 이식된 값을 저장한다)
-        const updateGlobalState = (data) => {
-            const graft = speechEndGraftRef.current;
-            if (graft.size > 0) {
-                for (let i = 0; i < data.length; i++) {
-                    if (typeof data[i].speechEnd === 'number') continue;
-                    const se = graft.get(`${fileInfo.name}_${fileInfo.size}|${data[i].seconds}`);
-                    if (typeof se === 'number') data[i] = { ...data[i], speechEnd: se };
-                }
-            }
-            // '다시 전사 중' 표시는 이 사본이 아니라 지금 도는 작업 기준으로 맞춘다 — 안 하면 사본을 뜬 뒤에 끝난
-            // 다시 전사의 표시가 묶음마다 되살아나 그 카드를 못 누르게 된다(위 이식과 같이 배열 항목을 바꿔 저장에도 반영)
-            const flagged = syncBusyFlags(data, busyKeysOf(fileId));
-            if (flagged !== data) for (let i = 0; i < data.length; i++) data[i] = flagged[i];
-            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, data: [...data] } : f));
-        };
-
         const pendingIndices = transcript
             .map((item, idx) => ({ item, idx }))
             .filter(x => !x.item.isAnalyzed)
             .map(x => x.idx);
+        const owned = new Set(pendingIndices);
+
+        // [지금 대본에 넣기] 분석은 시작할 때 뜬 사본(workingData)으로 일하지만, 화면·저장에는 사본을 통째로 쓰지 않고
+        // 이 실행이 맡은 문장의 번역·분석만 '지금 대본'에 넣는다(utils/liveMerge#mergeAnalysis).
+        // 예전엔 묶음이 끝날 때마다 사본으로 덮어써서, 분석이 도는 사이 휴지통에서 되살린 문장이 사라지고(휴지통에도 없음)
+        // 감지가 붙인 '판단 불가' 표시가 지워졌다(2026-11-19 점검, PC 재현).
+        // published = 마지막으로 화면·저장에 쓴 대본. 호출부에 돌려주고, 저장도 이것으로 한다.
+        // [화면 사본 맞추기] 호출부는 방금 이 대본(transcript)을 화면 상태에 넣고 분석을 부른다. 그런데 화면 사본(filesRef)은
+        // 다음 그리기 뒤에야 바뀌므로, 첫 묶음이 그 전에 끝나면 옛 사본(막 올린 파일이면 빈 대본)에 결과를 넣게 된다 —
+        // 결과가 화면에 안 나오고 빈 대본이 저장될 수 있었다(2026-11-21 시험에서 재현). 그래서 시작할 때 사본을 먼저 맞춘다.
+        if (filesRef?.current && liveEntry(fileId) && liveEntry(fileId).data !== transcript) {
+            filesRef.current = filesRef.current.map(p => (p.id === fileId ? { ...p, data: transcript } : p));
+        }
+        let published = transcript;
+        // detached = 결과를 쓸 곳이 없다(대본이 지워졌거나, 같은 파일을 새로 전사하는 중). 그동안은 저장도 하지 않는다 —
+        // 예전엔 시작 때 사본을 그대로 저장해서, 지운 대본이 되살아나거나 그사이 바뀐 저장본을 덮어썼다.
+        let detached = false;
+        const fileKey = `${fileInfo.name}_${fileInfo.size}`;
+        // 이 대본이 지금 열려 있는 항목. 홈으로 나갔다 다시 열면 번호(id)가 바뀌므로 파일(이름·크기)로도 찾는다.
+        const openEntry = () => liveEntry(fileId)
+            || (filesRef?.current || []).find(p => p.file && `${p.file.name}_${p.file.size}` === fileKey) || null;
+        const updateGlobalState = (data) => {
+            const entry = openEntry();
+            if (entry) {
+                // 다시 연 항목이 새로 전사되는 중이면 이 실행의 결과는 옛 대본의 것이다
+                if (!Array.isArray(entry.data) || (entry.id !== fileId && entry.isAnalyzing)) { detached = true; return null; }
+                detached = false;
+                // '다시 전사 중' 표시는 지금 도는 작업 기준으로 맞춘다(끝난 작업의 표시가 남지 않게)
+                published = syncBusyFlags(mergeAnalysis(entry.data, data, owned), busyKeysOf(entry.id));
+                if (published !== entry.data) commitData(entry.id, published);
+                return published.length > 0 ? published : null; // 빈 대본은 저장하지 않는다(안전장치)
+            }
+            // 대본이 닫혀 있으면(홈으로 나감) 저장본에 넣는다. 저장에 실패해 보관 중인 내용이 있으면 그것에 넣는다.
+            // 그사이 감지가 채운 대사 끝도 옮겨 온다.
+            // 저장본은 정리(sanitizeData)하지 않고 그대로 쓴다 — 저장된 모양이 곧 화면에 있던 모양이라 문장을 그대로 짝지을 수 있다
+            // (정리하면 시작 시각이 표시 문자열 기준으로 다시 계산돼, 방금 자르거나 다시 전사한 문장의 짝이 어긋난다).
+            const base = unsavedRef.current.get(fileKey)?.data || parseCacheEntry(`gemini_analysis_${fileKey}`)?.rawData;
+            if (!Array.isArray(base)) { detached = true; return null; }
+            detached = false;
+            const graft = speechEndGraftRef.current;
+            published = syncBusyFlags(mergeAnalysis(base, data, owned).map(d => {
+                if (typeof d.speechEnd === 'number') return d;
+                const se = graft.get(`${fileKey}|${d.seconds}`);
+                return typeof se === 'number' ? { ...d, speechEnd: se } : d;
+            }), busyKeysOf(fileId));
+            return published.length > 0 ? published : null;
+        };
 
         if (pendingIndices.length === 0) return { total: 0, success: 0, failedIndices: [] };
 
@@ -241,12 +288,13 @@ export const useMediaAnalysis = ({
         // 바꿔 끼운다 — 키가 없으면 요청을 하나도 보내지 않고 실패 카드+안내(Gemini로 몰래 바꾸지 않는다, 사용자 결정 Q5).
         const useClaude = isClaudeModel(currentModelId);
         if (useClaude && !claudeApiKey) {
-            const failed = JSON.parse(JSON.stringify(transcript));
-            pendingIndices.forEach(idx => { failed[idx] = { ...failed[idx], analysisFailed: true }; });
-            updateGlobalState(failed);
-            persistCache(fileInfo, failed, 'partial');
+            // 요청을 안 보내고 바로 끝나므로 '지금 대본'이 아직 이 대본으로 안 바뀌었을 수 있다(호출부가 방금 화면에 올림)
+            // → 여기서는 받은 대본에 직접 표시한다. 재분석 중이던 문장은 실패 표시 대신 옛 분석으로 되돌린다.
+            const failed = syncBusyFlags(transcript.map((d, i) => (owned.has(i) ? (restorePrev(d) || { ...d, analysisFailed: true }) : d)), busyKeysOf(fileId));
+            commitData(fileId, failed);
+            persistCache(fileInfo, failed, saveStatusOf(failed) === 'completed' ? 'completed' : 'partial');
             if (showToast) showToast({ message: '2단계 모델이 Claude인데 Claude 키가 없어요. 설정에서 키를 넣거나 2단계를 Gemini로 바꿔 주세요.', type: 'error', duration: 10000 });
-            return { total: pendingIndices.length, success: 0, failedIndices: pendingIndices, aborted: false, data: failed };
+            return { total: pendingIndices.length, success: 0, failedIndices: pendingIndices, keptOld: pendingIndices.filter(i => transcript[i]._prev), aborted: false, data: failed };
         }
         const keyForModel = useClaude ? claudeApiKey : currentApiKey;
         // 묶음이 사유를 달고 실패하면(Claude 키·크레딧) 마지막 사유를 안내 문구에 쓴다
@@ -311,17 +359,18 @@ export const useMediaAnalysis = ({
                                 translation: res.translation,
                                 analysis: res.analysis,
                                 transcriptSuspect: res.transcriptSuspect || '', // 규칙15: 없으면 빈 값(배지 없음)
+                                av: ANALYSIS_VERSION, // 이 문장을 분석한 규칙 버전(cacheUtils#analysisVersionOf)
                                 isAnalyzed: true
                             };
                             groupSuccess++;
                         }
                     });
                     totalSuccessCount += groupSuccess;
-                    updateGlobalState(workingData);
+                    const shown = updateGlobalState(workingData); // null = 쓸 곳 없음(지워진 대본) → 저장도 안 함
                     setStage2Progress(p => ({ ...(p || {}), fileId, done: totalSuccessCount, total: pendingIndices.length, note: '' }));
                     // 상태는 묶음 수가 아니라 실제 분석된 문장으로 — 예전엔 0문장 성공 묶음도 성공으로 세어, 마지막 묶음 뒤
                     // 마무리 저장까지(점검 실측 약 33초) 빈 문장이 있는데도 'completed'로 저장돼 있었다(그사이 중단되면 그대로 남음)
-                    persistCache(fileInfo, workingData, saveStatusOf(workingData));
+                    if (shown) persistCache(fileInfo, shown, saveStatusOf(shown));
                     if (refreshCacheKeys) refreshCacheKeys();
                 }
             } catch (e) {
@@ -376,6 +425,7 @@ export const useMediaAnalysis = ({
                                         translation: res.translation,
                                         analysis: res.analysis,
                                         transcriptSuspect: res.transcriptSuspect || '',
+                                        av: ANALYSIS_VERSION,
                                         isAnalyzed: true
                                     };
                                 }
@@ -428,6 +478,7 @@ export const useMediaAnalysis = ({
                                         translation: res.translation,
                                         analysis: res.analysis,
                                         transcriptSuspect: res.transcriptSuspect || '',
+                                        av: ANALYSIS_VERSION,
                                         isAnalyzed: true
                                     };
                                 }
@@ -451,7 +502,8 @@ export const useMediaAnalysis = ({
         }
 
         if (didRetry && !signal.aborted) {
-            persistCache(fileInfo, workingData, saveStatusOf(workingData));
+            const shown = updateGlobalState(workingData); // 그사이 다른 저장(복구·감지)이 있었으면 그 위에 넣는다
+            if (shown) persistCache(fileInfo, shown, saveStatusOf(shown));
         }
 
         // 이 실행이 최신일 때만 진행배너 정리 (옛 실행이 새 배너를 지우지 않게)
@@ -463,13 +515,29 @@ export const useMediaAnalysis = ({
         // [실패 표시] 분석이 끝났는데도 미분석으로 남은 문장에 analysisFailed 플래그를 단다.
         // → 무한 로딩 스피너 대신, 문장 카드에 '분석 실패 · 다시 시도' UI가 뜬다.
         // (취소/파일전환으로 중단된 경우는 실패가 아니므로 제외)
+        // 재분석 중이던 문장(옛 분석을 _prev로 들고 있음)은 실패 표시 대신 옛 분석으로 되돌린다 — 예전엔 재분석 함수만
+        // 옛 분석을 들고 있어서, 재분석이 다른 편집으로 끊기고 이어진 분석이 실패하면 옛 분석이 사라졌다.
+        const keptOld = [];
         if (!signal.aborted && failedIndices.length > 0) {
-            failedIndices.forEach(idx => { workingData[idx] = { ...workingData[idx], analysisFailed: true }; });
-            updateGlobalState(workingData);
+            failedIndices.forEach(idx => {
+                const back = restorePrev(workingData[idx]);
+                if (back) keptOld.push(idx);
+                workingData[idx] = back || { ...workingData[idx], analysisFailed: true };
+            });
+            const shown = updateGlobalState(workingData);
             // 'partial' = 끝났는데 실패 문장이 남음 → 기록 창 배지 '일부 실패'(cacheStatusOf). 열면 남은 문장을 이어서 분석
-            const endStatus = saveStatusOf(workingData);
-            persistCache(fileInfo, workingData, endStatus === 'analyzing' ? 'partial' : endStatus);
+            if (shown) {
+                const endStatus = saveStatusOf(shown);
+                persistCache(fileInfo, shown, endStatus === 'analyzing' ? 'partial' : endStatus);
+            }
         }
+        const allKeptOld = keptOld.length > 0 && keptOld.length === failedIndices.length;
+        // 안내의 [다시 시도]: 누를 때 지금 대본에서 그 문장들을 다시 찾는다(그사이 문장 수가 바뀌면 번호가 밀린다)
+        const failedLines = failedIndices.map(i => workingData[i]);
+        const retryFailed = () => {
+            const at = locateLines(liveEntry(fileId)?.data || [], failedLines);
+            if (at.length > 0) reanalyzeSentences(fileId, at);
+        };
 
         if (!signal.aborted && totalSuccessCount === 0 && pendingIndices.length > 0) {
             console.error('[Stage 2] All batches failed.');
@@ -477,11 +545,13 @@ export const useMediaAnalysis = ({
             // 그런 경우 엉뚱한 안내였다(점검 #20). 사실만 알리고 다시 시도 버튼을 준다.
             // Claude 키·크레딧처럼 조치할 사유가 있으면 그 문구를 앞세운다(다시 시도는 재분석 모델=3단계로 돌아 Gemini면 성공할 수 있다)
             if (showToast) showToast({
-                message: failReason
+                message: allKeptOld
+                    ? `${failReason ? failReason + ' ' : ''}${keptOld.length}개 문장 재분석 실패 — 기존 분석을 유지했어요.`
+                    : failReason
                     ? `${failReason} (${failedIndices.length || pendingIndices.length}개 문장 분석 안 됨)`
                     : `${failedIndices.length || pendingIndices.length}개 문장을 분석하지 못했어요. 잠시 후 다시 시도해 주세요.`,
                 type: 'error',
-                ...(failedIndices.length ? { action: { label: '다시 시도', onClick: () => reanalyzeSentences(fileId, failedIndices) } } : {}),
+                ...(failedIndices.length ? { action: { label: '다시 시도', onClick: retryFailed } } : {}),
                 duration: failReason ? 12000 : 8000,
             });
         } else if (!signal.aborted && reportPartialFail && failedIndices.length > 0 && totalSuccessCount > 0) {
@@ -491,20 +561,20 @@ export const useMediaAnalysis = ({
                     ? `${failReason} (${failedIndices.length}개 문장 분석 안 됨, 나머지는 완료)`
                     : `${failedIndices.length}개 문장 분석 실패. 나머지는 완료됐어요.`,
                 type: 'error',
-                action: { label: '실패분 재시도', onClick: () => reanalyzeSentences(fileId, failedIndices) },
+                action: { label: '실패분 재시도', onClick: retryFailed },
                 duration: 8000,
             });
         }
 
         // 클라우드에 최종 분석 결과 반영 (best-effort, mediaUrl은 서버가 기존 값 보존)
-        if (!signal.aborted && totalSuccessCount > 0) {
-            cloudSaveMeta(fileInfo, workingData, saveStatusOf(workingData), null, 0)
+        if (!signal.aborted && totalSuccessCount > 0 && !detached) {
+            cloudSaveMeta(fileInfo, published, saveStatusOf(published), null, 0)
                 .catch(e => console.warn('[Cloud] 분석 결과 저장 실패:', e));
         }
 
         console.log(`[Stage 2] Finished. Analyzed: ${totalSuccessCount}/${pendingIndices.length}`);
-        // data = 이 실행이 마지막으로 화면·캐시에 쓴 대본(호출부가 filesRef를 읽으면 마지막 커밋 전 값일 수 있다)
-        return { total: pendingIndices.length, success: totalSuccessCount, failedIndices, aborted: signal.aborted, data: workingData };
+        // data = 이 실행이 마지막으로 화면·캐시에 쓴 대본. keptOld = 실패했지만 옛 분석으로 되돌린 문장(failedIndices에도 들어 있다)
+        return { total: pendingIndices.length, success: totalSuccessCount, failedIndices, keptOld, aborted: signal.aborted, data: published };
     };
 
     /**
@@ -556,7 +626,8 @@ export const useMediaAnalysis = ({
             showToast({ message: incompleteNotice(incomplete), type: 'error', duration: 12000 });
         }
 
-        return data;
+        // incomplete = 끝까지 못 받은 지점 { at, reason }(없으면 null). 안내는 12초 뒤 사라지므로 호출부가 대본에 표시를 남긴다.
+        return { data, incomplete };
     };
 
     // Stage1 전사 → 캐시/클라우드 저장 → Stage2 분석까지, 한 파일의 전체 파이프라인.
@@ -586,11 +657,12 @@ export const useMediaAnalysis = ({
         let duration = 0;
         try { duration = await getMediaDuration(fileForAnalysis); } catch (e) { console.warn("Failed to get media duration:", e); }
 
-        const data = await runStage1(fileId, fileForAnalysis, duration, sourceFile);
+        const { data, incomplete } = await runStage1(fileId, fileForAnalysis, duration, sourceFile);
 
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data, isAnalyzing: false } : p));
+        // 끝까지 못 받았으면 그 지점을 대본에 남긴다(화면 띠 + 저장) — 예전엔 12초 안내가 지나가면 '완료된 대본'과 구별이 안 됐다
+        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data, isAnalyzing: false, incomplete: incomplete || null } : p));
 
-        persistCache(sourceFile, data, 'extracted');
+        persistCache(sourceFile, data, 'extracted', { incomplete: incomplete || null });
         if (refreshCacheKeys) refreshCacheKeys();
 
         // [자동 감지 옵션] 전사+분석이 '완료된 뒤' 대사 구간 감지를 자동 실행 (설정, 기본 꺼짐).
@@ -709,8 +781,9 @@ export const useMediaAnalysis = ({
                     console.log("Using cached analysis for", fItem.file.name);
                     let cacheDuration = 0;
                     try { cacheDuration = await getMediaDuration(fItem.file); } catch (e) { console.warn("Failed to get cached media duration:", e); }
-                    const data = sanitizeData(cacheEntry.rawData, cacheDuration);
-                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data, isAnalyzing: false, isFromCache: true } : p));
+                    // settlePrev: 재분석이 끝나기 전에 닫혀 비어 있는 문장은 옛 분석으로 되돌린다
+                    const data = settlePrev(sanitizeData(cacheEntry.rawData, cacheDuration));
+                    setFiles(prev => prev.map(p => p.id === fItem.id ? { ...p, data, isAnalyzing: false, isFromCache: true, incomplete: cacheEntry.metadata?.incomplete || null } : p));
                     // 분석이 덜 끝난 대본이면 남은 문장을 이어서 분석한다 — 목록에서 열 때(loadCache)와 같은 동작.
                     // 예전엔 여기서 끝나 '파일을 다시 올리면' 남은 분석이 영영 안 돌았다(2026-10-11 점검 #19).
                     // 같은 영상이 다른 항목으로 열려 전사·분석 중이면 건너뛴다 — runStage2 첫 줄의 abort가 그쪽 배치를
@@ -769,8 +842,14 @@ export const useMediaAnalysis = ({
         if (!targetFile) { console.warn('[Retry] 대상 파일 없음', { fileId }); return; }
 
         try {
-            // 재시도는 신규 업로드와 달리 미디어 재저장/클라우드 재동기화는 생략 (기존 동작 보존)
-            await runFullAnalysis(fileId, targetFile);
+            // 영상이 이 기기에 아직 저장돼 있지 않으면 이번에 저장한다. 첫 시도는 전사가 성공한 뒤에 저장하는데,
+            // 전사가 실패하면 저장까지 못 가서, 예전엔 다시 시도로 성공해도 영상 없는 대본(새로고침하면 소리 없음)이 됐다.
+            let saveMedia = false;
+            try {
+                saveMedia = typeof Blob !== 'undefined' && targetFile instanceof Blob && targetFile.size > 0
+                    && !(await mediaStore.getFile(targetFile.name, targetFile.size));
+            } catch (e) { console.warn('[Retry] 저장된 영상 확인 실패:', e); }
+            await runFullAnalysis(fileId, targetFile, { saveMedia });
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error("Retry Analysis Error", err);
@@ -1045,47 +1124,71 @@ export const useMediaAnalysis = ({
         const base = (filesRef?.current || []).find(p => p.id === fileId);
         const targetFile = base?.file || null;
         if (!targetFile || !Array.isArray(base?.data)) return;
-        const snapshot = new Map(); // idx -> 원본 분석 (재분석 실패 시 복원용)
-        // 선택 문장만 미분석 상태로 리셋 (전사 텍스트·타임스탬프는 유지)
+        // 선택 문장만 미분석 상태로 리셋 (전사 텍스트·타임스탬프는 유지).
+        // 옛 분석은 문장 안(_prev)에 넣어 둔다 → 재분석이 실패하거나 끊기면 분석(runStage2)·대본 열기가 그걸로 되돌린다.
+        // 예전엔 이 함수만 들고 있어서, 재분석 중 다른 문장을 지우면(분석이 새로 시작됨) 옛 분석을 되찾을 길이 없었다.
         const resetData = base.data.map((d, i) => {
             if (!idxSet.has(i)) return d;
-            // 원본이 분석돼 있었으면 복원용으로 보관 (전사의심 플래그도 함께 — 실패 복원 시 배지 유지)
-            if (d.isAnalyzed) snapshot.set(i, { translation: d.translation, analysis: d.analysis, a: d.a, transcriptSuspect: d.transcriptSuspect || '', isAnalyzed: true });
             // analysisFailed 해제 → 재시도 동안은 실패 UI가 아니라 로딩 스피너로 표시
-            return { ...d, translation: '', analysis: '', a: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false };
+            const next = { ...d, translation: '', analysis: '', a: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false };
+            delete next.av;
+            // 전사의심 플래그도 함께 보관 — 실패 복원 시 배지 유지. 이미 재분석 중이던 문장(미분석 + _prev)은 그 _prev를 그대로 둔다.
+            if (d.isAnalyzed) next._prev = { text: d.text, translation: d.translation, analysis: d.analysis, a: d.a, transcriptSuspect: d.transcriptSuspect || '', ...(d.av !== undefined ? { av: d.av } : {}) };
+            return next;
         });
-        setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: resetData } : p));
+        const pickedLines = resetData.filter((_, i) => idxSet.has(i));
+        commitData(fileId, resetData);
 
-        // [원본 소실 방지] 지워진 버전을 캐시에 저장하지 않는다 → 분석이 전부 실패하거나 도중에
-        // 탭이 닫혀도 캐시엔 직전 원본 분석이 남는다. (성공분은 runStage2가 배치별로 저장)
+        // [원본 소실 방지] 지워진 버전을 여기서 따로 저장하지는 않는다. 다른 저장(묶음 완료·편집)에 섞여 저장돼도
+        // 옛 분석이 문장 안에 같이 저장되므로, 도중에 탭이 닫히면 다시 열 때 옛 분석으로 되돌아간다(settlePrev).
         if (refreshCacheKeys) refreshCacheKeys();
 
         if (showToast) showToast({ message: `${idxSet.size}개 문장 분석을 다시 진행 중...`, type: 'success' });
         // 미분석(리셋된) 문장만 다시 분석 (재분석 → 설정의 Stage 3 모델).
-        // reportPartialFail:false — 실패분은 아래에서 원본 복원으로 직접 처리(중복 토스트 방지).
+        // reportPartialFail:false — 일부 실패 안내는 아래에서 직접 한다(중복 토스트 방지).
         const result = await runStage2(fileId, targetFile, resetData, apiKey, stage3Model, { reportPartialFail: false });
+        if (!result) return;
+        // 안내의 [다시 시도]: 누를 때 지금 대본에서 그 문장들을 다시 찾는다
+        const retry = (lines) => () => {
+            const at = locateLines(liveEntry(fileId)?.data || [], lines);
+            if (at.length > 0) reanalyzeSentences(fileId, at);
+        };
 
-        // 여전히 미분석(실패)인 선택 문장은 원본 분석으로 되돌린다. (취소/파일전환으로 중단된 경우는 제외)
-        const failed = (result && !result.aborted ? (result.failedIndices || []) : []).filter(i => snapshot.has(i));
-        if (failed.length > 0) {
-            const latest = result.data;
-            const restoredData = Array.isArray(latest) ? latest.map((d, i) => {
-                if (!snapshot.has(i) || d.isAnalyzed) return d; // 성공분은 새 결과 유지
-                return { ...d, ...snapshot.get(i), analysisFailed: false }; // 실패분은 원본 분석으로 복원(실패 표시 해제)
-            }) : null;
-            if (restoredData) {
-                setFiles(prev => prev.map(p => p.id === fileId ? { ...p, data: restoredData } : p));
-                const status = saveStatusOf(restoredData);
-                persistCache(targetFile, restoredData, status);
-                if (refreshCacheKeys) refreshCacheKeys();
-            }
+        if (result.aborted) {
+            // 도중에 끊겼다. 곧바로 다른 분석이 이 대본을 맡았으면(문장 삭제 뒤 이어 분석 등) 그쪽이 남은 문장을 처리한다.
+            // 아무도 안 맡았으면(다시 전사 시작·다른 영상 분석·실행취소) 고른 문장을 옛 분석으로 되돌린다 — 안 그러면 빈 채로 남는다.
+            if (stage2ActiveRef?.current?.get(fileId)) return;
+            const live = liveEntry(fileId)?.data;
+            if (!Array.isArray(live)) return;
+            const at = new Set(locateLines(live, pickedLines));
+            const back = [];
+            const restored = live.map((d, i) => {
+                if (!at.has(i) || d.isAnalyzed) return d;
+                const old = restorePrev(d);
+                if (old) back.push(old);
+                return old || d;
+            });
+            if (back.length === 0) return;
+            commitData(fileId, restored);
+            persistCache(targetFile, restored, saveStatusOf(restored));
+            if (refreshCacheKeys) refreshCacheKeys();
             if (showToast) showToast({
-                message: `${failed.length}개 문장 재분석 실패 — 기존 분석을 유지했어요.`,
+                message: `재분석이 중단돼 ${back.length}개 문장은 기존 분석을 유지했어요.`,
                 type: 'error',
-                action: { label: '다시 시도', onClick: () => reanalyzeSentences(fileId, failed) },
+                action: { label: '다시 시도', onClick: retry(back) },
                 duration: 8000,
             });
+            return;
         }
+
+        // 실패한 문장은 runStage2가 옛 분석으로 되돌려 저장까지 했다(keptOld) — 여기서는 알리기만 한다.
+        const kept = (result.keptOld || []).map(i => resetData[i]).filter(Boolean);
+        if (kept.length > 0 && showToast) showToast({
+            message: `${kept.length}개 문장 재분석 실패 — 기존 분석을 유지했어요.`,
+            type: 'error',
+            action: { label: '다시 시도', onClick: retry(kept) },
+            duration: 8000,
+        });
     };
 
     /**
@@ -1192,21 +1295,19 @@ export const useMediaAnalysis = ({
             const seenIds = (filesRef?.current || []).map(x => x.id);
             if (baseEntry) {
                 // 병합 규칙(요청한 인덱스만 · 시각 일치 검사 · 채택 기준 · 포기 표시)은 utils/speechEndMerge
-                // 자동 감지는 그동안 다른 문장이 고쳐졌을 수 있어 번호 대신 시각·글자로 자리를 찾는다
-                const r = baseData
-                    ? (() => {
-                        const a = alignSpeechEnds(baseEntry.data, snapshot, requested, ends);
-                        return mergeSpeechEnds(baseEntry.data, baseEntry.data, a.requested, a.ends, duration);
-                    })()
-                    : mergeSpeechEnds(baseEntry.data, snapshot, requested, ends, duration);
+                // 감지는 수십 초가 걸려 그동안 문장이 지워지거나 고쳐질 수 있다 → 번호 대신 시각·글자로 자리를 찾는다.
+                // 예전엔 자동 감지만 이렇게 하고, 직접 누른 전체 감지는 번호로 맞춰서 문장 하나만 지워도
+                // 그 뒤 문장의 결과가 전부 버려졌다(2026-11-19 재현: 4문장 중 1개만 반영).
+                const a = alignSpeechEnds(baseEntry.data, snapshot, requested, ends);
+                const r = mergeSpeechEnds(baseEntry.data, baseEntry.data, a.requested, a.ends, duration);
                 applied = r.applied;
                 secondsMismatch = r.secondsMismatch;
                 // 동기 사본(graft ref)에도 기록 — 진행 중인 Stage 2가 스냅샷으로 덮어써도 이식돼 살아남는다
                 for (const [sec, se] of r.grafts) speechEndGraftRef.current.set(`${targetFile.name}_${targetFile.size}|${sec}`, se);
                 const merged = r.merged;
                 latestData = merged;
-                // 계산이 끝난 결과만 상태에 반영한다(업데이터는 순수 — 값을 꺼내오지 않는다)
-                setFiles(prev => prev.map(p => (p.id === fileId ? { ...p, data: merged } : p)));
+                // 계산이 끝난 결과만 반영한다. 사본(filesRef)도 같이 바꿔, 바로 뒤에 끝나는 분석 묶음이 옛 대본에 결과를 넣지 않게 한다
+                commitData(fileId, merged);
             }
 
             // 모델이 요청한 문장에 답은 했는데 값이 전부 기준 밖(대개 시작 시각을 되풀이 = 끝을 못 찾음)이면 오류가 아니라
@@ -1714,6 +1815,39 @@ export const useMediaAnalysis = ({
         runStage2(fileId, targetFile, clean, apiKey, stage3Model);
     });
 
+    // '끝까지 못 받음' 띠를 닫는다(화면 + 저장된 표시).
+    const dismissIncomplete = (fileId) => {
+        const entry = liveEntry(fileId);
+        setFiles(prev => prev.map(p => (p.id === fileId ? { ...p, incomplete: null } : p)));
+        if (!entry?.file) return;
+        clearCacheIncomplete(entry.file);
+        // 저장 실패로 보관 중인 내용에도 반영한다 — 안 하면 나중에 다시 저장될 때 표시가 되살아난다
+        const stash = unsavedRef.current.get(`${entry.file.name}_${entry.file.size}`);
+        if (stash) stash.extra = { ...(stash.extra || {}), incomplete: null };
+    };
+
+    // 저장에 실패했던 대본을 다시 저장한다. 띠의 [다시 저장]과, 다른 대본을 지워 공간이 생겼을 때(silent) 부른다.
+    // 대본이 열려 있으면 지금 대본을, 닫혀 있으면 마지막으로 저장하려던 내용을 쓴다.
+    const retryUnsaved = ({ silent = false } = {}) => {
+        if (unsavedRef.current.size === 0) return;
+        quotaWarnedRef.current = silent; // 직접 눌렀을 때만 실패 안내를 다시 띄운다
+        let saved = 0;
+        for (const [key, pending] of [...unsavedRef.current]) {
+            const open = (filesRef?.current || []).find(p => p.file && `${p.file.name}_${p.file.size}` === key);
+            const useLive = open && !open.isAnalyzing && Array.isArray(open.data) && open.data.length > 0;
+            const data = useLive ? open.data : pending.data;
+            const res = persistCache(pending.fileInfo, data, useLive ? saveStatusOf(data) : pending.status, pending.extra);
+            if (res && res.ok) saved++;
+        }
+        if (saved > 0) {
+            if (refreshCacheKeys) refreshCacheKeys();
+            if (showToast) showToast({ message: saved > 1 ? `저장 안 됐던 대본 ${saved}개를 저장했어요.` : '저장 안 됐던 대본을 저장했어요.', type: 'success' });
+        }
+    };
+
+    // 대본을 지웠으면 '저장 안 됨' 기록도 지운다 — 안 지우면 공간이 생겼을 때 지운 대본을 다시 저장해 되살린다.
+    const forgetUnsaved = (fileKey) => markSaved(fileKey, true); // fileKey = `이름_크기`
+
     // 진행 중인 Stage1 전사를 사용자가 취소.
     // abort 후 해당 파일을 취소 상태로 전환 → 무한 스피너 대신 재시도 가능한 에러 카드 노출.
     const cancelStage1 = (fileId) => {
@@ -1735,5 +1869,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
+    return { unsavedKeys, retryUnsaved, forgetUnsaved, dismissIncomplete, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
 };

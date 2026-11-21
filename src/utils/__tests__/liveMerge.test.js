@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { locateLines, replaceLines, revertEdit, restoreSpeechEnds, syncBusyFlags, lineKey } from '../liveMerge';
+import { locateLines, replaceLines, revertEdit, restoreSpeechEnds, syncBusyFlags, lineKey, mergeAnalysis, restorePrev, settlePrev } from '../liveMerge';
 
 const S = (seconds, text, extra = {}) => ({ seconds, text, ...extra });
 const texts = (data) => data.map(d => d.text);
@@ -163,5 +163,108 @@ describe('"다시 전사 중" 표시 맞추기', () => {
         expect(syncBusyFlags(data, new Set())).toBe(data);
         const busy = [S(1, 'a', { isRetranscribing: true })];
         expect(syncBusyFlags(busy, new Set([lineKey(busy[0])]))).toBe(busy);
+    });
+});
+
+describe('분석 결과를 지금 대본에 넣기', () => {
+    const done = (seconds, text, extra = {}) => S(seconds, text, { translation: '새 번역', analysis: '새 풀이', isAnalyzed: true, av: 4, ...extra });
+
+    it('맡은 문장의 번역·분석만 옮기고, 그사이 휴지통에서 되살린 문장은 그대로 둔다', () => {
+        const work = [S(1, 'a', { isAnalyzed: true, translation: '옛' }), done(3, 'b'), done(9, 'c')];
+        const live = [S(1, 'a', { isAnalyzed: true, translation: '옛' }), S(3, 'b'), S(6, '되살림', { isAnalyzed: true, translation: 'x' }), S(9, 'c')];
+        const out = mergeAnalysis(live, work, new Set([1, 2]));
+        expect(texts(out)).toEqual(['a', 'b', '되살림', 'c']);
+        expect(out[1]).toMatchObject({ isAnalyzed: true, translation: '새 번역', av: 4 });
+        expect(out[2]).toBe(live[2]);
+        expect(out[3].translation).toBe('새 번역');
+        expect(out[0]).toBe(live[0]); // 맡지 않은 문장은 손대지 않는다
+    });
+
+    it("지금 대본에만 있는 대사 끝·'판단 불가' 표시는 지워지지 않는다", () => {
+        const work = [done(1, 'a')];
+        const live = [S(1, 'a', { speechEnd: 2.5, speechEndSkipped: true })];
+        const out = mergeAnalysis(live, work, new Set([0]));
+        expect(out[0]).toMatchObject({ speechEnd: 2.5, speechEndSkipped: true, isAnalyzed: true, translation: '새 번역' });
+    });
+
+    it('그사이 지워졌거나 글자가 바뀐 문장의 결과는 버린다', () => {
+        const work = [done(1, 'a'), done(3, 'b')];
+        const live = [S(3, 'b 고침')];
+        expect(mergeAnalysis(live, work, new Set([0, 1]))).toBe(live);
+    });
+
+    it('똑같은 문장이 둘이면 맡지 않은 앞 문장을 건너뛰고 제 짝에 넣는다', () => {
+        const work = [S(3, 'b', { isAnalyzed: true, translation: '옛' }), done(3, 'b')];
+        const live = [S(3, 'b', { isAnalyzed: true, translation: '옛' }), S(3, 'b')];
+        const out = mergeAnalysis(live, work, new Set([1]));
+        expect(out.map(d => d.translation)).toEqual(['옛', '새 번역']);
+    });
+
+    it('실패 표시는 아직 분석 안 된 문장에만 붙는다', () => {
+        const work = [S(1, 'a', { analysisFailed: true }), S(3, 'b', { analysisFailed: true })];
+        const live = [S(1, 'a'), S(3, 'b', { isAnalyzed: true, translation: '이미 됨' })];
+        const out = mergeAnalysis(live, work, new Set([0, 1]));
+        expect(out[0].analysisFailed).toBe(true);
+        expect(out[1]).toBe(live[1]);
+    });
+
+    it('분석이 들어가면 보관해 둔 옛 분석(_prev)과 실패 표시는 치운다', () => {
+        const live = [S(1, 'a', { _prev: { translation: '옛' }, analysisFailed: true, a: '' })];
+        const out = mergeAnalysis(live, [done(1, 'a')], new Set([0]));
+        expect(out[0]._prev).toBeUndefined();
+        expect(out[0].analysisFailed).toBeUndefined();
+        expect(out[0].translation).toBe('새 번역');
+    });
+
+    it('바뀐 게 없으면 받은 배열을 그대로 돌려준다', () => {
+        const live = [done(1, 'a')];
+        expect(mergeAnalysis(live, [done(1, 'a')], new Set([0]))).toBe(live);
+        expect(mergeAnalysis(live, [S(1, 'a')], new Set([0]))).toBe(live);
+    });
+});
+
+describe('재분석이 안 됐을 때 옛 분석으로 되돌리기', () => {
+    const reset = S(3, 'b', { translation: '', analysis: '', isAnalyzed: false, analysisFailed: false, _prev: { translation: '옛 번역', analysis: '옛 풀이', transcriptSuspect: '의심', av: 3 } });
+
+    it('옛 번역·분석·전사의심·분석 버전을 되살리고 보관본은 치운다', () => {
+        const back = restorePrev(reset);
+        expect(back).toMatchObject({ translation: '옛 번역', analysis: '옛 풀이', transcriptSuspect: '의심', av: 3, isAnalyzed: true });
+        expect(back._prev).toBeUndefined();
+        expect(back.analysisFailed).toBeUndefined();
+    });
+
+    it('보관본이 없으면 null', () => {
+        expect(restorePrev(S(1, 'a'))).toBeNull();
+    });
+
+    it('대본을 열 때: 비어 있는 문장은 옛 분석으로, 이미 분석된 문장은 보관본만 치운다', () => {
+        const data = [S(1, 'a'), reset, S(9, 'c', { isAnalyzed: true, translation: '새', _prev: { translation: '옛' } })];
+        const out = settlePrev(data);
+        expect(out[0]).toBe(data[0]);
+        expect(out[1]).toMatchObject({ isAnalyzed: true, translation: '옛 번역' });
+        expect(out[2]).toMatchObject({ isAnalyzed: true, translation: '새' });
+        expect(out[2]._prev).toBeUndefined();
+        const clean = [S(1, 'a')];
+        expect(settlePrev(clean)).toBe(clean);
+    });
+});
+
+describe('옛 분석은 그 글자의 문장에만 되돌린다', () => {
+    const cut = S(3, 'b 앞쪽만', { isAnalyzed: false, _prev: { text: 'b 앞쪽만 그리고 뒤쪽', translation: '원문 전체 번역', analysis: '풀이' } });
+
+    it('보관할 때와 글자가 바뀐 문장에는 되돌리지 않는다', () => {
+        expect(restorePrev(cut)).toBeNull();
+    });
+
+    it('대본을 열 때 그런 문장은 보관본만 치우고 분석 전으로 둔다(열면 이어서 분석된다)', () => {
+        const out = settlePrev([cut]);
+        expect(out[0].isAnalyzed).toBe(false);
+        expect(out[0]._prev).toBeUndefined();
+        expect(out[0].translation).toBeUndefined();
+    });
+
+    it('글자가 같으면 되돌린다(글자 표시가 없는 예전 보관본도)', () => {
+        expect(restorePrev(S(3, 'b', { _prev: { text: 'b', translation: '옛' } })).translation).toBe('옛');
+        expect(restorePrev(S(3, 'b', { _prev: { translation: '옛' } })).translation).toBe('옛');
     });
 });

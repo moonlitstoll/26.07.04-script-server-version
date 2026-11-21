@@ -137,3 +137,67 @@ export function syncBusyFlags(data, busyKeys) {
     });
     return changed ? next : data;
 }
+
+/**
+ * 재분석이 끝내 안 됐을 때 옛 분석으로 되돌린 문장. 옛 분석을 안 들고 있으면 null.
+ * 재분석은 고른 문장의 번역·분석을 비우고 시작하는데, 옛 것을 문장 안(_prev)에 넣어 둔다 —
+ * 예전엔 재분석 함수만 들고 있어서, 재분석이 다른 편집으로 끊기고 이어진 분석이 실패하면 옛 분석이 사라졌다.
+ */
+export function restorePrev(d) {
+    const p = d?._prev;
+    if (!p || typeof p !== 'object') return null;
+    // 보관할 때의 글자와 다르면(그사이 자르거나 고친 문장) 그 분석은 이 문장의 것이 아니다
+    if (p.text !== undefined && p.text !== d.text) return null;
+    const next = { ...d, translation: p.translation || '', analysis: p.analysis || '', transcriptSuspect: p.transcriptSuspect || '', isAnalyzed: true };
+    delete next._prev;
+    delete next.analysisFailed;
+    if (p.a !== undefined) next.a = p.a;
+    if (p.av !== undefined) next.av = p.av; else delete next.av;
+    return next;
+}
+
+/** 대본을 열 때: 재분석이 끝나기 전에 앱이 닫혀 비어 있는 문장은 옛 분석으로 되돌린다. 바뀐 게 없으면 받은 배열 그대로. */
+export function settlePrev(data) {
+    let changed = false;
+    const next = (data || []).map(d => {
+        if (!d?._prev) return d;
+        changed = true;
+        const back = d.isAnalyzed ? null : restorePrev(d);
+        if (back) return back;
+        const c = { ...d }; // 이미 분석됐거나, 글자가 바뀌어 못 되돌리는 문장 — 보관본만 치운다(분석 전이면 열 때 이어서 분석된다)
+        delete c._prev;
+        return c;
+    });
+    return changed ? next : data;
+}
+
+/**
+ * 분석(2단계) 결과를 '지금 대본'에 넣는다. work = 분석이 들고 있는 사본, owned = 이 분석이 맡은 문장 번호(work 기준).
+ * 맡은 문장의 번역·분석·실패 표시만 옮긴다. 그 밖의 것(대사 끝, '판단 불가' 표시, 그사이 휴지통에서 되살린 문장)은
+ * 지금 대본 그대로 둔다 — 예전엔 사본으로 통째로 덮어써서 되살린 문장이 사라지고 표시가 지워졌다.
+ * 그사이 지우거나 글자가 바뀐 문장의 결과는 버린다. 바뀐 게 없으면 받은 배열을 그대로 돌려준다.
+ */
+export function mergeAnalysis(live, work, owned) {
+    const find = makeFinder(live);
+    const patch = new Map();
+    (work || []).forEach((w, i) => {
+        const at = find(w); // 맡지 않은 문장도 찾아 둔다 — 같은 문장이 둘일 때 짝이 밀리지 않게
+        if (at < 0 || !owned.has(i)) return;
+        const l = live[at];
+        if (w.isAnalyzed) {
+            const same = l.isAnalyzed && !l._prev && !l.analysisFailed && l.translation === w.translation
+                && l.analysis === w.analysis && (l.transcriptSuspect || '') === (w.transcriptSuspect || '') && l.av === w.av;
+            if (same) return;
+            const next = { ...l, translation: w.translation, analysis: w.analysis, transcriptSuspect: w.transcriptSuspect || '', isAnalyzed: true };
+            delete next._prev;
+            delete next.analysisFailed;
+            if (w.a !== undefined) next.a = w.a; else delete next.a;
+            if (w.av !== undefined) next.av = w.av; else delete next.av;
+            patch.set(at, next);
+        } else if (w.analysisFailed && !l.isAnalyzed && !l.analysisFailed) {
+            patch.set(at, { ...l, analysisFailed: true });
+        }
+    });
+    if (patch.size === 0) return live;
+    return live.map((d, i) => patch.get(i) || d);
+}

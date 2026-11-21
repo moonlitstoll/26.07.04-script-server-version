@@ -129,3 +129,19 @@ describe('구간 재전사 범위', () => {
         expect(r.data.map(x => x.seconds)).toEqual([376.6, 381.1, 383.5, 386.3, 388.5]);
     });
 });
+
+describe('재분석 중인 문장을 자르면', () => {
+    it('조각은 보관해 둔 옛 분석(_prev)과 분석 버전을 물려받지 않는다 — 반쪽 문장에 원문 전체의 번역이 붙지 않게', () => {
+        const data = DATA.map((d, i) => (i === 1
+            ? { ...d, translation: '', analysis: '', isAnalyzed: false, av: 3, _prev: { text: d.text, translation: '원문 전체 번역', analysis: '풀이' } }
+            : d));
+        for (const mode of ['dropHead', 'dropTail']) {
+            const r = applySplit(data, 1, { wordIndex: HEAD_WORDS, mode, splitSeconds: 383.4 });
+            for (const piece of [r.data[1], ...r.trashed]) {
+                expect(piece._prev).toBeUndefined();
+                expect(piece.av).toBeUndefined();
+                expect(piece.isAnalyzed).toBe(false);
+            }
+        }
+    });
+});

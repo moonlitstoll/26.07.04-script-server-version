@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData, graftSpeechEnds } from '../utils/mediaUtils';
 import { parseCacheEntry } from '../utils/cacheUtils';
+import { clearTrash, clearTrashById } from '../utils/trashUtils';
+import { settlePrev } from '../utils/liveMerge';
 import { touchRecent, forgetRecent } from '../utils/recentOpen';
 import { listItems as cloudListItems, fetchData as cloudFetchData, deleteItem as cloudDeleteItem, uploadMedia as cloudUploadMedia, saveMeta as cloudSaveMeta, CLOUD_ENABLED } from '../services/cloudSync';
 
@@ -46,7 +48,8 @@ export const useMediaCache = ({
     stage2ActiveRef, // Map<fileId, 실행중 개수> — 분석 중인 대본을 다시 열 때 재시작 방지
     filesRef,        // 최신 files 사본(App 소유). setFiles 업데이터 실행 타이밍에 의존하지 않기 위함
     showConfirm,
-    showToast
+    showToast,
+    onPurge // (`이름_크기`) — 대본을 이 기기에서 지웠을 때(저장 실패 기록 정리용)
 }) => {
     const [cacheKeys, setCacheKeys] = useState([]);
     const [cloudItems, setCloudItems] = useState([]);
@@ -180,6 +183,10 @@ export const useMediaCache = ({
             localStorage.removeItem(localKey);
             setCacheKeys(prev => prev.filter(k => k !== localKey));
         }
+        // 그 대본의 휴지통도 같이 지운다 — 안 지우면 같은 파일로 대본을 새로 만들었을 때 옛 대본에서 지운 문장이
+        // 새 대본의 휴지통에 그대로 나와, 복구하면 새 대본에 옛 문장이 섞인다.
+        if (name) clearTrash(name, size);
+        if (name && onPurge) onPurge(`${name}_${size}`);
         // \ud65c\uc131 \ud30c\uc77c\uc774\uba74 Stage 2 \uc911\ub2e8 \ubc0f \ud30c\uc77c \uc81c\uac70
         if (name) {
             // 이 함수는 IndexedDB 삭제를 await한 뒤라 바깥 files 클로저가 낡았을 수 있다 → 최신 사본에서 찾는다
@@ -261,14 +268,20 @@ export const useMediaCache = ({
                     const cloudIds = new Set((cloudItems || []).map(it => `${it.name}_${it.size}`));
                     const all = !CLOUD_ENABLED;
                     const entries = await mediaStore.listEntries();
+                    // 지운 대본의 휴지통과 '저장 안 됨' 기록도 같이 지운다 — 안 지우면 방금 지운 대본이 자동 재저장으로 되살아난다
+                    const forget = (id) => { clearTrashById(id); if (onPurge) onPurge(id); };
                     for (const e of entries) {
                         if (!all && !cloudIds.has(e.id)) continue;
                         try { await mediaStore.deleteFile(e.name, e.size); } catch { /* noop */ }
                         localStorage.removeItem(`${CACHE_PREFIX}${e.id}`);
+                        forget(e.id);
                     }
                     if (all) {
                         // 영상 없이 대본만 있는 항목도(localStorage에만)
-                        Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => localStorage.removeItem(k));
+                        Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => {
+                            localStorage.removeItem(k);
+                            forget(k.slice(CACHE_PREFIX.length));
+                        });
                     }
                     setCacheKeys(prev => all ? [] : prev.filter(k => !cloudIds.has(k.replace(CACHE_PREFIX, ''))));
                     await refreshLocalVideos();
@@ -355,7 +368,8 @@ export const useMediaCache = ({
             // Stage 2 재개(하단 runStage2)에도 그대로 넘어가므로 여기서 안 채우면 Stage 2가
             // speechEnd 없는 배열을 스냅샷으로 삼아 다시 덮어쓴다. graft는 '채우기만' 하므로
             // 두 번 적용해도 안전(멱등).
-            const data = graftSpeechEnds(sanitizeData(rawData, cacheDuration), matchingFile?.data);
+            // settlePrev: 재분석이 끝나기 전에 닫혀 비어 있는 문장은 옛 분석으로 되돌린다(utils/liveMerge)
+            const data = graftSpeechEnds(settlePrev(sanitizeData(rawData, cacheDuration)), matchingFile?.data);
 
             // [중복 항목 방지] 같은 파일이 이미 열려 있으면 새 항목을 추가하지 않고 그 항목을 갱신한다.
             // 예전에는 열 때마다 항목이 쌓였고 그것들이 '같은 blob URL 문자열'을 공유했다 →
@@ -368,7 +382,8 @@ export const useMediaCache = ({
                 data,
                 url: mediaUrl,
                 isAnalyzing: false,
-                isFromCache: true
+                isFromCache: true,
+                incomplete: metadata.incomplete || null // 전사를 끝까지 못 받은 지점(있으면 화면에 띠)
             };
 
             // 이 파일의 Stage 2가 지금 돌고 있는가. f.isAnalyzing으로는 알 수 없다 —
@@ -396,6 +411,8 @@ export const useMediaCache = ({
                 const guarded = { ...newFileEntry, data: graftSpeechEnds(newFileEntry.data, existing.data) };
                 return prev.map(f => (f.id === id ? { ...f, ...guarded } : f));
             });
+            // 화면 사본(filesRef)은 다음 그리기 뒤에야 바뀐다. 바로 이어 도는 분석이 이 대본을 찾아 결과를 넣을 수 있게 먼저 넣어 둔다
+            if (filesRef?.current && !filesRef.current.some(f => f.id === id)) filesRef.current = [...filesRef.current, newFileEntry];
             if (setActiveFileId) setActiveFileId(id);
             if (setShowSettings) setShowSettings(false);
             if (setShowCacheHistory) setShowCacheHistory(false);
@@ -427,7 +444,7 @@ export const useMediaCache = ({
             const rawData = await cloudFetchData(item.dataUrl);
             if (!rawData || !Array.isArray(rawData)) throw new Error('클라우드 데이터 형식 오류');
 
-            const data = sanitizeData(rawData, item.duration || 0);
+            const data = settlePrev(sanitizeData(rawData, item.duration || 0));
 
             // [의도적으로 로컬 캐시에 저장하지 않는다]
             // 여기서 saveCacheEntry를 호출하면 다음 방문부터 이 항목이 '로컬 행'이 되어
@@ -474,6 +491,8 @@ export const useMediaCache = ({
             };
 
             if (setFiles) setFiles(prev => [...prev, newFileEntry]);
+            // 화면 사본(filesRef)은 다음 그리기 뒤에야 바뀐다. 바로 이어 도는 분석이 이 대본을 찾아 결과를 넣을 수 있게 먼저 넣어 둔다
+            if (filesRef?.current && !filesRef.current.some(f => f.id === id)) filesRef.current = [...filesRef.current, newFileEntry];
             if (setActiveFileId) setActiveFileId(id);
             if (setShowSettings) setShowSettings(false);
             if (setShowCacheHistory) setShowCacheHistory(false);

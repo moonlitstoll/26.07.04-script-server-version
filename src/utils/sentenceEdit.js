@@ -15,9 +15,14 @@ export function formatStamp(sec) {
 export const splitWords = (text) => (text || '').split(/\s+/).filter(Boolean);
 
 // 다시 분석해야 하는 상태로(번역·분석·전사의심 비움)
-const unanalyzed = (item) => ({
-    ...item, translation: '', analysis: '', a: '', t: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false,
-});
+// 재분석 중이라 들고 있던 옛 분석(_prev)과 분석 버전(av)도 뗀다 — 그건 고치기 전 문장의 것이라, 남겨 두면
+// 분석이 실패하거나 새로고침됐을 때 반쪽 문장에 원문 전체의 번역이 '분석 완료'로 붙는다(liveMerge#restorePrev).
+const unanalyzed = (item) => {
+    const next = { ...item, translation: '', analysis: '', a: '', t: '', transcriptSuspect: '', isAnalyzed: false, analysisFailed: false };
+    delete next._prev;
+    delete next.av;
+    return next;
+};
 const withText = (item, text) => ({ ...item, text, o: text });
 const withStart = (item, sec) => {
     const stamp = formatStamp(sec);

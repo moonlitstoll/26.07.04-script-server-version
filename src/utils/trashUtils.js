@@ -51,3 +51,9 @@ export const clearTrash = (name, size) => {
     try { localStorage.removeItem(keyFor(name, size)); }
     catch (e) { console.warn('[Trash] 비우기 실패:', e); }
 };
+
+// 대본 키(`이름_크기`)로 그 대본의 휴지통을 지운다 — '이 기기의 대본 전부 지우기'용
+export const clearTrashById = (fileKey) => {
+    try { localStorage.removeItem(`${TRASH_PREFIX}${fileKey}`); }
+    catch (e) { console.warn('[Trash] 비우기 실패:', e); }
+};

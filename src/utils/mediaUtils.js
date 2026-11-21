@@ -182,6 +182,9 @@ export const sanitizeData = (data, duration = 0) => {
                 ...(typeof item.speechEnd === 'number' && Number.isFinite(item.speechEnd) ? { speechEnd: item.speechEnd } : {}),
                 // 감지를 시도했으나 모델이 끝을 판단 못 한 문장 표시 (재요청 반복 방지 — 없으면 필드 생략)
                 ...(item.speechEndSkipped ? { speechEndSkipped: true } : {}),
+                // 이 문장을 분석한 규칙 버전(av)과, 재분석 중 보관한 옛 분석(_prev) — 여기서 안 통과시키면 저장·다시 열기 때 사라진다
+                ...(typeof item.av === 'number' ? { av: item.av } : {}),
+                ...(item._prev && typeof item._prev === 'object' ? { _prev: item._prev } : {}),
                 isAnalyzed: item.isAnalyzed || !!(item.a || item.analysis)
             };
         })

@@ -356,6 +356,27 @@ describe('실제 이어받기 루프 — 끊겼을 때', () => {
         expect(out.map(m => m.text)).toContain('Mình kết duyên do ông trời.');
     });
 
+    it('연결이 끊기면 바로 다시 보내지 않고, 다시 연결되길 기다린 뒤 간격을 두고 이어받는다 (예전엔 1초 안에 3번 다 실패)', async () => {
+        const drop = new Error('[GoogleGenerativeAI Error]: Error fetching from https://x: fetch failed');
+        const order = [];
+        const t = setup(
+            [{ steps: [...FIRST_CUT_STEPS, { error: drop }] }, { throwOnStart: drop }, { steps: CONT_OK_STEPS }],
+            { backoffMs: (attempt) => { order.push('간격' + attempt); return 0; }, waitOnline: async (maxMs) => { order.push('연결대기' + maxMs); } },
+        );
+        const out = await t.run();
+        expect(out.map(m => m.text)).toContain('Mình kết duyên do ông trời.');
+        expect(order).toEqual(['연결대기60000', '간격0', '연결대기60000', '간격1']);
+        expect(t.incompletes).toHaveLength(0);
+    });
+
+    it('응답이 멈춘 경우(연결 끊김이 아님)는 기다리지 않고 바로 이어받는다', async () => {
+        const order = [];
+        const t = setup([{ steps: [...FIRST_CUT_STEPS, { hang: true }] }, { steps: CONT_OK_STEPS }],
+            { timeouts: { firstChunkMs: 1000, idleMs: 40 }, backoffMs: () => { order.push('간격'); return 0; }, waitOnline: async () => { order.push('연결대기'); } });
+        await t.run();
+        expect(order).toEqual([]);
+    });
+
     it('출력 한도(MAX_TOKENS)로 끝나도 이어받는다', async () => {
         const t = setup([{ steps: [FIRST_CUT_STEPS[0], { text: FIRST_CUT_STEPS[1].text, finish: 'MAX_TOKENS' }] }, { steps: CONT_OK_STEPS }]);
         const out = await t.run();

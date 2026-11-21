@@ -49,6 +49,8 @@ import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFavorites } from './hooks/useFavorites';
 import { useAppUpdate } from './hooks/useAppUpdate';
+import { formatClock } from './utils/timeUtils';
+import { ANALYSIS_VERSION } from './services/prompts';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -88,7 +90,9 @@ const App = () => {
   // 미디어 자가 복구 콜백이 최신 값을 stale closure 없이 읽기 위한 거울 ref
   const filesRef = useRef(files);
   const activeFileIdRef = useRef(activeFileId);
-  useEffect(() => { filesRef.current = files; activeFileIdRef.current = activeFileId; });
+  // 그리기가 끝나는 그 자리에서 바로 맞춘다(useLayoutEffect). 예전처럼 한 박자 늦게(useEffect) 맞추면, 그 사이에 분석·전사가
+  // 사본에 써 둔 최신 대본을 옛 화면 상태로 덮어 버려 결과가 빈 대본에 합쳐질 수 있었다(2026-11-21 시험에서 재현).
+  useLayoutEffect(() => { filesRef.current = files; activeFileIdRef.current = activeFileId; });
 
   // UI state
   const [showSettings, setShowSettings] = useState(false);
@@ -206,6 +210,9 @@ const App = () => {
   // [캐시 버저닝] 활성 파일의 분석이 옛 규칙(낮은 version)으로 만들어졌는지 판정 → 재분석 권장 배너.
   //  분석 진행 정도(analyzedCount)가 바뀔 때만 캐시 메타를 다시 읽어 반응(재분석하면 배너 사라짐).
   const analyzedCount = transcriptData.filter(d => d.isAnalyzed).length;
+  // 재분석이 도는 중(아직 차례가 안 온 문장이 옛 분석을 들고 있음) — 그동안은 '옛 대본' 안내를 숨긴다.
+  // 안 숨기면 진행 중에 [전체 재분석]이 다시 보여, 누르면 끝난 문장까지 또 요청한다.
+  const reanalyzing = transcriptData.some(d => d._prev);
   const isStaleAnalysis = useMemo(() => {
     if (!activeFile?.file?.name || transcriptData.length === 0) return false;
     if (analyzedCount === 0) return false; // 아직 분석 전이면 배너 불필요
@@ -346,7 +353,7 @@ const App = () => {
 
   // 감지 완료 안내의 [그 문장 보기] — 훅보다 아래에서 정의되는 선택 상태를 쓰므로 ref로 넘긴다
   const revealSentenceRef = useRef(null);
-  const { isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
+  const { unsavedKeys, retryUnsaved, forgetUnsaved, dismissIncomplete, isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, claudeApiKey: config.claudeApiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
@@ -416,8 +423,17 @@ const App = () => {
   const { cacheKeys, deleteLocal, deleteServer, clearLocalCache,
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
-    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, stage2ActiveRef, filesRef, showConfirm, showToast
+    resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, stage2ActiveRef, filesRef, showConfirm, showToast,
+    onPurge: forgetUnsaved
   });
+
+  // 저장 공간이 꽉 차 저장 못 한 대본이 있을 때, 다른 대본을 지워 공간이 생기면 바로 다시 저장한다
+  const cacheCountRef = useRef(cacheKeys.length);
+  useEffect(() => {
+    if (cacheKeys.length < cacheCountRef.current && unsavedKeys.size > 0) retryUnsaved({ silent: true });
+    cacheCountRef.current = cacheKeys.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKeys.length]);
 
   // 즐겨찾기 (기기 간 동기화)
   const { isFavorite, toggleFavorite } = useFavorites(passphrase);
@@ -567,12 +583,15 @@ const App = () => {
   };
 
   // [캐시 버저닝] 낡은 분석을 최신 규칙으로 전체 재분석 (전사·타임스탬프는 보존, 분석만 다시).
+  // 이미 최신 규칙으로 분석된 문장(av가 현재 버전)은 빼고 보낸다 — 재분석이 도중에 끊겼다가 다시 누를 때 끝난 문장까지 또 요청하지 않게.
   const confirmReanalyzeAll = () => {
     if (!activeFile || transcriptData.length === 0) return;
     const fileId = activeFile.id;
-    const allIdxs = transcriptData.map((_, i) => i);
+    const allIdxs = transcriptData.map((d, i) => (d.av === ANALYSIS_VERSION ? -1 : i)).filter(i => i >= 0);
+    if (allIdxs.length === 0) return;
+    const scope = allIdxs.length === transcriptData.length ? `이 대본 전체(${allIdxs.length}개 문장)` : `옛 규칙으로 분석된 ${allIdxs.length}개 문장`;
     showConfirm({
-      message: `이 대본 전체(${allIdxs.length}개 문장)의 번역·분석을 최신 규칙으로 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
+      message: `${scope}의 번역·분석을 최신 규칙으로 다시 합니다. 전사(문장·타임스탬프)는 그대로 유지됩니다. 진행할까요?`,
       confirmText: '전체 재분석',
       danger: false,
       onConfirm: () => reanalyzeSentences(fileId, allIdxs),
@@ -682,6 +701,24 @@ const App = () => {
   };
 
   // 홈으로: 분석 중이면 실수로 작업을 날리지 않도록 확인
+  // '새 버전 새로고침' — 작업 중이면 먼저 묻는다. 예전엔 전사 중에 눌러도 바로 새로고침돼 전사가 처음부터 다시 됐다(비용도 다시).
+  // 분석(번역·풀이)만 도는 중이면 묻지 않는다 — 묶음마다 저장되고, 다시 열면 남은 문장을 이어서 분석한다.
+  const handleUpdateReload = () => {
+    const reload = () => window.location.reload();
+    const ask = (message) => showConfirm({ message, confirmText: '새로고침', danger: true, onConfirm: reload });
+    if (files.some(f => f.isAnalyzing)) {
+      ask('지금 전사 중이에요. 새로고침하면 전사가 처음부터 다시 되고 비용도 다시 듭니다. 전사가 끝난 뒤에 눌러도 돼요. 그래도 새로고침할까요?');
+    } else if (files.some(f => (f.data || []).some(d => d.isRetranscribing))) {
+      ask('문장을 다시 전사하는 중이에요. 새로고침하면 그 결과를 못 받습니다(비용은 듭니다). 그래도 새로고침할까요?');
+    } else if (speechDetectBusy) {
+      ask('대사 구간을 감지하는 중이에요. 새로고침하면 감지 결과가 저장되지 않고 사라집니다. 그래도 새로고침할까요?');
+    } else if (unsavedKeys.size > 0) {
+      ask('저장 공간이 꽉 차 저장 못 한 변경이 있어요. 새로고침하면 그 내용이 사라집니다. 그래도 새로고침할까요?');
+    } else {
+      reload();
+    }
+  };
+
   const handleHome = () => {
     const doHome = () => { setFiles([]); setActiveFileId(null); resetPlayerState(); };
     // 감지 중에도 경고한다 — 감지는 isAnalyzing을 세우지 않아 예전엔 경고 없이 조용히 날아갔다
@@ -847,7 +884,7 @@ const App = () => {
           <RotateCcw size={14} className="shrink-0" />
           <span className="flex-1 min-w-0 font-medium leading-tight">새 버전이 나왔어요. 새로고침하면 최신 기능이 적용됩니다.</span>
           <button
-            onClick={() => window.location.reload()}
+            onClick={handleUpdateReload}
             className="shrink-0 px-2.5 py-1 rounded-lg bg-white text-indigo-700 font-bold hover:bg-indigo-50 transition-colors"
           >
             새로고침
@@ -855,8 +892,34 @@ const App = () => {
         </div>
       )}
 
+      {/* 저장 실패 — 저장될 때까지 계속 떠 있는다(예전엔 2.5초 안내 한 번뿐이라 다시 열면 사라져 있었다) */}
+      {activeFile?.file?.name && unsavedKeys.has(`${activeFile.file.name}_${activeFile.file.size}`) && (
+        <div data-banner="unsaved" className="flex-none flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 text-xs sm:text-sm">
+          <span className="flex-1 min-w-0 font-medium leading-tight">저장 공간이 꽉 차 최근 변경이 저장되지 않았어요. 목록에서 안 쓰는 대본을 지워 주세요.</span>
+          <button
+            onClick={() => retryUnsaved()}
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 text-white dark:bg-red-500/25 dark:hover:bg-red-500/40 dark:text-red-100 dark:border dark:border-red-500/40 font-bold transition-colors"
+          >
+            다시 저장
+          </button>
+        </div>
+      )}
+
+      {/* 전사를 끝까지 못 받은 대본 — 어디부터 빠졌는지. 닫을 때까지 남는다(다시 열어도). 예전엔 12초 안내가 지나가면 흔적이 없었다 */}
+      {activeFile?.incomplete && contentReady && (
+        <div data-banner="incomplete" className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
+          <span className="flex-1 min-w-0 font-medium leading-tight">{formatClock(activeFile.incomplete.at)} 뒤 일부를 못 받았어요. 그 부근 문장을 고르고 '복구'를 눌러 채워 주세요.</span>
+          <button
+            onClick={() => dismissIncomplete(activeFile.id)}
+            className="shrink-0 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+          >
+            닫기
+          </button>
+        </div>
+      )}
+
       {/* [캐시 버저닝] 옛 규칙으로 분석된 파일 → 최신 규칙으로 재분석 권장 배너 */}
-      {isStaleAnalysis && contentReady && (
+      {isStaleAnalysis && contentReady && !reanalyzing && (
         <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
           <span className="flex-1 min-w-0 font-medium leading-tight">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
