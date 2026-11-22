@@ -64,3 +64,27 @@ describe('숫자 병기 폭주 정리', () => {
         for (const s of ok) expect(stripRunawayNumberAnnotations(s)).toBe(s);
     });
 });
+
+// 2026-11-22 휴대폰 실측: 모델이 여는 대괄호 바로 뒤에 빈칸을 넣어 쓴 대본(받은 글 그대로)
+describe('LINE_REGEX — 대괄호 안쪽 빈칸', () => {
+    it('"[ 00:00.00]"처럼 여는 대괄호 뒤에 빈칸이 있어도 읽는다', () => {
+        expect(parse('[ 00:00.00] [Người nói] || Thái độ nhân viên như lồn.')).toEqual({ sec: 0, speaker: 'Người nói', text: 'Thái độ nhân viên như lồn.' });
+        expect(parse('[ 00:01.60] [Người nói] || Dịch vụ như lồn.')).toEqual({ sec: 1.6, speaker: 'Người nói', text: 'Dịch vụ như lồn.' });
+        expect(parse('[ 14:01.00] [Người nói] || Bye bye, bye bye.')).toEqual({ sec: 841, speaker: 'Người nói', text: 'Bye bye, bye bye.' });
+        expect(parse('[ 00:00.00] [Sơn] || Nếu một ngày trái đất diệt vong.').sec).toBe(0);
+    });
+    it('닫는 대괄호 앞 빈칸·양쪽 빈칸·시:분:초 형식도 읽는다', () => {
+        expect(parse('[00:05.30 ] [A] || xin chào').sec).toBeCloseTo(5.3);
+        expect(parse('[  01:02.50  ] [A] || xin chào').sec).toBeCloseTo(62.5);
+        expect(parse('[ 00:01:04.47] [Speaker D] || xin chào')).toEqual({ sec: 64.47, speaker: 'Speaker D', text: 'xin chào' });
+    });
+    it('빈칸이 없는 평소 형식은 그대로 읽는다', () => {
+        expect(parse('[00:05.30] [Speaker B] || 두 번째 대사')).toEqual({ sec: 5.3, speaker: 'Speaker B', text: '두 번째 대사' });
+        expect(parse('00:05.30 || 대괄호 없는 줄').sec).toBeCloseTo(5.3);
+    });
+    it('시각이 없는 줄은 여전히 읽지 않는다', () => {
+        expect(parse('[ ] [A] || 시각 없음')).toBeNull();
+        expect(parse('[ 14:03.90] [END_OF_AUDIO]')).not.toBeNull(); // 종료 표시 줄은 정규식에는 맞고, 줄 읽는 쪽이 따로 거른다
+        expect(parse('그냥 글입니다.')).toBeNull();
+    });
+});
