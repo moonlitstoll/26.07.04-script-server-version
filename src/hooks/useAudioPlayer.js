@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { makeRemap } from '../utils/lineAnchors';
+import { pickRecover } from '../utils/mediaRecover';
 import { slidingGroupBounds, clampLoopGroupSize } from '../utils/loopGroups';
 import { clampRate } from '../utils/playbackRates';
 import { blockSpeechEnd, trimmedLoopEnd, gapSkipTarget, wrapSkipTarget, introSkipTarget, SPEECH_TAIL_PAD } from '../utils/speechSegments';
@@ -43,9 +44,20 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
     // (첫 로드에서 비디오가 늦게 붙어 리스너가 안 달리던 경합 방지)
     const [videoNode, setVideoNode] = useState(null);
     const pendingSeekRef = useRef(null); // 비디오 준비 전 예약된 seek 시각(초)
+    // ── 재생 링크 복구용 기록(utils/mediaRecover) ──
+    // 링크가 죽어 App이 새 주소로 갈아끼우면 요소가 처음부터 다시 불러와져 자리가 0초로 돌아간다.
+    // 그래서 '마지막 자리'와 '▶를 누른 시각'을 따로 적어 두었다가 새 주소가 준비되면 되돌린다.
+    const lastPosRef = useRef(0);      // 마지막으로 확인한 재생 위치(초). 문장 ▶를 누르면 그 자리
+    const lastSyncAtRef = useRef(0);   // 재생 위치가 마지막으로 나아간 시각(ms)
+    const wantPlayAtRef = useRef(0);   // ▶를 마지막으로 누른 시각(ms). 멈춤을 누르면 0
+    const recoverRef = useRef(null);   // 복구 중: { fileId, time, play } — 새 주소가 준비되면 적용하고 비운다
+    const fileIdRef = useRef(null);
+    useLayoutEffect(() => { fileIdRef.current = activeFile?.id ?? null; });
     const attachVideo = useCallback((node) => {
         videoRef.current = node;
         setVideoNode(node);
+        // 요소가 떨어짐 = 재생 주소가 비워짐(복구 포기 등). 소리 낼 것이 없는데 버튼이 '재생 중'으로 남지 않게 한다.
+        if (!node) { setIsPlaying(false); recoverRef.current = null; }
     }, []);
 
     const triggerManualScroll = useCallback(() => setManualScrollNonce(Date.now()), []);
@@ -108,6 +120,10 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
 
             const targetTime = Math.max(0, Math.min(s, v.duration || MAX_SEEK_FALLBACK));
             v.currentTime = targetTime;
+            lastPosRef.current = targetTime;
+            wantPlayAtRef.current = Date.now();
+            // 링크를 갈아끼우는 중에 누른 문장: 옛 자리가 아니라 방금 누른 자리에서 틀어야 한다
+            if (recoverRef.current) { recoverRef.current.time = targetTime; recoverRef.current.play = true; }
 
             safePlay(v, setIsPlaying, 'seekTo');
         }
@@ -124,9 +140,13 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
                 try { v.currentTime = pendingSeekRef.current; } catch { /* noop */ }
                 pendingSeekRef.current = null;
             }
+            wantPlayAtRef.current = Date.now();
+            if (recoverRef.current) recoverRef.current.play = true;
             setIsPlaying(true);
             safePlay(v, setIsPlaying, 'togglePlay');
         } else {
+            wantPlayAtRef.current = 0;
+            if (recoverRef.current) recoverRef.current.play = false;
             setIsPlaying(false);
             v.pause();
         }
@@ -236,8 +256,14 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
 
         const runSync = () => {
             if (!v) return;
+            // 아직 불러오지 못한 요소(readyState 0)의 위치는 뜻이 없는 0초다. 재생 링크를 갈아끼울 때 브라우저가
+            // 그 0초로 timeupdate를 보내는데, 그걸 따라가면 복구가 되돌릴 자리를 잃고 강조·반복 기준이
+            // 첫 문장으로 옮겨져 복구 뒤 엉뚱한 문장을 반복한다(독립 검토 지적, 화면 시험 M8).
+            if (v.readyState === 0 || recoverRef.current) return;
             const now = v.currentTime;
             setCurrentTime(now);
+            if (!v.paused && now !== lastPosRef.current) lastSyncAtRef.current = Date.now();
+            lastPosRef.current = now;
 
             const data = activeFile.data;
             if (!data || data.length === 0) return;
@@ -528,6 +554,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
             if (t == null) return;
             try { v.currentTime = t; } catch { /* noop */ }
             setCurrentTime(t);
+            lastPosRef.current = t;
             pendingSeekRef.current = null;
             READY_EVENTS.forEach(ev => v.removeEventListener(ev, doSeek));
         };
@@ -540,6 +567,52 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
 
     // 비디오 요소가 (재)마운트되면 예약된 seek 적용
     useEffect(() => { if (videoNode) applyPendingSeek(); }, [videoNode, applyPendingSeek]);
+
+    // [재생 링크 복구] App이 새 주소로 갈아끼우기 직전에 부른다 — 듣던 자리·재생 여부를 적어 둔다.
+    const prepareMediaRecover = useCallback(() => {
+        const v = videoRef.current;
+        const fileId = fileIdRef.current;
+        const armed = recoverRef.current && recoverRef.current.fileId === fileId ? recoverRef.current : null;
+        recoverRef.current = {
+            fileId,
+            ...pickRecover({
+                armed, pendingSeek: pendingSeekRef.current, lastPos: lastPosRef.current,
+                paused: v ? v.paused : true, lastSyncAt: lastSyncAtRef.current, wantPlayAt: wantPlayAtRef.current, now: Date.now(),
+            }),
+        };
+    }, []);
+    // 새 주소가 준비되면 적어 둔 자리로 되돌리고, 틀려던 것이었으면 이어서 튼다.
+    // 같은 요소의 src만 바뀌므로(요소가 새로 붙지 않는다) 위의 '마운트 시 seek'은 돌지 않는다 → 주소 변화를 직접 본다.
+    // 이 effect는 새 src가 붙은 뒤에 돌고, 그 시점엔 요소가 다시 불러오는 중이라 준비 이벤트를 기다리면 된다.
+    useEffect(() => {
+        const v = videoRef.current;
+        const r = recoverRef.current;
+        if (!r || !v) return;
+        if (r.fileId !== fileIdRef.current) { recoverRef.current = null; return; }   // 그사이 다른 파일로 넘어감
+        const off = () => READY_EVENTS.forEach(ev => v.removeEventListener(ev, go));
+        function go() {
+            off();
+            const cur = recoverRef.current;
+            if (!cur) return;
+            recoverRef.current = null;
+            pendingSeekRef.current = null;
+            try { v.currentTime = cur.time; } catch { /* noop */ }
+            lastPosRef.current = cur.time;
+            setCurrentTime(cur.time);
+            if (cur.play) {
+                lastActionTimeRef.current = Date.now();
+                setIsPlaying(true);
+                safePlay(v, setIsPlaying, 'media recover');
+            } else {
+                // 다시 불러올 때 브라우저는 멈춤 상태로 바꾸면서 pause 이벤트는 보내지 않는다 —
+                // 버튼이 '재생 중' 모양으로 남지 않게 직접 맞춘다.
+                setIsPlaying(false);
+            }
+        }
+        if (v.readyState >= 1) { go(); return; }   // 준비 이벤트가 이미 지나갔으면 바로
+        READY_EVENTS.forEach(ev => v.addEventListener(ev, go));
+        return off;
+    }, [mediaUrl]);
 
     // [위치 복원] 저장된 문장으로 재생 커서·하이라이트를 맞춘다(정지 유지, 자동재생 안 함).
     // 스크롤은 App(대본 컨테이너)에서 담당. 데이터가 마운트된 뒤 호출되어야 함.
@@ -561,6 +634,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         // 엉뚱한 문장이 반복 기준이 되고, 묶음 띠도 엉뚱한 곳에 그려진다.
         setAnchor(null);
         setCurrentTime(0);
+        lastPosRef.current = 0; lastSyncAtRef.current = 0; wantPlayAtRef.current = 0; recoverRef.current = null;
         // 재생 길이도 반드시 초기화. 안 하면 이전 파일(또는 링크가 죽기 전)의 길이가 그대로 남아
         // 재생 불가 상태인데도 "14:04" 같은 총 시간이 표시돼 정상처럼 보인다.
         setDuration(0);
@@ -597,6 +671,7 @@ export const useAudioPlayer = ({ activeFile, bufferTime = 0.3, loopGroupSize = 1
         handlePrev,
         handleNext,
         resetPlayerState,
-        restoreTo
+        restoreTo,
+        prepareMediaRecover
     };
 };

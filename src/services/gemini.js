@@ -939,9 +939,11 @@ export async function retranscribeSegments(file, apiKey, modelId = DEFAULT_MODEL
     //  2순위: 전체 오디오 추출 후 바이트 슬라이스 — 데스크톱/짧은 파일에서 즉시
     let audioBlob = null; // 폴백 전체 오디오는 필요할 때 1회만 지연 추출
     let captureBroken = false; // 캡처가 근본적으로(자동재생 차단 등) 안 되면 이후엔 폴백만
+    let wholeError = null; // 전체 추출이 한 번 실패하면 창마다 다시 시도하지 않는다(휴대폰에서 매번 오래 멈춘다)
     const getWholeAudio = async () => {
         if (audioBlob) return audioBlob;
-        audioBlob = await extractAudioBlob(file);
+        if (wholeError) throw wholeError;
+        try { audioBlob = await extractAudioBlob(file); } catch (e) { wholeError = e; throw e; }
         console.log(`[Retranscribe] 폴백 오디오 blob type=${audioBlob?.type}, size=${((audioBlob?.size || 0) / 1024 / 1024).toFixed(2)}MB`);
         if (!audioBlob || audioBlob.size < 1024) throw new Error(`오디오 데이터가 비어 있음 (size=${audioBlob?.size || 0}B)`);
         return audioBlob;
@@ -1572,9 +1574,11 @@ export async function detectSpeechEndsByClips(file, apiKey, modelId, sentences, 
 
     // 클립 추출 전략(구간 재전사 extractWindow와 동일): 실시간 캡처 우선, 실패 시 전체추출 후 슬라이스.
     let wholeBlob = null; let captureBroken = false;
+    let wholeError = null; // 전체 추출이 한 번 실패하면 문장마다 다시 시도하지 않는다
     const getWhole = async () => {
         if (wholeBlob) return wholeBlob;
-        wholeBlob = await extractAudioBlob(file);
+        if (wholeError) throw wholeError;
+        try { wholeBlob = await extractAudioBlob(file); } catch (e) { wholeError = e; throw e; }
         if (!wholeBlob || wholeBlob.size < 1024) throw new Error(`오디오 데이터가 비어 있음 (size=${wholeBlob?.size || 0}B)`);
         return wholeBlob;
     };

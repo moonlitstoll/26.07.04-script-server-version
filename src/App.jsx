@@ -73,6 +73,7 @@ import { getLastPos, setLastPos } from './utils/viewPosition';
 import { mediaStore } from './utils/MediaStore';
 import { getTrash, clearTrash } from './utils/trashUtils';
 import { makeRemap, remapIndices } from './utils/lineAnchors';
+import { recoverGate } from './utils/mediaRecover';
 import { lineKey } from './utils/liveMerge';
 import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
 
@@ -180,28 +181,53 @@ const App = () => {
   // → 미디어 요소가 error를 내면 IndexedDB 원본으로 새 주소를 만들어 갈아끼운다.
   // 파일당 최대 2회까지만 시도한다 — 복구한 주소가 또 죽으면 원본 자체 문제이므로,
   // error→복구→error 무한 루프에 빠지지 않게 상한을 둔다.
+  // 횟수는 '1분 안에 2번'으로 센다(utils/mediaRecover.recoverGate). 예전엔 파일당 평생 2번이라, 오래 켜 둔
+  // 앱에서 세 번째로 링크가 죽으면 아무 표시 없이 재생이 안 됐다(2026-11-22, 조용한 오류 점검 ⑤).
   const mediaRecoverRef = useRef(new Map());
+  // 재생기(useAudioPlayer)는 이 아래에서 만들어지므로 ref로 건네받는다: { prepare, el }
+  const playerRecoverRef = useRef(null);
+  // 복구를 포기할 때: 안내가 가리키는 "연결하기"는 재생 주소가 없을 때만 보인다(PlayerControls).
+  // 죽은 주소 문자열을 그대로 두면 검은 칸만 남아 안내를 따라 할 방법이 없다 → 요소가 실제로 죽어 있으면 주소를 비운다.
+  const giveUpMedia = useCallback((fileId, { quiet = false } = {}) => {
+    const el = playerRecoverRef.current?.el();
+    if (el && el.error) setFiles(prev => prev.map(x => (x.id === fileId ? { ...x, url: null } : x)));
+    if (!quiet) showToast({ message: '영상을 읽을 수 없어요. 하단 "연결하기"로 원본 파일을 다시 선택해 주세요.', type: 'error', duration: 7000 });
+  }, [showToast]);
   const handleMediaError = useCallback(async () => {
     const f = filesRef.current.find(x => x.id === activeFileIdRef.current);
     if (!f?.file?.name) return;
     const key = `${f.file.name}_${f.file.size}`;
-    const tries = mediaRecoverRef.current.get(key) || 0;
-    if (tries >= 2) return;
-    mediaRecoverRef.current.set(key, tries + 1);
+    const gate = recoverGate(mediaRecoverRef.current.get(key), Date.now());
+    if (!gate.ok) {
+      // 복구한 링크가 곧바로 또 죽는다(원본 자체 문제). 조용히 두지 않고 알린다 —
+      // 단, 요소가 실제로 죽어 있을 때만(파일을 바꾸는 찰나의 오류에는 알리지 않는다).
+      // 안내는 1분에 한 번만 띄우되, 주소 비우기("연결하기" 보이게)는 매번 한다 —
+      // 안내 뒤 같은 파일을 곧바로 다시 열었을 때 아무 표시 없는 검은 칸이 되지 않게(재검토 지적).
+      const el = playerRecoverRef.current?.el();
+      if (el && el.error) {
+        giveUpMedia(f.id, { quiet: !!gate.next.warned });
+        mediaRecoverRef.current.set(key, { ...gate.next, warned: true });
+      }
+      return;
+    }
+    mediaRecoverRef.current.set(key, gate.next);
     try {
       const blob = await mediaStore.getFileFlexible(f.file.name, f.file.size);
       if (!blob || !blob.size) {
-        showToast({ message: '영상을 읽을 수 없어요. 하단 "연결하기"로 원본 파일을 다시 선택해 주세요.', type: 'error', duration: 7000 });
+        giveUpMedia(f.id);
         return;
       }
       const fresh = URL.createObjectURL(blob);
+      // 갈아끼우면 요소가 처음부터 다시 불러와져 자리가 0초로 돌아가고 방금 누른 ▶도 없던 일이 된다.
+      // 갈아끼우기 직전에 듣던 자리·재생 여부를 적어 두면 재생기가 새 주소가 준비된 뒤 되돌린다.
+      if (activeFileIdRef.current === f.id) playerRecoverRef.current?.prepare();
       setFiles(prev => prev.map(x => (x.id === f.id ? { ...x, url: fresh } : x)));
       console.log('[MediaRecover] 재생 링크가 끊겨 저장소 원본으로 재연결했습니다.');
     } catch (e) {
       console.warn('[MediaRecover] 복구 실패:', e);
-      showToast({ message: '영상을 읽을 수 없어요. 하단 "연결하기"로 원본 파일을 다시 선택해 주세요.', type: 'error', duration: 7000 });
+      giveUpMedia(f.id);
     }
-  }, [showToast]);
+  }, [giveUpMedia]);
 
   // Derived active file
   const activeFile = files.find(f => f.id === activeFileId);
@@ -246,8 +272,9 @@ const App = () => {
     videoRef, attachVideo, activeSentenceIdx, currentTime, duration, playbackRate, isGlobalLoopActive, isPlaying,
     manualScrollNonce, handleRateChange, seekTo, togglePlay, toggleLoop, setLoopActive, jumpToSentence,
     handlePrev, handleNext, resetPlayerState, activeIdxRef, lastActionTimeRef, restoreTo,
-    loopAnchorIdx, loopTargetIdxRef
+    loopAnchorIdx, loopTargetIdxRef, prepareMediaRecover
   } = useAudioPlayer({ activeFile, bufferTime, loopGroupSize: effLoopN, speechOnly: !!config.speechOnlyEnabled, speechTailPad: config.speechTailPad });
+  useLayoutEffect(() => { playerRecoverRef.current = { prepare: prepareMediaRecover, el: () => videoRef.current }; });
 
   // 묶음 크기 변경: 2 이상을 고르면 반복을 자동으로 켠다(안 켜면 "골랐는데 아무 일도 안 남"이 된다).
   const changeLoopGroupSize = useCallback((n) => {

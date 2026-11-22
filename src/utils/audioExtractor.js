@@ -351,6 +351,32 @@ export async function snapSegmentToSilence(wavBlob, {
     }
 }
 
+// 실시간 녹음이 받아야 할 길이보다 이만큼 넘게 모자라면 '끊긴 녹음'으로 본다(초).
+// 정상 녹음도 처리 단위(4096표본 ≈ 0.09초) 한두 개만큼은 들쭉날쭉하다 — 그보다 넉넉히.
+export const CAPTURE_SLACK_SEC = 0.5;
+// 긴 구간은 여유를 조금 더 주되(길이의 3%) 이 값을 넘기지 않는다. 모자란 만큼 뒤 문장 시각이 밀리기 때문에
+// 길이에 비례해 한없이 늘리면 안 된다(3분 구간에 5초가 통과하던 것을 독립 검토에서 지적).
+export const CAPTURE_SLACK_MAX_SEC = 1.0;
+// 녹음 중 재생이 이 시간 넘게 멈춰 있으면 더 기다리지 않고 끝낸다(→ 끊김으로 판정).
+const CAPTURE_STALL_MS = 1500;
+
+/**
+ * 실시간 녹음이 끝까지 됐는지 본다. 끊겼으면 { wantSec, gotSec, playedSec }, 멀쩡하면 null.
+ * 두 가지를 다 본다 — 한쪽만 보면 놓친다(2026-11-22, 조용한 오류 점검 ⑤):
+ *  - 받은 소리 길이(gotSec): 화면이 꺼지며 소리 처리(AudioContext)가 멈추면 모자란다.
+ *  - 재생이 나아간 길이(playedSec): 전화·다른 앱 소리로 재생만 멈추면, 소리 처리는 계속 돌아
+ *    '무음'이 길이만큼 채워진다. 길이는 맞는데 뒤쪽이 빈 녹음이 된다.
+ * 파일 끝에 걸린 구간은 파일 끝까지만 받으면 된다(mediaDur).
+ */
+export function captureShortfall({ startSec, dur, mediaDur, gotSec, playedSec }) {
+    const begin = Math.max(0, startSec);
+    const left = Number.isFinite(mediaDur) && mediaDur > 0 ? Math.max(0, mediaDur - begin) : dur;
+    const wantSec = Math.min(dur, left);
+    const slack = Math.min(CAPTURE_SLACK_MAX_SEC, Math.max(CAPTURE_SLACK_SEC, wantSec * 0.03));
+    if (wantSec - gotSec > slack || wantSec - playedSec > slack) return { wantSec, gotSec, playedSec };
+    return null;
+}
+
 /**
  * [모바일 대응 - 실시간 구간 캡처]
  * 긴 영상을 통째로 디코딩하면(WebAudio/FFmpeg) 모바일에서 메모리 초과로 실패한다.
@@ -403,10 +429,23 @@ export async function captureSegmentWav(src, startSec, durationSec, targetRate =
     let finish;
     const done = new Promise(r => { finish = r; });
 
+    // 재생이 실제로 시작된 뒤부터만 모은다. 예전엔 탐색·재생 시작을 기다리는 동안의 무음이 앞에 먼저 쌓여
+    // (소리 처리기는 요소가 멈춰 있어도 계속 돈다) 그만큼 뒤가 잘리고 받은 시각이 늦게 찍혔다.
+    let rolling = false;
+    let stalledAt = 0;
     processor.onaudioprocess = (e) => {
+        if (!rolling) return;
         const t = el.currentTime;
         // 구간 범위 내에서만 수집
         if (t < startSec - 0.05) return;
+        // 재생이 멈춰 있는 동안(전화·다른 앱 소리)의 무음은 모으지 않는다 — 곧 이어지면 그대로 잇고,
+        // 오래 멈춰 있으면 더 기다리지 않고 끝낸다(아래 길이 검사가 '끊김'으로 잡는다).
+        if (el.paused && !el.ended) {
+            if (!stalledAt) stalledAt = Date.now();
+            else if (Date.now() - stalledAt > CAPTURE_STALL_MS) finish();
+            return;
+        }
+        stalledAt = 0;
         if (capturedFrames < targetFrames && !el.ended && t <= startSec + dur + 0.05) {
             chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
             capturedFrames += e.inputBuffer.length;
@@ -432,10 +471,14 @@ export async function captureSegmentWav(src, startSec, durationSec, targetRate =
         try { await ctx.close(); } catch { /* noop */ }
         throw new Error(`오디오 재생 차단됨(${err && err.message || 'autoplay'}) — 영상을 한 번 재생한 뒤 다시 시도하세요`);
     }
+    rolling = true;
 
     // 완료 또는 안전 타임아웃(구간 길이 + 4초)
     await Promise.race([done, new Promise(r => setTimeout(r, (dur + 4) * 1000))]);
 
+    // 재생이 실제로 어디까지 나아갔는지 — 멈추기 전에 읽는다(끝까지 간 파일은 끝 시각이 남는다)
+    const playedSec = Math.max(0, (el.ended && Number.isFinite(el.duration) ? el.duration : el.currentTime) - Math.max(0, startSec));
+    const mediaDur = el.duration;
     try { el.pause(); } catch { /* noop */ }
     try { processor.disconnect(); source.disconnect(); gain.disconnect(); } catch { /* noop */ }
 
@@ -443,7 +486,19 @@ export async function captureSegmentWav(src, startSec, durationSec, targetRate =
     const total = chunks.reduce((n, c) => n + c.length, 0);
     if (total === 0) {
         try { await ctx.close(); } catch { /* noop */ }
+        // 시작하자마자 멈춘 것(전화 중 등)은 '끊김'이다. 여기서 '차단'이라고 하면 부르는 쪽이 이 작업의
+        // 남은 구간 전부에서 녹음을 꺼 버린다 — 잠깐의 멈춤 한 번으로 그러면 안 된다(재검토 지적).
+        if (stalledAt) throw new Error('녹음이 중간에 끊김(시작하자마자 재생이 멈춤)');
         throw new Error('캡처된 오디오가 없음(무음이거나 캡처 차단)');
+    }
+    // 녹음이 중간에 끊겼으면(전화·화면 꺼짐·다른 앱 소리) 잘리거나 뒤가 빈 소리를 그대로 넘기지 않는다.
+    // 예전엔 길이 검사가 없어 그 소리가 그대로 전사·대사 끝 감지에 쓰였다(오류 표시 없이 틀린 결과).
+    // 여기서 실패로 알리면 부르는 쪽이 '전체 소리에서 잘라 쓰기'로 넘어간다(재생이 필요 없는 방식).
+    const cut = captureShortfall({ startSec, dur, mediaDur, gotSec: capturedFrames / captureRate, playedSec });
+    console.log(`[Capture] ${dur.toFixed(2)}초 구간: 받음 ${(capturedFrames / captureRate).toFixed(2)}초, 재생 ${playedSec.toFixed(2)}초${cut ? ' → 끊김' : ''}`);
+    if (cut) {
+        try { await ctx.close(); } catch { /* noop */ }
+        throw new Error(`녹음이 중간에 끊김(${cut.wantSec.toFixed(1)}초 중 받음 ${cut.gotSec.toFixed(1)}초·재생 ${cut.playedSec.toFixed(1)}초)`);
     }
     const merged = new Float32Array(total);
     let off = 0;
