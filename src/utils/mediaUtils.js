@@ -1,4 +1,5 @@
 import { parseTime } from './timeUtils';
+import { tidyTranscriptText, stripSameParen } from './textTidy';
 
 // 종료 시각(endSeconds) 미지정 시 기본으로 채우는 구간 길이(초)
 const DEFAULT_GAP_SEC = 3.0;
@@ -146,7 +147,8 @@ export const sanitizeData = (data, duration = 0) => {
             const secondsValue = item.v !== undefined ? item.v : item.seconds;
             const endValue = item.e !== undefined ? item.e : item.endSeconds;
             const speaker = item.sp || item.speaker || "";
-            let text = item.o || item.text || "(No text)";
+            // 받아쓰기 찌꺼기(`km(km)`, 앞의 `[화자] ||`)는 여기서 뗀다 — 열 때·저장할 때 모두 지나는 곳 (utils/textTidy.js)
+            let text = tidyTranscriptText(item.o || item.text || "(No text)");
             const translation = item.t || item.translation || "";
 
             // MASTER SECOND ENGINE (Float Precision)
@@ -175,7 +177,7 @@ export const sanitizeData = (data, duration = 0) => {
                 o: text,
                 text,
                 translation,
-                analysis: item.a || item.analysis || "",
+                analysis: stripSameParen(item.a || item.analysis || ""),
                 // 전사의심(규칙15) 플래그: 여기서 통과시키지 않으면 캐시 재로드 때 배지가 유실된다
                 transcriptSuspect: item.transcriptSuspect || "",
                 // 대사 끝 시각(감지 패스가 채움, 선택 필드) — 숫자일 때만 통과, 아니면 필드 자체를 만들지 않음

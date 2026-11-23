@@ -43,10 +43,15 @@ const countMeaningUnits = (t) => {
 //  그대로 두면 새 지시문의 정상 답(`I won't let that sway my opinion` 7단어)을 뭉침으로 보고 다시 잘게 쪼갠다
 //  (시험 200문장: 새 지시문 답 중 28~47문장이 옛 기준에 걸림).
 const VI_CHARS = /[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i;
+// badgeMax: 화면 '뭉침' 배지만 쓰는 상한 (2026-11-23 사용자 결정 — 배지 기준만 완화, 재분할·누락 재시도·지시문은 그대로).
+//  휴대폰 대본(Claude, 새 지시문) 4,051문장 점검에서 배지 124개 중 "Is that where the breakfast going to be in the morning?"
+//  (10단어 질문 하나)·`mà các bạn nhìn thấy cái lá lốt nó to vãi chưởng luôn`(13음절)처럼 뜻 한 묶음으로 읽히는 것이 대부분이었다.
+//  배지는 덩어리 하나가(문장 통째 1청크 포함) 영어 14단어·베트남어 16음절 이상일 때만 단다 → 124 → 12개.
+//  남는 것은 `và toàn bộ số tiền … một mục đích ý nghĩa`(19음절)처럼 접속말로 이어진 말이 한 덩어리에 다 든 것.
 export function chunkLimits(sentence) {
     return VI_CHARS.test(sentence || '')
-        ? { chunkMax: 12, singleMax: 11 }  // 베트남어(음절)
-        : { chunkMax: 10, singleMax: 9 };  // 그 밖(단어)
+        ? { chunkMax: 12, singleMax: 11, badgeMax: 15 }  // 베트남어(음절)
+        : { chunkMax: 10, singleMax: 9, badgeMax: 13 };  // 그 밖(단어)
 }
 
 /**
@@ -72,17 +77,18 @@ export function checkAnalysisCoverage(item) {
     const chunkWordSet = new Set(chunks.flatMap(c => normWords(c.chunk)));
     const missing = [...new Set(textWords)].filter(w => !chunkWordSet.has(w));
     // 뭉침 판정 — 배지는 '확실한 위반'만 잡아야 신뢰를 유지한다 (기준값은 위 chunkLimits):
-    //  ① 문장 전체=1청크인데 문장이 한 청크로 둘 만큼 짧지 않음(영어 10단어·베트남어 12음절 이상)
-    //  ② 지시문 상한을 넘는 청크(영어 11단어·베트남어 13음절 이상). 지명·이름은 하나로 센다(countMeaningUnits).
+    //  ① 문장 전체=1청크인데 문장이 김(영어 14단어·베트남어 16음절 이상 — 배지 전용 기준 badgeMax)
+    //  ② 너무 긴 청크(영어 14단어·베트남어 16음절 이상, badgeMax). 지명·이름은 하나로 센다(countMeaningUnits).
     //  ③ 예외: 숫자 발음 병기가 든 청크는 길이 검사 제외 — 'sáu trăm chín mươi nghìn(690.000)'처럼
     //     숫자 하나의 낭독이 단어 5개로 세어져 정상 청크가 기준을 넘기 일쑤다(규칙 6·12가
     //     병기 보존을 강제하므로 이 부풀림은 위반이 아니라 규칙 준수의 결과).
-    const { chunkMax, singleMax } = chunkLimits(item.text);
-    const wholeSentence = chunks.length === 1 && textWords.length > singleMax;
+    const { badgeMax } = chunkLimits(item.text);
+    const wholeSentence = chunks.length === 1 && textWords.length > badgeMax;
     const HAS_NUM_NOTATION = /\([\d.,%/\s]+\)/;
-    const overlong = wholeSentence
-        ? [chunks[0].chunk]
-        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && countMeaningUnits(c) > chunkMax);
+    // 청크가 하나뿐이면 '문장 통째' 기준(문장 단어 수)만 본다 — 청크 길이(의미 단위)로 다시 재면 완화가 무의미해진다.
+    const overlong = chunks.length === 1
+        ? (wholeSentence ? [chunks[0].chunk] : [])
+        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && countMeaningUnits(c) > badgeMax);
 
     const chunkLens = chunks.map(c => normWords(c.chunk).length);
     const punct = chunkLens.filter(n => n === 0).length;

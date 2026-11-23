@@ -73,13 +73,17 @@ describe('누락 감지 (규칙 9)', () => {
     });
 });
 
-describe('뭉침 감지 — 영어 11단어·베트남어 13음절 이상 (2026-11-23 규칙 13 뜻 단위)', () => {
-    // 지시문 상한: 한 청크 10단어(베트남어 12음절)까지. 베트남어는 음절마다 띄어 써서 칸 수가 많다.
-    // 예시는 2026-11-23 시험(Claude Sonnet 5.5, 새 지시문)의 실제 답이다.
-    it('영어 11단어 청크는 감지한다 (실측 #37)', () => {
-        const r = checkAnalysisCoverage({
+describe('뭉침 배지 — 덩어리가 영어 14단어·베트남어 16음절 이상 (2026-11-23 배지 기준 완화)', () => {
+    // 지시문 상한은 한 청크 10단어(베트남어 12음절)지만, 배지는 그보다 넉넉하게(badgeMax) 단다 — 휴대폰 점검에서
+    // 11~15칸 덩어리는 대부분 뜻 한 묶음으로 읽혔다. 베트남어는 음절마다 띄어 써서 칸 수가 많다.
+    it('영어 11단어 청크는 이제 통과, 14단어 청크는 감지한다 (실측 #37 + 늘린 것)', () => {
+        expect(checkAnalysisCoverage({
             isAnalyzed: true, text: 'I looked at some of the customer reviews of the breakfast and there was a photo.',
             analysis: '**I looked at some of the customer reviews of the breakfast**: 조식 고객 후기 몇 개를 봤다\n**and there was a photo**: 사진이 있었다',
+        })).toBeNull();
+        const r = checkAnalysisCoverage({
+            isAnalyzed: true, text: 'I looked at some of the customer reviews of the hotel breakfast buffet today and there was a photo.',
+            analysis: '**I looked at some of the customer reviews of the hotel breakfast buffet today**: 오늘 호텔 조식 뷔페 후기 몇 개를 봤다\n**and there was a photo**: 사진이 있었다',
         });
         expect(r?.overlong).toHaveLength(1);
         expect(coverageTitle(r)).toContain('너무 길게 뭉친 청크 1개');
@@ -92,7 +96,7 @@ describe('뭉침 감지 — 영어 11단어·베트남어 13음절 이상 (2026-
         })).toBeNull();
     });
 
-    it('베트남어는 13음절부터 감지하고 12음절은 통과한다', () => {
+    it('베트남어는 16음절부터 감지하고 13음절은 통과한다', () => {
         const T = 'Không biết các bạn có thích ăn mấy cái viên này không hay là những cái đồ decor mình nhặt được ở bãi biển này.';
         expect(checkAnalysisCoverage({
             isAnalyzed: true, text: T,
@@ -101,6 +105,10 @@ describe('뭉침 감지 — 영어 11단어·베트남어 13음절 이상 (2026-
         expect(checkAnalysisCoverage({
             isAnalyzed: true, text: T,
             analysis: '**Không biết các bạn có thích ăn mấy cái viên này không**: 여러분이 이 완자 좋아할지 모르겠네\n**hay là những cái đồ decor mình nhặt được ở bãi biển này**: 아니면 이 해변에서 주운 장식품들',
+        })).toBeNull();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: T,
+            analysis: '**Không biết các bạn có thích ăn mấy cái viên này không hay là những cái đồ**: 여러분이 이 완자나 물건 좋아할지 모르겠네\n**decor mình nhặt được ở bãi biển này**: 이 해변에서 주운 장식',
         })?.overlong).toHaveLength(1);
     });
 
@@ -111,15 +119,39 @@ describe('뭉침 감지 — 영어 11단어·베트남어 13음절 이상 (2026-
         })).toBeNull();
     });
 
-    it('한 청크로 두기엔 긴 문장(영어 10단어·베트남어 12음절)이 통째로 1청크면 감지한다', () => {
+    it('문장 통째 1청크 배지도 영어 14단어·베트남어 16음절부터 (2026-11-23 배지 기준 완화)', () => {
+        // 휴대폰 실측(Claude): 10단어 질문 하나·12음절 문장은 한 덩어리로 자연스러운데 배지가 떴다
         expect(checkAnalysisCoverage({
-            isAnalyzed: true, text: 'I got to watch the sunrise over the Pacific Ocean.',
-            analysis: '**I got to watch the sunrise over the Pacific Ocean**: 태평양 일출을 봤다',
-        })?.overlong).toHaveLength(1);
+            isAnalyzed: true, text: 'Is that where the breakfast going to be in the morning?',
+            analysis: '**Is that where the breakfast going to be in the morning?**: 저기가 아침에 조식이 나오는 곳인가요?',
+        })).toBeNull();
         expect(checkAnalysisCoverage({
             isAnalyzed: true, text: 'Thật ra là em không có cần năm trăm(500) của anh đâu.',
             analysis: '**Thật ra là em không có cần năm trăm(500) của anh đâu**: 사실 난 네 500 필요 없어',
+        })).toBeNull();
+        // 13단어는 통과, 14단어부터 배지
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'I got to watch the sunrise over the Pacific Ocean this morning again.',
+            analysis: '**I got to watch the sunrise over the Pacific Ocean this morning again**: 오늘 아침 또 태평양 일출을 봤다',
+        })).toBeNull();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'I got to watch the sunrise over the Pacific Ocean this morning once again.',
+            analysis: '**I got to watch the sunrise over the Pacific Ocean this morning once again**: 오늘 아침 한 번 더 태평양 일출을 봤다',
         })?.overlong).toHaveLength(1);
+        // 베트남어: 15음절 통과(실측), 16음절 배지
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Thì ra người yêu tao có thể về bản thân mày đi làm móng nha.',
+            analysis: '**Thì ra người yêu tao có thể về bản thân mày đi làm móng nha**: 알고 보니 내 애인이 너한테 네일 받으러 가도 되는 거였네',
+        })).toBeNull();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Thì ra người yêu tao có thể về bản thân mày đi làm móng tay nha.',
+            analysis: '**Thì ra người yêu tao có thể về bản thân mày đi làm móng tay nha**: 알고 보니',
+        })?.overlong).toHaveLength(1);
+    });
+
+    it('재분할 판정(isLumpedAnalysis)은 예전 기준 그대로 — 배지만 완화했다', () => {
+        expect(isLumpedAnalysis('Is that where the breakfast going to be in the morning?',
+            '**Is that where the breakfast going to be in the morning?**: 저기가 아침에 조식이 나오는 곳인가요?')).toBe(true);
     });
 
     it('절 하나뿐인 짧은 문장(영어 9단어·베트남어 11음절 이하)의 1청크는 정상이다', () => {
@@ -164,10 +196,10 @@ describe('숫자·기호 발음 병기 청크는 길이 검사에서 제외', ()
         })).toBeNull();
     });
 
-    it('병기가 없는 11단어는 여전히 감지한다 (면제가 너무 넓지 않은지)', () => {
+    it('병기가 없는 14단어는 여전히 감지한다 (면제가 너무 넓지 않은지)', () => {
         expect(checkAnalysisCoverage({
-            isAnalyzed: true, text: 'a b c d e f g h i j k l',
-            analysis: '**a b c d e f g h i j k**: 병기 없는 11단어 뭉침\n**l**: ok',
+            isAnalyzed: true, text: 'a b c d e f g h i j k l m n o',
+            analysis: '**a b c d e f g h i j k l m n**: 병기 없는 14단어 뭉침\n**o**: ok',
         })?.overlong).toHaveLength(1);
     });
 });
@@ -203,10 +235,10 @@ describe('지명·이름은 1단어로 센다 (뭉침 길이)', () => {
             isAnalyzed: true, text: 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ ok',
             analysis: '**Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ**: 도시들\n**ok**: ok',
         })?.overlong).toBeUndefined();
-        const cities = 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa, Vũng Tàu, Phú Quốc, Hội An';
+        const cities = 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa, Vũng Tàu, Phú Quốc, Hội An, Cà Mau, Bến Tre, Tây Ninh';
         expect(checkAnalysisCoverage({
             isAnalyzed: true, text: cities + ' ok',
-            analysis: '**' + cities + '**: 도시 13곳\n**ok**: ok',
+            analysis: '**' + cities + '**: 도시 16곳\n**ok**: ok',
         })?.overlong).toHaveLength(1);
     });
 });
