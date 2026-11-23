@@ -1,7 +1,8 @@
 import { useState, useRef, useLayoutEffect } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
-import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips } from '../services/gemini';
+import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips, detectSpeechEndsInParts } from '../services/gemini';
+import { SPEECH_PART_MAX } from '../utils/speechEndParts';
 import { parseCacheEntry, saveCacheEntry, clearCacheIncomplete } from '../utils/cacheUtils';
 import { ANALYSIS_VERSION } from '../services/prompts';
 import { saveStatusOf } from '../utils/cacheStatus';
@@ -1339,7 +1340,10 @@ export const useMediaAnalysis = ({
             let ends = null;
             // 전체/누락 감지: 1단계가 구글에 올린 같은 오디오가 있으면 그걸 쓴다 — 원본 다시 읽기·길이 계산·
             // 오디오 추출·업로드를 통째로 건너뛴다(utils/audioReuse). 실패하면(46시간 안에 지워졌거나 오류) 예전 방식으로.
-            const reuse = selective ? null : reusableAudio(stage1AudioRef.current, targetFile);
+            // 문장이 많으면(130개 초과) 조각으로 나눠 구간 소리만 보낸다 — 한 번에 보내면 모델이 번호를 헷갈려
+            // 판단 불가가 수십~수백 개 나왔다(utils/speechEndParts). 조각은 소리를 잘라야 해서 1단계 업로드는 못 쓴다.
+            const inParts = !selective && sentences.length > SPEECH_PART_MAX;
+            const reuse = (selective || inParts) ? null : reusableAudio(stage1AudioRef.current, targetFile);
             if (reuse) {
                 duration = reuse.duration || 0;
                 try {
@@ -1361,6 +1365,8 @@ export const useMediaAnalysis = ({
                 // 선택 재감지는 클립만(비용 비례), 전체/누락 감지는 오디오 통째(기존).
                 if (selective) {
                     ends = await detectSpeechEndsByClips(fileForAnalysis, apiKey, stage1Model, withNextStarts(snapshot, sentences), { mediaSrc: targetUrl, duration });
+                } else if (inParts) {
+                    ends = await detectSpeechEndsInParts(fileForAnalysis, apiKey, stage1Model, withNextStarts(snapshot, sentences), { duration });
                 } else {
                     ends = await detectSpeechEnds(fileForAnalysis, apiKey, stage1Model, sentences);
                 }
@@ -1385,7 +1391,10 @@ export const useMediaAnalysis = ({
             // 건너뛰는 구간이 27곳 → 6곳으로 급감했다. 조건을 좁혀도(모델 지속 1초 이하만 연장)
             // 27 → 18로 3분의 1이 사라졌다. 음성/음악 판별(스펙트럼·변조 분석) 없이는 불가능하다.
 
-            const requested = new Set(sentences.map(s => s.index));
+            // 실패한 조각의 문장은 요청하지 않은 것으로 친다 — 넣으면 '판단 불가'로 굳어 다시 감지 대상에서 빠진다.
+            // 미감지로 남으면 안내의 '빠진 N개 재시도'·!N 배지로 다시 할 수 있다.
+            const failedIdx = ends.failedIndices;
+            const requested = new Set(sentences.filter(s => !failedIdx?.has(s.index)).map(s => s.index));
             let applied = 0; let latestData = null;
             let secondsMismatch = 0; // 진단용 관측값
             // [경합 제거] 병합을 업데이터 밖에서 동기적으로 끝낸다. 예전엔 업데이터 안에서

@@ -10,6 +10,7 @@ import {
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
+import { planSpeechEndParts, runSpeechEndParts } from "../utils/speechEndParts";
 import { waitUntilOnline } from "../utils/online";
 import { isLeakedFrom, formatStamp } from "../utils/sentenceEdit";
 import { analyzeIntraLineRepetition } from "../utils/languageUtils";
@@ -1580,6 +1581,40 @@ ${list}`;
         }
     }
     throw lastError || new Error('Speech-end detection failed');
+}
+
+/**
+ * [긴 대본 대사 끝 감지 — 조각으로 나눠 보내기] (2026-11-23, utils/speechEndParts)
+ * 문장이 SPEECH_PART_MAX(130)개를 넘으면 그만큼씩 나누고, 조각마다 그 시간 구간의 소리만 잘라 보낸다.
+ * 한 번에 다 보내면 모델이 중간부터 번호를 헷갈려 판단 불가가 수십~수백 개 나왔다.
+ * 상한 이하는 예전 그대로 한 번에 보낸다(이 함수가 detectSpeechEnds를 그대로 부름).
+ * @param sentences [{index, seconds, text, nextStart}] — withNextStarts로 다음 대사 시작을 붙인 것
+ * @returns Map<index, 절대 초> (+ 숨은 속성 failedIndices: 실패한 조각의 문장 번호)
+ */
+export async function detectSpeechEndsInParts(file, apiKey, modelId, sentences, { signal = null, duration = 0 } = {}) {
+    const parts = planSpeechEndParts(sentences, duration);
+    if (!parts) return detectSpeechEnds(file, apiKey, modelId, sentences, { signal });
+    console.log(`[SpeechEnd] ${sentences.length}문장 → ${parts.length}조각으로 나눠 감지`);
+    const whole = await extractAudioBlob(file);
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (!whole || whole.size < 1024) throw new Error(`오디오 데이터가 비어 있음 (size=${whole?.size || 0}B)`);
+    // 소리 추출이 둘 다 실패해 원본 영상이 그대로 왔으면 자를 수 없다 → 예전처럼 통째로 보낸다
+    // (조각마다 영상 전체를 읽고 FFmpeg로 자르다 다 실패하면, 예전엔 되던 감지가 안 된다 — 독립 검토)
+    if (whole.type !== 'audio/wav') {
+        console.warn(`[SpeechEnd] 소리가 WAV가 아님(${whole.type || '알 수 없음'}) → 나누지 않고 통째로 감지`);
+        return detectSpeechEnds(file, apiKey, modelId, sentences, { signal, audioBlobOverride: whole });
+    }
+    // 자르기는 한 번에 하나씩(요청은 2개 동시) — FFmpeg 임시 파일 이름이 같은 밀리초에 겹치지 않게
+    let cutting = Promise.resolve();
+    const cut = (p) => {
+        const run = cutting.then(() => extractSegmentWav(whole, p.winStart, p.winDur));
+        cutting = run.catch(() => {});
+        return run;
+    };
+    return runSpeechEndParts(parts, async (p) => {
+        const clip = await cut(p);
+        return detectSpeechEnds(file, apiKey, modelId, p.items, { signal, audioBlobOverride: clip });
+    }, { signal });
 }
 
 /**
