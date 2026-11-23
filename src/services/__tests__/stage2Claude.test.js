@@ -3,7 +3,7 @@
 // 지키는 것: ①Claude 요청 모양(주소·키 헤더·생각 끔·샘플링 값 없음·같은 지시문) ②응답 해석이 Gemini와 같은 파서를 탐
 // ③키·크레딧 오류는 재시도 없이 사용자 문구를 단다 ④Gemini 모델은 예전 그대로 구글로 간다.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { analyzeBatchSentences, claudeFailureMessage } from '../gemini';
+import { analyzeBatchSentences, claudeFailureMessage, looksVietnamese } from '../gemini';
 import { STAGE2_BATCH_PROMPT } from '../prompts';
 
 const block = (i, tr, a) => `--- [INDEX: ${i}] START ---\n[번역] ${tr}\n[분석] ${a}\n--- [INDEX: ${i}] END ---`;
@@ -129,5 +129,47 @@ describe('claudeFailureMessage — 사유별 문구', () => {
         expect(claudeFailureMessage({ status: 429, message: 'x' })).toContain('한도');
         expect(claudeFailureMessage({ status: 529, message: 'x' })).toContain('서버');
         expect(claudeFailureMessage(new Error('network'))).toBe('');
+    });
+});
+
+describe('베트남어가 아닌 묶음 — Claude 거절 막기 (2026-11-23 휴대폰: 영어 영상 25문장 거절)', () => {
+    const EN = [{ index: 0, text: 'Here he is.' }, { index: 1, text: "When I knock people out, they don't move." }];
+    const E0 = block(0, '드디어 왔네요.', '**Here he is**: 여기 그가 있다 (Here: 여기 + he: 그 + is: ~이다)');
+    const E1 = block(1, '내가 쓰러뜨리면 못 움직여.', '**When I knock people out**: 내가 사람들을 쓰러뜨리면 (When: ~할 때 + I: 나 + knock out: 쓰러뜨리다)');
+    const NOTE = '[입력 언어 안내';
+
+    it('Claude + 영어 묶음이면 지시문 끝에 언어 안내 한 줄을 붙인다(앞부분 지시문은 그대로)', async () => {
+        stub(claudeOk(`${E0}
+${E1}`));
+        await analyzeBatchSentences(EN, 'sk-ant-test', 'claude-sonnet-5-5', null);
+        const prompt = calls[0].body.messages[0].content;
+        expect(prompt.startsWith(STAGE2_BATCH_PROMPT)).toBe(true);
+        expect(prompt).toContain(NOTE);
+        expect(prompt.indexOf(NOTE)).toBeLessThan(prompt.indexOf('분석할 문장 목록'));
+    });
+
+    it('Claude + 베트남어 묶음은 예전 지시문 그대로(안내 없음)', async () => {
+        stub(claudeOk(`${B0}
+${B1}`));
+        await analyzeBatchSentences(ITEMS, 'sk-ant-test', 'claude-sonnet-5-5', null);
+        expect(calls[0].body.messages[0].content).not.toContain(NOTE);
+    });
+
+    it('Gemini는 영어 묶음이어도 예전 지시문 그대로', async () => {
+        stub(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: `${E0}
+${E1}` }] }, finishReason: 'STOP' }] }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        await analyzeBatchSentences(EN, 'AIza-test', 'gemini-2.5-flash', null);
+        expect(JSON.stringify(calls[0].body)).not.toContain(NOTE);
+    });
+
+    it('looksVietnamese: 성조·베트남어 글자가 있는 문장이 30% 이상이면 베트남어', () => {
+        expect(looksVietnamese(['Xin chào.', 'Cảm ơn.'])).toBe(true);
+        expect(looksVietnamese(['Here he is.', 'Oh.', 'Connor.'])).toBe(false);
+        // 영어 영상 속 포르투갈어·인명(é, á)이 조금 섞여도 영어로 본다
+        expect(looksVietnamese(['Ele é seu pai.', 'Here he is.', 'Oh.', 'Connor.', 'Take a look around you.'])).toBe(false);
+        // 베트남어 영상에 짧은 영어 감탄이 섞여도 베트남어로 본다
+        expect(looksVietnamese(['Ok.', 'Wow.', 'Mình đi ăn thôi.', 'Ngon quá.'])).toBe(true);
+        expect(looksVietnamese([])).toBe(true);
     });
 });

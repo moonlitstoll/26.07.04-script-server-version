@@ -6,7 +6,7 @@ import { LINE_REGEX, lineTimeToSeconds, stripRunawayNumberAnnotations } from "./
 import {
     StreamIncompleteError, isStreamComplete, isResumableStreamError, isServerBusyError,
     isRecitationBlock, isRunawayRepeat, recitationBlockedMessage,
-    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC, LOOP_DUP_LINES, TIMELINE_RESTART_BACK_SEC,
+    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC, RESUME_REUPLOAD_MIN_SEC, LOOP_DUP_LINES, TIMELINE_RESTART_BACK_SEC,
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
@@ -697,8 +697,9 @@ export async function transcribeWithResume(model, firstParts, {
                 await abortableSleep(backoffMs(attempt), signal);
             }
 
-            if (received.length === 0) {
-                // 한 줄도 못 받았다 → 원래 요청을 그대로 다시(오디오를 다시 자를 필요 없음)
+            if (received.length === 0 || next.resumeAt - segStart < RESUME_REUPLOAD_MIN_SEC) {
+                // 한 줄도 못 받았거나 구간 맨 앞(1분 안)에서 끊겼다 → 원래 요청을 그대로 다시(오디오를 다시 자르고 올리지 않음).
+                // 앞쪽에서 끊기면 '남은 부분'이 사실상 전체라 잘라 올려도 아끼는 게 없고 휴대폰은 올리는 데 1분씩 쓴다.
                 parts = firstParts; offset = segStart; duration = fullDuration; plan = null;
             } else {
                 const winStart = Math.max(segStart, next.resumeAt - RESUME_PAD_SEC);
@@ -1346,6 +1347,15 @@ export function claudeFailureMessage(err) {
 // apiKey: 고른 모델의 공급자 키 — Gemini 모델이면 Gemini 키, Claude 모델이면 Claude 키(호출부 runStage2가 고른다).
 // 실패 결과 { index, failed: true, errorMessage? } — errorMessage는 Claude의 키·크레딧처럼 사용자가 조치할 사유가 있을 때만.
 // onStatus(선택): 재시도 상황을 화면에 알리는 콜백 — { phase:'request'|'wait', attempt(1부터), maxAttempts, waitMs?, reason? }
+// 문장들이 베트남어인지 — 베트남어에만 쓰는 글자(ă â đ ê ô ơ ư)나 성조 부호가 붙은 모음이 있는 문장이 30% 이상이면 베트남어.
+// 영어·한국어 등은 false. 판단할 문장이 없으면 true(예전 그대로). 테스트를 위해 export.
+const VI_CHARS = /[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i;
+export function looksVietnamese(texts) {
+    const list = (texts || []).filter(t => t && String(t).trim());
+    if (list.length === 0) return true;
+    return list.filter(t => VI_CHARS.test(t)).length / list.length >= 0.3;
+}
+
 export async function analyzeBatchSentences(items, apiKey, modelId, signal, contextItems = [], forceSplit = false, formatRetry = true, onStatus = null) {
     if (!apiKey) throw new Error("API Key is required");
     if (!items || items.length === 0) return [];
@@ -1384,7 +1394,14 @@ export async function analyzeBatchSentences(items, apiKey, modelId, signal, cont
     const forceSplitRule = forceSplit
         ? `\n\n[강제 분할 지시 — 최우선]\n아래 문장은 직전 분석에서 문장 전체가 하나의 청크로 뭉쳐 나왔습니다. 이번에는 반드시 여러 의미 청크로 잘게 나눠 각각 [분석] 줄로 출력하십시오(규칙 13 엄수). 문장 전체를 하나의 [분석] 줄로 출력하면 실패입니다.`
         : '';
-    const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}${forceSplitRule}\n\n분석할 문장 목록:\n${flow}`;
+    // [Claude + 베트남어가 아닌 문장] 지시문이 베트남어 예시로 쓰여 있어, Claude(Sonnet 5.5)가 영어 묶음을
+    // "지침이 베트남어용"이라며 거절하거나 확인을 물었다(2026-11-23 휴대폰: 14분·15분 영어 영상에서 각 25문장,
+    // 같은 요청을 다시 보내도 거절). 그때만 '같은 형식을 이 언어에 적용하라'는 한 줄을 붙인다.
+    // 베트남어 묶음·Gemini 요청은 지시문이 그대로다(지시문 한 줄이 다른 표기로 번진 적이 있어 범위를 좁힘).
+    const languageRule = useClaude && !looksVietnamese(items.map(i => i.text))
+        ? `\n\n[입력 언어 안내 — 최우선]\n이번 [분석대상] 문장은 베트남어가 아닙니다(예: 영어). 위 규칙과 예시는 베트남어로 쓰였지만, 같은 출력 형식(번역·청크·단어 풀이·START/END 마커)을 이 언어에 그대로 적용하십시오. 단어 풀이의 원어는 문장에 나온 그대로 쓰고, ♪(소리 닮은 한자어)·〈〉(합성어 부품)처럼 베트남어에 맞춘 표시는 해당될 때만 쓰십시오. 거절하거나 확인을 묻거나 설명을 덧붙이지 말고, 모든 [분석대상] 문장을 형식대로 출력하십시오.`
+        : '';
+    const prompt = `${STAGE2_BATCH_PROMPT}${contextRule}${forceSplitRule}${languageRule}\n\n분석할 문장 목록:\n${flow}`;
 
     // 마커별 파싱은 순수 함수 parseStage2Response(stage2Parser.js)로 분리 — 단위 테스트 대상.
     // 끝 경계를 '자기 END'와 '바로 다음 문장 START' 중 먼저 오는 쪽으로 잘라, 모델이 END 마커를

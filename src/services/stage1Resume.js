@@ -16,6 +16,10 @@ import { formatClock } from '../utils/timeUtils';
 export const RESUME_MAX_ATTEMPTS = 3;        // 이어받기 최대 횟수(첫 요청 제외)
 export const RESUME_PAD_SEC = 0.3;           // 이어받는 클립 앞 여유(첫 단어 잘림 방지)
 export const RESUME_MIN_REMAIN_SEC = 1.0;    // 남은 소리가 이보다 짧으면 이어받을 게 없다
+// 끊긴 자리가 구간 앞쪽 이 안이면 자르지 않고 처음 요청을 그대로 다시 보낸다(받은 몇 줄은 버림).
+// 휴대폰 실측(2026-11-23, 15분 영어): 첫머리 함성 반복으로 5초에서 두 번 끊겼는데, 이어받을 때마다 남은 소리
+// (거의 전체 26MB)를 잘라 새로 올려 1분씩, 모두 약 2분을 더 썼다. 처음 올린 파일은 구글에 그대로 있다.
+export const RESUME_REUPLOAD_MIN_SEC = 60;
 export const SEAM_DUP_WINDOW_SEC = 2.0;      // 이음매 직후 이 안에서 '이미 가진 문장'이 또 나오면 되풀이로 본다
 export const STREAM_FIRST_CHUNK_TIMEOUT_MS = 180000; // 첫 조각 대기(Pro는 답 전에 오래 생각한다)
 export const STREAM_IDLE_TIMEOUT_MS = 60000;         // 조각 사이 최대 공백 — 넘으면 멈춤으로 본다

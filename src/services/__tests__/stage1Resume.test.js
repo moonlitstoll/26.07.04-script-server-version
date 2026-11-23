@@ -669,3 +669,29 @@ describe('시각이 크게 거꾸로 감 = 모델이 처음으로 돌아가 다�
         expect(incompleteNotice(t.incompletes[0])).toContain('되돌아가는 오류');
     });
 });
+
+describe('맨 앞에서 끊기면 소리를 다시 자르지 않는다 (2026-11-23 휴대폰: 5초에서 두 번 끊겨 26MB를 두 번 더 올림)', () => {
+    const END = 886;
+    it('1분 안에서 끊기면 처음 요청(처음 올린 소리)을 그대로 다시 보내고, 받은 몇 줄은 새 답으로 바꾼다', async () => {
+        const t = setup([
+            { steps: [{ text: L(0, 'Here he is.') + L(5.3, 'Oh.') + '[00:06.10] [남자] || Oh! Oh' }] }, // 끝 표시 없이 닫힘
+            { steps: [{ text: L(0, 'Here he is.') + L(5.3, 'Oh.') + L(15.1, 'Connor.') + L(880, 'God bless.'), finish: 'STOP' }] },
+        ], { segEnd: END, hardLimit: END });
+        const out = await t.run();
+        expect(t.cuts).toHaveLength(0);                          // 자르지 않았다
+        expect(t.model.calls[1].parts).toBe(t.firstParts);         // 처음 요청 그대로
+        expect(secs(out)).toEqual([0, 5.3, 15.1, 880]);            // 앞 두 줄이 겹치지 않는다
+        expect(t.incompletes).toHaveLength(0);
+    });
+
+    it('1분 넘어서 끊기면 예전처럼 그 자리부터 잘라 이어받는다', async () => {
+        const t = setup([
+            { steps: [{ text: L(0, 'Here he is.') + L(65, 'Right here.') + '[01:10.00] [남자] || This gu' }] },
+            { steps: [{ text: L(0.3, 'Right here.') + L(5, 'This guy TKOs people.'), finish: 'STOP' }] },
+        ], { segEnd: END, hardLimit: END });
+        const out = await t.run();
+        expect(t.cuts).toHaveLength(1);
+        expect(t.cuts[0].start).toBeCloseTo(64.7, 5);
+        expect(secs(out)).toEqual([0, 65, 69.7]);
+    });
+});
