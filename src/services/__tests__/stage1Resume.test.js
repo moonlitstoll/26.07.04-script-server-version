@@ -618,3 +618,54 @@ describe('정상 종료 + 0줄 — 받은 글 모양을 남긴다', () => {
         expect(out.emptyInfo).toBeUndefined();
     });
 });
+
+describe('시각이 크게 거꾸로 감 = 모델이 처음으로 돌아가 다시 씀 (2026-11-23 휴대폰 실측)', () => {
+    const END = 852.08;
+    // 실측: 13:14(794.2초)까지 받아쓰다가 한 줄 끝에 "00:00.00] …"가 붙고, 그 뒤로 이어받은 구간 처음부터 다시 씀.
+    // 예전엔 '앞 줄 +0.1초' 보정이 다시 쓴 158줄을 0.1초 간격으로 쌓았다.
+    const RESTART_STEPS = [
+        { text: L(790.0, 'This guy TKO\'s people.') + "[13:14.20] [남자] || When I knock people out, they don'00:00.00] [남자] || Ele é seu pai.\n" },
+        // 같은 조각 안에서 다시 쓴 줄이 앞쪽 시각 가까이(30초 안)까지 올라와도 받지 않는다
+        { text: L(1.5, 'Nunca vai ser.') + L(2.6, 'Você tá mais lá.') + L(4.0, 'Nunca vai ser.') + L(785.0, 'Rewritten late line.'), finish: 'STOP' },
+    ];
+    const TAIL_STEPS = [
+        { text: L(0.3, "When I knock people out, they don't get up.") + L(5.0, 'That is the end of it.') + '[00:57.80] [END_OF_AUDIO]\n', finish: 'STOP' },
+    ];
+
+    it('그 자리에서 끊고 마지막으로 받은 줄부터 다시 받는다 — 0.1초 간격으로 쌓이지 않는다', async () => {
+        const t = setup([{ steps: RESTART_STEPS }, { steps: TAIL_STEPS }], { segEnd: END, hardLimit: END });
+        const out = await t.run();
+        expect(secs(out)).toEqual([790, 794.2, 798.9]);
+        expect(out.map(m => m.text)).not.toContain('Nunca vai ser.');
+        expect(out.map(m => m.text)).not.toContain('Rewritten late line.');
+        expect(out.some(m => /00:00\.00\]/.test(m.text))).toBe(false); // 붙어 온 줄은 다시 받아 바꿨다
+        expect(t.model.calls).toHaveLength(2);
+        expect(t.cuts[0].start).toBeCloseTo(794.2 - 0.3, 5);
+        expect(t.incompletes).toHaveLength(0);
+    });
+
+    it('끊을 때 연결도 끊는다(뒤를 끝까지 받지 않음)', async () => {
+        const t = setup([{ steps: [...RESTART_STEPS, { hang: true }] }, { steps: TAIL_STEPS }],
+            { segEnd: END, hardLimit: END, timeouts: { firstChunkMs: 5000, idleMs: 5000 } });
+        await t.run();
+        expect(t.model.calls[0].opts.signal.aborted).toBe(true);
+    });
+
+    it('30초 안쪽으로 조금 거꾸로 간 것은 예전처럼 앞 줄 +0.1초로 둔다', async () => {
+        const t = setup([{ steps: [{ text: L(100, 'Một hai ba.') + L(75, 'Bốn năm sáu.'), finish: 'STOP' }] }], { segEnd: END, hardLimit: END });
+        const out = await t.run();
+        expect(secs(out)).toEqual([100, 100.1]);
+        expect(t.model.calls).toHaveLength(1);
+    });
+
+    it('이어받아도 계속 처음으로 돌아가면 받은 데까지 두고 사유를 알린다', async () => {
+        // 이어받은 클립마다 60초쯤 받다가 또 00:01로 돌아감(클립이 길게 남도록 영상 길이를 넉넉히)
+        const again = { steps: [{ text: L(0.3, 'Again one.') + L(60, 'Again two.') + L(1, 'Back to start.'), finish: 'STOP' }] };
+        const t = setup([{ steps: RESTART_STEPS }, again, again, again], { segEnd: 2000, hardLimit: 2000 });
+        const out = await t.run();
+        expect(out.every((m, i) => i === 0 || m.seconds - out[i - 1].seconds > 0.15)).toBe(true);
+        expect(t.incompletes).toHaveLength(1);
+        expect(t.incompletes[0].reason).toBe('restart');
+        expect(incompleteNotice(t.incompletes[0])).toContain('되돌아가는 오류');
+    });
+});

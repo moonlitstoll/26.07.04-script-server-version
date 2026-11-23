@@ -6,7 +6,7 @@ import { LINE_REGEX, lineTimeToSeconds, stripRunawayNumberAnnotations } from "./
 import {
     StreamIncompleteError, isStreamComplete, isResumableStreamError, isServerBusyError,
     isRecitationBlock, isRunawayRepeat, recitationBlockedMessage,
-    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC, LOOP_DUP_LINES,
+    planResume, spliceResume, RESUME_MAX_ATTEMPTS, RESUME_PAD_SEC, LOOP_DUP_LINES, TIMELINE_RESTART_BACK_SEC,
     STREAM_FIRST_CHUNK_TIMEOUT_MS, STREAM_IDLE_TIMEOUT_MS,
 } from "./stage1Resume";
 import { clipWindowForDetection } from "../utils/speechSegments";
@@ -412,6 +412,7 @@ async function transcribeStream(model, parts, {
     let prevDupTime = -1; // 직전 줄의 상대 시각
     let dupRun = 0; // 연달아 버려진 '같은 줄' 수 (반복 루프 감지용)
     let lastValidTime = -1; // 상대 시간 기준 역행 방지
+    let restarted = false;  // 시각이 크게 거꾸로 감 = 모델이 처음으로 돌아가 다시 쓰기 시작함(TIMELINE_RESTART_BACK_SEC)
     let maxRelTime = 0;
     let lastProgressTime = 0;
     const PROGRESS_INTERVAL = 500;
@@ -443,6 +444,13 @@ async function transcribeStream(model, parts, {
         // [방어망 2] 세그먼트 길이 + 5초 초과 시 폐기 (상대 기준)
         if (segDuration > 0 && relTime > segDuration + OVERFLOW_TOLERANCE_SEC) return null;
 
+        // 크게 거꾸로 가면(30초 넘게) 보정하지 않고 그 자리에서 끊는다 — 모델이 처음으로 돌아가 같은 구간을
+        // 다시 쓰는 중이라, '앞 줄 +0.1초'로 보정하면 다시 쓴 줄이 전부 0.1초 간격으로 쌓인다(2026-11-23 휴대폰 158줄).
+        // 끊으면 마지막으로 온전히 받은 줄부터 이어받는다(transcribeWithResume).
+        if (lastValidTime >= 0 && relTime < lastValidTime - TIMELINE_RESTART_BACK_SEC) {
+            restarted = true;
+            return null;
+        }
         // [C안] 역행 방지: 이전 유효 시간보다 뒤로 가면 최소한(0.1초) 보정 (상대 기준)
         if (lastValidTime >= 0 && relTime < lastValidTime) {
             relTime = lastValidTime + 0.1;
@@ -538,10 +546,12 @@ async function transcribeStream(model, parts, {
                     continue;
                 }
                 const parsed = parseLine(line);
+                if (restarted) break;
                 if (parsed) matches.push(parsed);
                 else if (line.trim() && !LINE_REGEX.test(line)) unmatched++;
                 if (dupRun >= LOOP_DUP_LINES) { looped = true; break; }
             }
+            if (restarted) { ctrl.abort(); break; }
             // 줄바꿈 없이 끝난 마커(스트림 마지막 조각)
             if (!endedByMarker && !looped && fullText.includes('[END_OF_AUDIO]') && markerEnds()) endedByMarker = true;
             if (endedByMarker) break;
@@ -570,13 +580,13 @@ async function transcribeStream(model, parts, {
         unlink();
     }
 
-    if (looped || inBandError || !isStreamComplete({ finishReason, endedByMarker })) {
+    if (looped || restarted || inBandError || !isStreamComplete({ finishReason, endedByMarker })) {
         // 끝까지 안 온 스트림 — 줄바꿈 전 마지막 조각은 잘린 글자(또는 반복 루프)라 버린다
         if (onPartial && matches.length > 0) onPartial([...matches]);
         const cause = inBandError
             ? Object.assign(new Error(inBandError.message || 'stream error'), { status: inBandError.code })
             : null;
-        const reason = looped ? 'loop' : inBandError ? 'server' : (finishReason || 'cut');
+        const reason = looped ? 'loop' : restarted ? 'restart' : inBandError ? 'server' : (finishReason || 'cut');
         throw new StreamIncompleteError(reason, [...matches], cause);
     }
 

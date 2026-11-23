@@ -22,6 +22,10 @@ export const STREAM_IDLE_TIMEOUT_MS = 60000;         // 조각 사이 최대 공
 export const LOOP_LINE_MAX_CHARS = 2000;     // 줄바꿈 없이 이보다 길어지는 줄은 반복 루프인지 본다
 export const LOOP_MAX_DISTINCT_WORDS = 30;   // 그 줄 끝 LOOP_LINE_MAX_CHARS자 안의 서로 다른 단어가 이 이하면 루프
 export const LOOP_DUP_LINES = 50;            // 같은 줄이 연달아 이만큼 버려지면 루프
+// 시각이 이만큼 넘게 거꾸로 가면 '처음으로 돌아가 다시 쓰기 시작한 것'으로 본다(2026-11-23 휴대폰 실측:
+// 이어받은 6:16~ 구간을 13:14까지 받아쓰다 00:00부터 같은 구간을 통째로 다시 씀 → 예전엔 '앞 줄 +0.1초'
+// 보정이 158줄을 0.1초 간격으로 쌓았다). 정상 답 8개(같은 영상)에서는 거꾸로 간 줄이 0번이었다.
+export const TIMELINE_RESTART_BACK_SEC = 30;
 
 const REASON_KO = {
     cut: '연결이 닫힘',
@@ -34,6 +38,7 @@ const REASON_KO = {
 const incompleteMessage = (reason) => {
     if (reason === 'RECITATION') return '저작권 필터(RECITATION)에 걸려 응답이 중간에 막혔어요.';
     if (reason === 'loop') return 'AI가 같은 말을 끝없이 되풀이해 중간에 끊었어요. 다시 시도해 주세요.';
+    if (reason === 'restart') return 'AI가 받아쓰던 중 처음으로 돌아가 같은 부분을 다시 쓰기 시작해 중간에 끊었어요. 다시 시도해 주세요.';
     return `구글 서버 응답이 중간에 끊겼어요(${REASON_KO[reason] || reason}). 잠시 후 다시 시도해 주세요.`;
 };
 
@@ -102,6 +107,9 @@ export function incompleteNotice({ at, reason }) {
     }
     if (reason === 'loop') {
         return `AI가 같은 말을 되풀이하는 오류로 ${t} 이후 일부를 받지 못했어요. 그 부근 문장을 선택하고 '복구'를 눌러 채워주세요.`;
+    }
+    if (reason === 'restart') {
+        return `AI가 받아쓰던 중 앞으로 되돌아가는 오류로 ${t} 이후 일부를 받지 못했어요. 그 부근 문장을 선택하고 '복구'를 눌러 채워주세요.`;
     }
     return `구글 서버가 불안정해 ${t} 이후 일부를 받지 못했어요. 그 부근 문장을 선택하고 '복구'를 눌러 채워주세요.`;
 }
