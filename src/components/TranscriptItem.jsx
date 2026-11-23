@@ -34,25 +34,12 @@ const renderChunkLine = (main, keyPrefix, segments) => {
     );
 };
 
-// [안전망] 모델이 긴 문장을 안 쪼개고 통째로 1청크로 낸 경우, 분석에서 그 '문장 전체 반복 볼드'를
-// 지워 카드 위 문장과 중복되지 않게 한다. (자동 재시도가 실패한 최후 케이스 대비)
+// 청크가 문장 전체(80% 이상)여도 초록 원문을 그대로 보인다 (2026-11-23 사용자 요청).
+// 예전엔 '문장 전체 반복 볼드'를 화면에서 지웠는데(dedupeSentenceInAnalysis), 규칙 13이 뜻 단위로 바뀌어
+// 짧은 절 하나짜리 문장의 1청크가 정상이 되자 새 분석의 22%에서 초록이 사라져 오류처럼 보였다. 다시 넣지 말 것.
 // [폐지된 기능] 💡 재사용 문형 태그 제거 — 기존 분석에 남아있어도 표시에서 숨긴다.
 //  ⚡실제 태그(〔⚡…〕)는 유지. 앞의 공백까지 함께 제거해 어색한 간격이 안 남게 한다.
 const stripPatternTags = (s) => (s || '').replace(/\s*〔💡[^〕]*〕/g, '');
-
-const _normWords = (t) => (t || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
-const dedupeSentenceInAnalysis = (analysis, sentence) => {
-    if (!analysis || !sentence) return analysis;
-    const sw = _normWords(sentence);
-    if (sw.length < 6) return analysis;
-    return analysis.split('\n').map(line => {
-        const m = line.match(/^\s*\*\*(.+?)\*\*\s*:?\s*/);
-        if (!m) return line;
-        const cw = new Set(_normWords(m[1]));
-        const covered = cw.size ? sw.filter(w => cw.has(w)).length / sw.length : 0;
-        return covered >= 0.8 ? line.slice(m[0].length) : line; // 문장 전체 반복 볼드 제거, 뜻/풀이만 남김
-    }).join('\n');
-};
 
 // 휴대폰 탭 영역: 보이는 크기는 그대로 두고 투명한 가상요소로 위아래를 넓힌다(카드 높이가 안 늘게).
 // 타임스탬프 16px + 위아래 12px = 40px, 배지 16px + 위아래 10px = 36px.
@@ -82,9 +69,9 @@ const TranscriptItem = memo(({
     // 분석 줄 → [청크·뜻, 괄호 풀이, 꼬리]. 풀이가 한 줄도 없으면 탭·화살표 없음.
     const analysisLines = useMemo(() => {
         if (!item.analysis || typeof item.analysis !== 'string') return [];
-        return stripPatternTags(dedupeSentenceInAnalysis(item.analysis, item.text)).replace(/\\n/g, '\n')
+        return stripPatternTags(item.analysis).replace(/\\n/g, '\n')
             .split('\n').filter(l => l.trim()).map(l => splitBreakdown(tidyGlosses(l, { hideAddedNote: true, fixArrows: true })));
-    }, [item.analysis, item.text]);
+    }, [item.analysis]);
     const hasBreakdown = analysisLines.some(([, b]) => b);
 
     // 가리기 문제. 문장 칸과 해설 칸이 같은 문제를 봐야 가려졌던 단어를 해설에서 짚을 수 있다.
