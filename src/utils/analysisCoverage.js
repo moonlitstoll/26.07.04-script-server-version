@@ -3,7 +3,7 @@ import { parseChunks, splitBreakdown } from './analysisParser';
 // 분석 커버리지 자동 검사 (API 비용 0 — 이미 받은 분석을 코드로만 대조).
 // Stage 2 규칙 위반을 감지한다:
 //  - 규칙 9(문장 전수 분석): 원문 단어가 청크 분석에 빠짐없이 들어갔는가
-//  - 규칙 13(뭉침 금지): 한 청크가 5단어를 초과하지 않는가
+//  - 규칙 13(뭉침 금지): 한 청크가 지시문 상한(영어 10단어·베트남어 12음절)을 넘지 않는가
 //  - 형식 깨짐: 분석됐다는데 파싱되는 청크가 0개
 // 캐시된 옛 분석에도 소급 적용된다(표시 단계에서 매번 계산).
 //
@@ -36,6 +36,19 @@ const countMeaningUnits = (t) => {
     return n;
 };
 
+// [청크 길이 기준] (2026-11-23, 규칙 13을 '뜻 단위'로 바꾸며 함께 바꿈)
+// 지시문: 한 청크는 3~8단어(베트남어 3~10음절), 10단어(베트남어 12음절)를 넘기지 말 것,
+//  절 하나뿐인 9단어 이하 문장은 통째로 한 청크여도 됨. 베트남어는 음절마다 띄어 써서 같은 말도 칸 수가 많다.
+// 예전 기준(6단어 이상·문장의 60%면 뭉침, 6단어 이상 문장의 1청크 금지)은 '2~4단어씩' 규칙에 맞춘 것이라,
+//  그대로 두면 새 지시문의 정상 답(`I won't let that sway my opinion` 7단어)을 뭉침으로 보고 다시 잘게 쪼갠다
+//  (시험 200문장: 새 지시문 답 중 28~47문장이 옛 기준에 걸림).
+const VI_CHARS = /[ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/i;
+export function chunkLimits(sentence) {
+    return VI_CHARS.test(sentence || '')
+        ? { chunkMax: 12, singleMax: 11 }  // 베트남어(음절)
+        : { chunkMax: 10, singleMax: 9 };  // 그 밖(단어)
+}
+
 /**
  * @returns {null | { kind: 'no-chunks' } | { kind: 'coverage', missing: string[], overlong: string[], oversplit: null | { punct: number, chunks: number, words: number } }}
  *  null = 통과(또는 검사 대상 아님). missing = 청크 분석에 안 들어간 원문 단어(중복 제거).
@@ -58,22 +71,18 @@ export function checkAnalysisCoverage(item) {
     // (모델이 반복 단어를 한 청크에서 함께 풀이하는 관행을 오탐하지 않기 위함)
     const chunkWordSet = new Set(chunks.flatMap(c => normWords(c.chunk)));
     const missing = [...new Set(textWords)].filter(w => !chunkWordSet.has(w));
-    // 뭉침 판정 — 배지는 '확실한 위반'만 잡아야 신뢰를 유지한다:
-    //  ① 문장 전체=1청크 (규칙 13이 명시한 절대 금지, 6단어 이상 문장에서)
-    //  ② 10단어 이상 청크. 규칙 13의 문구는 '5단어 초과 금지'지만,
-    //     - 프롬프트 공식 작성 예시 자체에 7단어 청크(để mình búng tay nó xuất hiện)가 있고
-    //     - 베트남어는 띄어쓰기가 음절 단위라 겹단어(bứ bừ, chẩm chéo…)가 2칸으로 세어져
-    //       실제 의미 단어 수보다 부풀려진다 (8칸 청크가 실제론 ~6단어인 사례 확인됨)
-    //     → 심한 뭉침은 ①과 분석 시점의 60% 편중 자동재분할이 이미 잡으므로,
-    //       길이 검사는 그 둘이 놓친 극단만 잡는 보조 그물로 10부터 본다.
+    // 뭉침 판정 — 배지는 '확실한 위반'만 잡아야 신뢰를 유지한다 (기준값은 위 chunkLimits):
+    //  ① 문장 전체=1청크인데 문장이 한 청크로 둘 만큼 짧지 않음(영어 10단어·베트남어 12음절 이상)
+    //  ② 지시문 상한을 넘는 청크(영어 11단어·베트남어 13음절 이상). 지명·이름은 하나로 센다(countMeaningUnits).
     //  ③ 예외: 숫자 발음 병기가 든 청크는 길이 검사 제외 — 'sáu trăm chín mươi nghìn(690.000)'처럼
     //     숫자 하나의 낭독이 단어 5개로 세어져 정상 청크가 기준을 넘기 일쑤다(규칙 6·12가
     //     병기 보존을 강제하므로 이 부풀림은 위반이 아니라 규칙 준수의 결과).
-    const wholeSentence = chunks.length === 1 && textWords.length >= 6;
+    const { chunkMax, singleMax } = chunkLimits(item.text);
+    const wholeSentence = chunks.length === 1 && textWords.length > singleMax;
     const HAS_NUM_NOTATION = /\([\d.,%/\s]+\)/;
     const overlong = wholeSentence
         ? [chunks[0].chunk]
-        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && countMeaningUnits(c) > 9);
+        : chunks.map(c => c.chunk).filter(c => !HAS_NUM_NOTATION.test(c) && countMeaningUnits(c) > chunkMax);
 
     const chunkLens = chunks.map(c => normWords(c.chunk).length);
     const punct = chunkLens.filter(n => n === 0).length;
@@ -102,7 +111,7 @@ export function shouldAdoptMissingRetry(text, prevAnalysis, nextAnalysis) {
     if (!nextAnalysis) return false;
     const nextChunks = parseChunks({ text, analysis: nextAnalysis, isAnalyzed: true });
     if (nextChunks.length === 0) return false;
-    if (nextChunks.length === 1 && normWords(text).length >= 6) return false;
+    if (nextChunks.length === 1 && normWords(text).length > chunkLimits(text).singleMax) return false;
     return missingWordCount(text, nextAnalysis) < missingWordCount(text, prevAnalysis);
 }
 
@@ -119,17 +128,21 @@ export function shouldAdoptMissingRetry(text, prevAnalysis, nextAnalysis) {
 //  - 가장 큰 청크가 6단어 이상(규칙 13의 '5단어 초과 금지' 위반)이면서 문장의 60% 이상.
 //    (문장 전체 = 1청크인 6단어 이상 문장도 여기에 든다 — 규칙 13의 절대 금지)
 // 단어 수는 숫자 병기 괄호를 빼고 청크 안 단어를 그대로 센다(집합 비교 아님). 결과 175 → 38(새로 잡힌 것 0).
+// 2026-11-23 규칙 13을 '뜻 단위'로 바꾸며 기준도 바꿨다(위 chunkLimits): 지시문 상한을 넘는 청크(영어 11단어·
+//  베트남어 13음절 이상)가 있거나, 한 청크로 둘 만큼 짧지 않은 문장이 통째로 1청크일 때만 뭉침.
+//  시험(Claude, 새 지시문 200문장 × 2회): 옛 기준으로는 28~47문장을 다시 쪼개러 보냈는데, 새 기준은 지시문을
+//  어긴 너무 긴 청크(영어 2~3·베트남어 4~5문장)만 잡는다 — 이 재분할이 '너무 길게 묶음'의 안전망이다.
 const unitCount = (t) => normWords(t).length;
 const boldChunks = (analysis) => (analysis || '').match(/\*\*(.+?)\*\*/g) || [];
 
 export function isLumpedAnalysis(sentence, analysis) {
     if (!analysis || !sentence) return false;
+    const { chunkMax, singleMax } = chunkLimits(sentence);
     const sw = unitCount(sentence);
-    if (sw < 6) return false;
     const lens = boldChunks(analysis).map(unitCount).filter(n => n > 0);
     if (lens.length === 0) return false;
-    const max = Math.max(...lens); // 문장 전체 = 1청크(6단어 이상)도 여기서 잡힌다
-    return max >= 6 && max / sw >= 0.6;
+    if (lens.length === 1 && sw > singleMax) return true;
+    return Math.max(...lens) > chunkMax;
 }
 
 // 단어 풀이 괄호가 없는 청크 줄 수
@@ -159,7 +172,7 @@ export function coverageTitle(cov) {
     if (cov.kind === 'no-chunks') return '분석 형식이 깨져 청크를 읽을 수 없어요 — 탭하면 이 문장만 재분석';
     const parts = [];
     if (cov.missing.length > 0) parts.push(`분석에서 빠진 단어: ${cov.missing.join(', ')}`);
-    if (cov.overlong.length > 0) parts.push(`5단어 초과 뭉친 청크 ${cov.overlong.length}개`);
+    if (cov.overlong.length > 0) parts.push(`너무 길게 뭉친 청크 ${cov.overlong.length}개`);
     if (cov.oversplit) parts.push(cov.oversplit.punct > 0
         ? `구두점만 있는 청크 ${cov.oversplit.punct}개`
         : `너무 잘게 쪼개짐 (${cov.oversplit.words}단어를 ${cov.oversplit.chunks}청크로)`);

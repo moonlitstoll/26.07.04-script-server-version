@@ -1060,9 +1060,9 @@ const App = () => {
 
       {/* [캐시 버저닝] 옛 규칙으로 분석된 파일 → 최신 규칙으로 재분석 권장 배너 */}
       {isStaleAnalysis && contentReady && !reanalyzing && (
-        <div className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
+        <div data-banner="stale" className="flex-none flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs sm:text-sm">
           <RotateCcw size={14} className="shrink-0" />
-          <span className="flex-1 min-w-0 font-medium leading-tight">단어 풀이 모양이 바뀌었어요. 재분석하면 새 모양으로 보입니다.</span>
+          <span className="flex-1 min-w-0 font-medium leading-tight">문장을 뜻 단위로 끊는 방식으로 바뀌었어요. 재분석하면 새 방식으로 보입니다.</span>
           <button
             onClick={confirmReanalyzeAll}
             className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 font-bold transition-colors"

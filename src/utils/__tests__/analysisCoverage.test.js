@@ -7,6 +7,15 @@
 import { describe, it, expect } from 'vitest';
 import { checkAnalysisCoverage, coverageTitle, missingWordCount, shouldAdoptMissingRetry, isLumpedAnalysis, shouldAdoptSplitRetry } from '../analysisCoverage';
 
+// 2026-11-23 시험(Claude Sonnet 5.5, 규칙 13 뜻 단위 지시문)의 실제 답 — 마지막 청크가 13음절이라 지시문 상한을 넘는다
+const VI29 = 'Bây giờ mình sẽ dành thời gian để dọn dẹp hết những cái đống rác xung quanh và mình sẽ lấy những cái cây cối hay là những cái đồ decor mình nhặt được ở bãi biển này.';
+const VI29_A = [
+    '**Bây giờ mình sẽ dành thời gian**: 이제 나는 시간을 쓸 것이다 (Bây giờ: 지금 + mình: 나 + sẽ: ~할 것 + dành: 할애하다 + thời gian: 시간♪)',
+    '**để dọn dẹp hết những cái đống rác xung quanh**: 주변의 쓰레기 더미를 다 치우려고 (để: ~하려고 + dọn dẹp: 치우다 + hết: 모두 + những: ~들 + cái: 개 세는 말 + đống: 더미 + rác: 쓰레기 + xung quanh: 주변)',
+    '**và mình sẽ lấy những cái cây cối**: 그리고 나무들을 가져다가 (và: 그리고 + mình: 나 + sẽ: ~할 것 + lấy: 가져오다 + những: ~들 + cái: 개 세는 말 + cây cối: 나무·초목)',
+    '**hay là những cái đồ decor mình nhặt được ở bãi biển này**: 아니면 이 해변에서 주운 장식품들 (hay là: 또는 + những: ~들 + cái: 개 세는 말 + đồ: 물건 + decor: 장식 + mình: 나 + nhặt: 줍다 + được: ~하게 되다 + ở: ~에서 + bãi biển: 해변〈모래톱·바다〉 + này: 이)',
+].join('\n');
+
 // 공식 작성 예시와 같은 형식의 정상 문장
 const good = {
     isAnalyzed: true,
@@ -64,22 +73,35 @@ describe('누락 감지 (규칙 9)', () => {
     });
 });
 
-describe('뭉침 감지 — 기준은 10단어 이상', () => {
-    // 베트남어 띄어쓰기는 음절 단위라 겹단어가 2칸으로 세어져 길이가 부풀려진다.
-    // 실사용 오탐 2건 때문에 8 → 10으로 완화했다.
-    it('10단어 청크는 감지한다', () => {
+describe('뭉침 감지 — 영어 11단어·베트남어 13음절 이상 (2026-11-23 규칙 13 뜻 단위)', () => {
+    // 지시문 상한: 한 청크 10단어(베트남어 12음절)까지. 베트남어는 음절마다 띄어 써서 칸 수가 많다.
+    // 예시는 2026-11-23 시험(Claude Sonnet 5.5, 새 지시문)의 실제 답이다.
+    it('영어 11단어 청크는 감지한다 (실측 #37)', () => {
         const r = checkAnalysisCoverage({
-            isAnalyzed: true, text: 'a b c d e f g h i j k',
-            analysis: '**a b c d e f g h i j**: 뭉침(10단어)\n**k**: ok',
+            isAnalyzed: true, text: 'I looked at some of the customer reviews of the breakfast and there was a photo.',
+            analysis: '**I looked at some of the customer reviews of the breakfast**: 조식 고객 후기 몇 개를 봤다\n**and there was a photo**: 사진이 있었다',
         });
         expect(r?.overlong).toHaveLength(1);
+        expect(coverageTitle(r)).toContain('너무 길게 뭉친 청크 1개');
     });
 
-    it('9단어 이하는 통과한다', () => {
+    it('영어 10단어 청크는 통과한다 (실측 #80, 판정 정상)', () => {
         expect(checkAnalysisCoverage({
-            isAnalyzed: true, text: 'a b c d e f g h i j',
-            analysis: '**a b c d e f g h i**: 아홉\n**j**: ok',
+            isAnalyzed: true, text: 'If you want to help your state climb the rankings, vote now.',
+            analysis: '**If you want to help your state climb the rankings**: 너희 주 순위를 올리고 싶으면\n**vote now**: 지금 투표해',
         })).toBeNull();
+    });
+
+    it('베트남어는 13음절부터 감지하고 12음절은 통과한다', () => {
+        const T = 'Không biết các bạn có thích ăn mấy cái viên này không hay là những cái đồ decor mình nhặt được ở bãi biển này.';
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: T,
+            analysis: '**Không biết các bạn có thích ăn mấy cái viên này không**: 여러분이 이 완자 좋아할지 모르겠네\n**hay là những cái đồ decor**: 아니면 장식품들\n**mình nhặt được ở bãi biển này**: 이 해변에서 주운',
+        })).toBeNull();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: T,
+            analysis: '**Không biết các bạn có thích ăn mấy cái viên này không**: 여러분이 이 완자 좋아할지 모르겠네\n**hay là những cái đồ decor mình nhặt được ở bãi biển này**: 아니면 이 해변에서 주운 장식품들',
+        })?.overlong).toHaveLength(1);
     });
 
     it('8단어 실사용 오탐 케이스는 통과한다', () => {
@@ -89,11 +111,26 @@ describe('뭉침 감지 — 기준은 10단어 이상', () => {
         })).toBeNull();
     });
 
-    it('문장 전체가 1청크면 감지한다', () => {
+    it('한 청크로 두기엔 긴 문장(영어 10단어·베트남어 12음절)이 통째로 1청크면 감지한다', () => {
         expect(checkAnalysisCoverage({
-            isAnalyzed: true, text: 'a b c d e f',
-            analysis: '**a b c d e f**: 문장 전체 1청크',
+            isAnalyzed: true, text: 'I got to watch the sunrise over the Pacific Ocean.',
+            analysis: '**I got to watch the sunrise over the Pacific Ocean**: 태평양 일출을 봤다',
         })?.overlong).toHaveLength(1);
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Thật ra là em không có cần năm trăm(500) của anh đâu.',
+            analysis: '**Thật ra là em không có cần năm trăm(500) của anh đâu**: 사실 난 네 500 필요 없어',
+        })?.overlong).toHaveLength(1);
+    });
+
+    it('절 하나뿐인 짧은 문장(영어 9단어·베트남어 11음절 이하)의 1청크는 정상이다', () => {
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'A predator is often blind to its own peril.',
+            analysis: '**A predator is often blind to its own peril**: 포식자는 흔히 제 위험을 못 본다',
+        })).toBeNull();
+        expect(checkAnalysisCoverage({
+            isAnalyzed: true, text: 'Đêm qua tôi không ngủ được một cái đéo gì hết.',
+            analysis: '**Đêm qua tôi không ngủ được một cái đéo gì hết**: 어젯밤 한숨도 못 잤다',
+        })).toBeNull();
     });
 
     it('짧은 문장이 1청크인 건 정상이다', () => {
@@ -127,10 +164,10 @@ describe('숫자·기호 발음 병기 청크는 길이 검사에서 제외', ()
         })).toBeNull();
     });
 
-    it('병기가 없는 10단어는 여전히 감지한다 (면제가 너무 넓지 않은지)', () => {
+    it('병기가 없는 11단어는 여전히 감지한다 (면제가 너무 넓지 않은지)', () => {
         expect(checkAnalysisCoverage({
             isAnalyzed: true, text: 'a b c d e f g h i j k l',
-            analysis: '**a b c d e f g h i j**: 병기 없는 10단어 뭉침\n**k l**: ok',
+            analysis: '**a b c d e f g h i j k**: 병기 없는 11단어 뭉침\n**l**: ok',
         })?.overlong).toHaveLength(1);
     });
 });
@@ -166,9 +203,10 @@ describe('지명·이름은 1단어로 센다 (뭉침 길이)', () => {
             isAnalyzed: true, text: 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ ok',
             analysis: '**Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ**: 도시들\n**ok**: ok',
         })?.overlong).toBeUndefined();
+        const cities = 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa, Vũng Tàu, Phú Quốc, Hội An';
         expect(checkAnalysisCoverage({
-            isAnalyzed: true, text: 'Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa ok',
-            analysis: '**Hà Nội, Sài Gòn, Đà Nẵng, Huế, Vinh, Nha Trang, Cần Thơ, Hải Phòng, Đà Lạt, Sa Pa**: 도시 10곳\n**ok**: ok',
+            isAnalyzed: true, text: cities + ' ok',
+            analysis: '**' + cities + '**: 도시 13곳\n**ok**: ok',
         })?.overlong).toHaveLength(1);
     });
 });
@@ -214,12 +252,18 @@ describe('누락 재시도 채택 규칙 (shouldAdoptMissingRetry)', () => {
         expect(shouldAdoptMissingRetry(text, prev, prev)).toBe(false);
         expect(shouldAdoptMissingRetry(text, prev, '**Và đó**: 그리고 그것 (Và: 그리고 + đó: 그것)')).toBe(false);
     });
-    it('문장 전체를 1청크로 뭉친 결과는 빠진 단어 0이어도 거부, 빈 결과도 거부', () => {
-        const long = 'Và mong rằng sẽ không bị nhân viên phát hiện.';
-        const partial = '**Và mong rằng**: 바라건대\n**nhân viên phát hiện**: 직원이 발견하다';
-        expect(shouldAdoptMissingRetry(long, partial, '**Và mong rằng sẽ không bị nhân viên phát hiện**: 직원에게 안 들키길')).toBe(false);
+    it('한 청크로 두기엔 긴 문장을 1청크로 뭉친 결과는 빠진 단어 0이어도 거부, 빈 결과도 거부', () => {
+        const long = 'Mình cảm thấy nó hơi bị nhạt nhạt hơn so với cái lúc ban đầu ấy.';
+        const partial = '**Mình cảm thấy nó hơi bị nhạt nhạt hơn**: 좀 더 싱거운 것 같아';
+        expect(shouldAdoptMissingRetry(long, partial, '**Mình cảm thấy nó hơi bị nhạt nhạt hơn so với cái lúc ban đầu ấy**: 처음보다 싱거운 것 같아')).toBe(false);
         expect(shouldAdoptMissingRetry(long, partial, '')).toBe(false);
-        expect(shouldAdoptMissingRetry(long, partial, '**Và mong rằng**: 바라건대\n**sẽ không bị**: ~당하지 않다\n**nhân viên phát hiện**: 직원이 발견하다')).toBe(true);
+        expect(shouldAdoptMissingRetry(long, partial, '**Mình cảm thấy nó hơi bị nhạt nhạt hơn**: 좀 더 싱거운 것 같아\n**so với cái lúc ban đầu ấy**: 처음 그때보다')).toBe(true);
+    });
+
+    it('절 하나뿐인 짧은 문장(베트남어 11음절 이하)은 1청크여도 채택', () => {
+        const short = 'Và mong rằng sẽ không bị nhân viên phát hiện.';
+        const partial = '**Và mong rằng**: 바라건대\n**nhân viên phát hiện**: 직원이 발견하다';
+        expect(shouldAdoptMissingRetry(short, partial, '**Và mong rằng sẽ không bị nhân viên phát hiện**: 직원에게 안 들키길')).toBe(true);
     });
 });
 
@@ -240,18 +284,34 @@ describe('뭉침 자동 재분할 판정 (isLumpedAnalysis, 2026-10-11)', () => 
         expect(isLumpedAnalysis('Phải đến năm(5) phút rồi.', '**Phải đến năm(5) phút rồi**: 5분은 됐다 (Phải: ~해야 + đến: ~까지 + năm(5): 5 + phút: 분 + rồi: 이미)')).toBe(false);
     });
 
-    it('6단어 이상 문장을 통째로 1청크로 낸 것은 뭉침', () => {
-        expect(isLumpedAnalysis('Các bạn nhìn thấy gì không?', '**Các bạn nhìn thấy gì không?**: 뭐가 보여요? (Các bạn: 여러분 + nhìn thấy: 보다 + gì: 무엇 + không: ~나요)')).toBe(true);
+    // 2026-11-23 규칙 13을 '뜻 단위'로 바꾸며 기준도 바꿈: 지시문 상한(영어 10단어·베트남어 12음절)을 넘는 청크,
+    // 또는 한 청크로 두기엔 긴 문장(영어 10단어·베트남어 12음절 이상)의 1청크만 뭉침. 예전엔 6단어·60%였다.
+    it('짧은 문장(6단어)을 통째로 1청크로 낸 것은 이제 뭉침이 아니다', () => {
+        expect(isLumpedAnalysis('Các bạn nhìn thấy gì không?', '**Các bạn nhìn thấy gì không?**: 뭐가 보여요? (Các bạn: 여러분 + nhìn thấy: 보다 + gì: 무엇 + không: ~나요)')).toBe(false);
+        expect(isLumpedAnalysis('Ngon vãi luôn các bạn.', '**Ngon vãi luôn các bạn**: 진짜 맛있어 여러분 (Ngon: 맛있다 + vãi luôn: 엄청 + các bạn: 여러분)')).toBe(false);
     });
 
-    it('6단어 이상인 청크가 문장의 60% 이상이면 뭉침 (실측 v4a #18, 13단어 중 8단어)', () => {
+    it('뜻 단위로 묶은 8음절 청크는 문장의 60%를 넘어도 뭉침이 아니다 (실측 v4a #18)', () => {
         const t = 'Dứt điểm hộp sữa chua rồi mình đi đến Circle K tiếp theo.';
         const a = '**Dứt điểm hộp sữa chua**: 요거트 통을 다 비우고 (Dứt điểm: 끝내다 + hộp: 통 + sữa chua: 요거트)\n**rồi mình đi đến Circle K tiếp theo**: 그리고 다음 Circle K로 갔어요 (rồi: 그리고 + mình: 나 + đi đến: 가다 + Circle K: Circle K + tiếp theo: 다음)';
-        expect(isLumpedAnalysis(t, a)).toBe(true);
+        expect(isLumpedAnalysis(t, a)).toBe(false);
     });
 
-    it('6단어 미만 문장은 판정하지 않는다', () => {
-        expect(isLumpedAnalysis('Ngon vãi luôn các bạn.', '**Ngon vãi luôn các bạn**: 진짜 맛있어 여러분 (Ngon: 맛있다 + vãi luôn: 엄청 + các bạn: 여러분)')).toBe(false);
+    it('베트남어 13음절 청크는 뭉침 (실측 2026-11-23 #29, 새 지시문 답)', () => {
+        expect(isLumpedAnalysis(VI29, VI29_A)).toBe(true);
+    });
+
+    it('영어 11단어 청크는 뭉침, 10단어는 아님', () => {
+        const t = 'I looked at some of the customer reviews of the breakfast and there was a photo.';
+        expect(isLumpedAnalysis(t, '**I looked at some of the customer reviews of the breakfast**: 후기를 봤다\n**and there was a photo**: 사진이 있었다')).toBe(true);
+        expect(isLumpedAnalysis(t, '**I looked at some of the customer reviews**: 후기를 봤다\n**of the breakfast**: 조식의\n**and there was a photo**: 사진이 있었다')).toBe(false);
+    });
+
+    it('한 청크로 두기엔 긴 문장의 1청크는 뭉침 (영어 10단어, 베트남어 12음절)', () => {
+        expect(isLumpedAnalysis('I got to watch the sunrise over the Pacific Ocean.', '**I got to watch the sunrise over the Pacific Ocean**: 태평양 일출을 봤다')).toBe(true);
+        expect(isLumpedAnalysis('A predator is often blind to its own peril.', '**A predator is often blind to its own peril**: 포식자는 흔히 제 위험을 못 본다')).toBe(false);
+        expect(isLumpedAnalysis('Thật ra là em không có cần năm trăm(500) của anh đâu.', '**Thật ra là em không có cần năm trăm(500) của anh đâu**: 사실 난 네 500 필요 없어')).toBe(true);
+        expect(isLumpedAnalysis('Đêm qua tôi không ngủ được một cái đéo gì hết.', '**Đêm qua tôi không ngủ được một cái đéo gì hết**: 어젯밤 한숨도 못 잤다')).toBe(false);
     });
 });
 
@@ -277,8 +337,15 @@ describe('뭉침 재분할 채택 규칙 (shouldAdoptSplitRetry, 2026-10-11)', (
     });
 
     it('여전히 뭉쳤고 가장 큰 청크도 그대로면 거부', () => {
-        const next = '**Dứt điểm**: 끝내다 (Dứt điểm: 끝내다)\n**hộp sữa chua**: 요거트 통 (hộp: 통 + sữa chua: 요거트)\n**rồi mình đi đến Circle K tiếp theo**: 다음 Circle K로 갔어요 (rồi: 그리고 + mình: 나 + đi đến: 가다 + Circle K: Circle K + tiếp theo: 다음)';
-        expect(shouldAdoptSplitRetry(T18, A18, next)).toBe(false);
+        const next = VI29_A.replace('**Bây giờ mình sẽ dành thời gian**: 이제 나는 시간을 쓸 것이다', '**Bây giờ**: 이제\n**mình sẽ dành thời gian**: 나는 시간을 쓸 것이다');
+        expect(shouldAdoptSplitRetry(VI29, VI29_A, next)).toBe(false);
+    });
+
+    it('너무 긴 청크를 뜻 단위로 다시 나눈 답은 채택', () => {
+        const next = VI29_A.replace('**hay là những cái đồ decor mình nhặt được ở bãi biển này**: 아니면 이 해변에서 주운 장식품들 (',
+            '**hay là những cái đồ decor**: 아니면 장식품들 (hay là: 또는 + những: ~들 + cái: 개 세는 말 + đồ: 물건 + decor: 장식)\n**mình nhặt được ở bãi biển này**: 이 해변에서 주운 (');
+        expect(isLumpedAnalysis(VI29, next)).toBe(false);
+        expect(shouldAdoptSplitRetry(VI29, VI29_A, next)).toBe(true);
     });
 
     it('빈 답·청크 없는 답은 거부', () => {
