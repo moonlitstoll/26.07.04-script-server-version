@@ -232,7 +232,7 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                     {/* Stage 2 Model */}
                     <div className="space-y-3 pt-4 border-t border-slate-50 dark:border-slate-700/60">
                         {renderModelSelector(
-                            '2단계 — 번역·풀이(분석)',
+                            '2단계 — 번역·풀이(분석·재분석)',
                             'text-purple-700 dark:text-purple-200',
                             'stage2Model',
                             'stage2'
@@ -256,24 +256,18 @@ const SettingsModal = ({ config, updateField, onLockVault, onClose }) => {
                                     />
                                     <Check className={`absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-400 transition-all ${(config.claudeApiKey || '').startsWith('sk-ant-') ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} size={18} />
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                                    새 영상의 번역·풀이(2단계)만 Claude가 합니다. 전사·재전사·재분석·대사 감지는 그대로 Gemini. 크레딧이 떨어지면 분석이 멈추고 안내가 뜹니다(Gemini로 자동 전환하지 않음). 키는 이 기기에만 저장됩니다.
-                                </p>
                             </div>
                         )}
                     </div>
 
-                    {/* Stage 3 Model — 재전사/재분석 전용 */}
+                    {/* Stage 3 Model — 다시 받아쓰기 전용. 번역·풀이(재분석 포함)는 2단계 모델(2026-11-23) */}
                     <div className="space-y-3 pt-4 border-t border-slate-50 dark:border-slate-700/60">
                         {renderModelSelector(
-                            '3단계 — 다시 받아쓰기 · 다시 분석',
+                            '3단계 — 다시 받아쓰기',
                             'text-rose-700 dark:text-rose-300',
                             'stage3Model',
                             'stage3'
                         )}
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed px-1">
-                            구간 선택 후 <span className="font-bold text-slate-500 dark:text-slate-400">전사부터 다시 / 분석만 다시</span>를 실행할 때 쓰는 모델입니다. 기본은 2.5 Flash이고, 그래도 안 고쳐지는 문장에만 2.5 Pro를 쓰면 요금을 아낄 수 있습니다.
-                        </p>
                     </div>
 
                     {/* Buffer Time */}

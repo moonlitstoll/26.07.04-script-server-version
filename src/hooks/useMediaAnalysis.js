@@ -46,7 +46,7 @@ export const useMediaAnalysis = ({
     claudeApiKey, // 2단계 모델이 Claude일 때만 쓰는 키(없으면 분석을 시작하지 않고 안내)
     stage1Model,
     stage2Model,
-    stage3Model, // 재전사/재분석 전용 모델
+    stage3Model, // 다시 받아쓰기(재전사) 전용 모델 — 소리를 듣는 일만. 번역·풀이(분석·재분석)는 전부 stage2Model(2026-11-23)
     temperature,
     topP,
     antiRecitation,
@@ -260,7 +260,7 @@ export const useMediaAnalysis = ({
         // 예전엔 전부 받은 모델로 돌아, 첫 분석 중 한 문장을 다시 전사하면 남은 문장 전체가 재분석 모델로 넘어갔다.
         // 기억은 '그때 설정'과 지금 설정이 같을 때만 쓴다 — 끊긴 뒤 사용자가 모델을 바꿨거나 Claude 키를 지웠으면 지금 설정을 따른다.
         // (끊긴 분석의 기억이 남아, 모델을 바꾼 뒤에도 옛 모델로 요청이 나갔다 — 2026-11-21 독립 검토에서 실행 재현)
-        const settingsNow = `${stage2Model}|${stage3Model}|${claudeApiKey ? 1 : 0}`;
+        const settingsNow = `${stage2Model}|${claudeApiKey ? 1 : 0}`; // 분석 모델은 2단계 설정만 따른다(3단계는 받아쓰기 전용)
         const lineModel = pickLineModels(transcript, pendingIndices, usableCarry(stage2CarryRef.current.get(fileId), settingsNow), currentModelId);
         const modelAt = (idx) => lineModel.get(lineKey(transcript[idx])) || currentModelId;
         const modelsUsed = [...new Set(pendingIndices.map(modelAt))];
@@ -584,7 +584,7 @@ export const useMediaAnalysis = ({
             console.error('[Stage 2] All batches failed.');
             // 원인은 오류 응답만이 아니다 — 응답 형식이 깨져도(마커 없음) 여기로 온다. 예전 문구 'API 오류… 모델을 확인'은
             // 그런 경우 엉뚱한 안내였다(점검 #20). 사실만 알리고 다시 시도 버튼을 준다.
-            // Claude 키·크레딧처럼 조치할 사유가 있으면 그 문구를 앞세운다(다시 시도는 재분석 모델=3단계로 돌아 Gemini면 성공할 수 있다)
+            // Claude 키·크레딧처럼 조치할 사유가 있으면 그 문구를 앞세운다(다시 시도도 2단계 모델로 돈다 — 크레딧 문구가 2단계를 Gemini로 바꾸라고 안내)
             if (showToast) showToast({
                 message: allKeptOld
                     ? `${failReason ? failReason + ' ' : ''}${keptOld.length}개 문장 재분석 실패 — 기존 분석을 유지했어요.`
@@ -1192,8 +1192,8 @@ export const useMediaAnalysis = ({
             type: 'success'
         });
         queueFreshSpeechEnds(fileId, targetFile, before, cleanData, placed, duration);
-        // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 → Stage 3 모델)
-        runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
+        // 새로 들어온(미분석) 문장만 분석 (재전사 흐름 — 받아쓰기는 3단계, 분석은 2단계 모델)
+        runStage2(fileId, targetFile, cleanData, apiKey, stage2Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
     });
 
     /**
@@ -1238,9 +1238,9 @@ export const useMediaAnalysis = ({
         if (refreshCacheKeys) refreshCacheKeys();
 
         if (showToast) showToast({ message: `${idxSet.size}개 문장 분석을 다시 진행 중...`, type: 'success' });
-        // 미분석(리셋된) 문장만 다시 분석 (재분석 → 설정의 Stage 3 모델).
+        // 미분석(리셋된) 문장만 다시 분석 (재분석 → 2단계 모델. 2026-11-23 전엔 3단계(Flash)라 청크가 길게 뭉쳤다 — 같은 200문장 뭉침 Flash 32·20 vs Claude 7·5).
         // reportPartialFail:false — 일부 실패 안내는 아래에서 직접 한다(중복 토스트 방지).
-        const result = await runStage2(fileId, targetFile, resetData, apiKey, stage3Model, { reportPartialFail: false });
+        const result = await runStage2(fileId, targetFile, resetData, apiKey, stage2Model, { reportPartialFail: false });
         if (!result) return;
         // 안내의 [다시 시도]: 누를 때 지금 대본에서 그 문장들을 다시 찾는다
         const retry = (lines) => () => {
@@ -1724,8 +1724,8 @@ export const useMediaAnalysis = ({
 
         if (showToast) showToast({ message: `${fresh.length}개 문장 복구 완료. 분석 진행 중...`, type: 'success' });
         queueFreshSpeechEnds(fileId, targetFile, before, cleanData, fresh, duration);
-        // 새로 들어온(미분석) 문장만 분석 (복구 흐름 → Stage 3 모델)
-        runStage2(fileId, targetFile, cleanData, apiKey, stage3Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
+        // 새로 들어온(미분석) 문장만 분석 (복구 흐름 — 받아쓰기는 3단계, 분석은 2단계 모델)
+        runStage2(fileId, targetFile, cleanData, apiKey, stage2Model); // 신원=targetFile (이 위의 persistCache와 동일 키)
     });
 
     /**
@@ -1799,7 +1799,7 @@ export const useMediaAnalysis = ({
         }
         if (showToast) showToast({ message: `${toAdd.length}개 문장 복구됨`, type: 'success' });
         // 분석 없이 보관된 문장(나누기로 잘라낸 조각 등)은 복구 즉시 분석한다 — 안 하면 스피너만 돈다
-        if (apiKey && toAdd.some(it => !it.isAnalyzed)) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+        if (apiKey && toAdd.some(it => !it.isAnalyzed)) runStage2(fileId, targetFile, clean, apiKey, stage2Model);
     };
 
     // 편집(나누기·구간 재전사) 결과를 화면·캐시·클라우드에 반영
@@ -1885,7 +1885,7 @@ export const useMediaAnalysis = ({
         const missing = speechEndMissingSet(clean, 0);
         const needEnd = clean.filter((d, i) => missing.has(i) && pieceKeys.has(lineKey(d)));
         if (needEnd.length > 0) queueFreshSpeechEnds(fileId, targetFile, prevData, clean, needEnd, 0);
-        if (apiKey) runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+        if (apiKey) runStage2(fileId, targetFile, clean, apiKey, stage2Model);
     };
 
     /**
@@ -1966,7 +1966,7 @@ export const useMediaAnalysis = ({
             duration: 10000,
         });
         queueFreshSpeechEnds(fileId, targetFile, before, clean, fresh, duration);
-        runStage2(fileId, targetFile, clean, apiKey, stage3Model);
+        runStage2(fileId, targetFile, clean, apiKey, stage2Model);
     });
 
     // '끝까지 못 받음' 띠를 닫는다(화면 + 저장된 표시).

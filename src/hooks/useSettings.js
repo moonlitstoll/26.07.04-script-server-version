@@ -11,7 +11,7 @@ const DEFAULTS = {
     // 했다가 문장 뭉침·없는 말 지어내기가 반복돼 되돌렸다. 한 번 돌린 결과로 기본값을 바꾸지 말 것.
     stage1Model: 'gemini-2.5-flash',
     stage2Model: 'gemini-2.5-flash', // 분석. 3.1 Flash Lite가 약 41% 싸지만 풀이가 조금 간단했다(2026-09, 1회 비교)
-    stage3Model: 'gemini-2.5-flash', // 재전사/재분석 전용. 예전 기본값 2.5 Pro는 실측 요금이 약 8배라 교체(2026-09)
+    stage3Model: 'gemini-2.5-flash', // 다시 받아쓰기(재전사) 전용 — 재분석은 2단계 모델(2026-11-23). 예전 기본값 2.5 Pro는 실측 요금이 약 8배라 교체(2026-09)
     bufferTime: 0.3,
     temperature: 0.5,
     topP: 0.7,

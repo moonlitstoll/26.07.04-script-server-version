@@ -503,7 +503,7 @@ const App = () => {
     if (selectedIdxs.size > 0) setSelectedIdxs(new Set());
   }
 
-  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 설정의 Stage 3 모델 사용.
+  // 선택 구간 전사부터 다시 (Phase 1 + Phase 2). 받아쓰기는 3단계 모델, 새 문장 분석은 2단계 모델.
   // 확인창에서 '문장별로 다시'(기존, 기본값)와 '한 구간으로 다시'(시각 조정·미리 듣기) 중 고른다.
   // editDialog: null | { kind: 'retranscribe', fileId, idxs:Set } | { kind: 'split' | 'speechEnd', fileId, idx }
   const [editDialog, setEditDialog] = useState(null);
