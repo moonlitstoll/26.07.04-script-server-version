@@ -12,7 +12,7 @@ globalThis.localStorage = {
     },
     removeItem: (k) => { store.delete(k); },
 };
-const { saveCacheEntry, readCacheMeta, analysisVersionOf, clearCacheIncomplete, isCacheStale } = await import('../cacheUtils');
+const { saveCacheEntry, readCacheMeta, analysisVersionOf, clearCacheIncomplete, isCacheStale, shouldShowStaleNotice, dismissCacheStale } = await import('../cacheUtils');
 
 const FILE = { name: 'a.mp4', size: 10, type: 'video/mp4' };
 const KEY = 'gemini_analysis_a.mp4_10';
@@ -81,6 +81,34 @@ describe("'끝까지 못 받음' 표시", () => {
         saveCacheEntry(FILE, [line(1)], 'extracted', { incomplete: info });
         saveCacheEntry(FILE, [line(1)], 'extracted', { incomplete: null });
         expect(readCacheMeta(KEY).incomplete).toBeUndefined();
+    });
+});
+
+describe("'재분석 권장' 노란 줄 닫기", () => {
+    const old = () => saveCacheEntry(FILE, [analyzed(1, { av: ANALYSIS_VERSION - 1 })], 'completed');
+
+    it('옛 버전 대본은 줄이 뜨고, 닫으면 그 대본만 안 뜬다(내용은 그대로)', () => {
+        old();
+        expect(shouldShowStaleNotice(readCacheMeta(KEY))).toBe(true);
+        expect(dismissCacheStale(FILE)).toBe(true);
+        expect(shouldShowStaleNotice(readCacheMeta(KEY))).toBe(false);
+        expect(JSON.parse(store.get(KEY)).data).toHaveLength(1);
+        expect(readCacheMeta(KEY).version).toBe(ANALYSIS_VERSION - 1); // 낡음 자체는 그대로 — 줄만 닫힘
+    });
+
+    it('닫은 뒤 편집·분석으로 다시 저장해도 닫힌 채로 남는다', () => {
+        old(); dismissCacheStale(FILE); old();
+        expect(shouldShowStaleNotice(readCacheMeta(KEY))).toBe(false);
+    });
+
+    it('규칙이 다시 바뀌면(닫은 버전 < 지금 버전) 다시 뜬다', () => {
+        expect(shouldShowStaleNotice({ version: ANALYSIS_VERSION - 2, staleDismissed: ANALYSIS_VERSION - 1 })).toBe(true);
+        expect(shouldShowStaleNotice({ version: ANALYSIS_VERSION - 2, staleDismissed: ANALYSIS_VERSION })).toBe(false);
+    });
+
+    it('최신 대본은 닫음과 상관없이 안 뜨고, 없는 대본은 닫기가 false', () => {
+        expect(shouldShowStaleNotice({ version: ANALYSIS_VERSION })).toBe(false);
+        expect(dismissCacheStale(FILE)).toBe(false);
     });
 });
 

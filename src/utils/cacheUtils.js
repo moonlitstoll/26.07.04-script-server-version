@@ -11,6 +11,12 @@ export function isCacheStale(metadata) {
     return (metadata?.version ?? 0) < ANALYSIS_VERSION;
 }
 
+// '재분석 권장' 노란 줄을 띄울지. 낡았어도 사용자가 이 버전에서 [닫기]를 눌렀으면(staleDismissed) 안 띄운다.
+// 규칙이 다시 바뀌어 ANALYSIS_VERSION이 오르면 다시 뜬다(2026-11-23 사용자 결정: 그 대본 하나만, 다음 버전까지).
+export function shouldShowStaleNotice(metadata) {
+    return isCacheStale(metadata) && (metadata?.staleDismissed ?? 0) < ANALYSIS_VERSION;
+}
+
 export function parseCacheEntry(cacheKey) {
     const cachedStr = localStorage.getItem(cacheKey);
     if (!cachedStr) return null;
@@ -87,6 +93,7 @@ export function saveCacheEntry(fileInfo, data, status, extra = {}) {
     try {
         const prev = readCacheMeta(cacheKey);
         const incomplete = 'incomplete' in extra ? extra.incomplete : prev?.incomplete;
+        const staleDismissed = prev?.staleDismissed; // 노란 줄 닫음 표시 — 편집·분석으로 다시 저장해도 유지
         localStorage.setItem(cacheKey, JSON.stringify({
             data,
             metadata: {
@@ -97,7 +104,8 @@ export function saveCacheEntry(fileInfo, data, status, extra = {}) {
                 savedAt: Date.now(),
                 status,
                 version: analysisVersionOf(data, prev ? (prev.version ?? 0) : undefined),
-                ...(incomplete ? { incomplete } : {})
+                ...(incomplete ? { incomplete } : {}),
+                ...(staleDismissed ? { staleDismissed } : {})
             }
         }));
         return { ok: true };
@@ -105,6 +113,19 @@ export function saveCacheEntry(fileInfo, data, status, extra = {}) {
         console.warn("Failed to save cache:", e);
         return { ok: false, reason: isQuotaError(e) ? 'quota' : 'error', message: e.message };
     }
+}
+
+// '재분석 권장' 노란 줄의 [닫기] — 그 대본에만 '이 버전에서 닫음'을 적는다(대본 내용은 그대로).
+export function dismissCacheStale(fileInfo) {
+    if (!fileInfo || !fileInfo.name) return false;
+    const cacheKey = `gemini_analysis_${fileInfo.name}_${fileInfo.size}`;
+    try {
+        const p = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+        if (!p || Array.isArray(p) || !p.metadata) return false;
+        p.metadata.staleDismissed = ANALYSIS_VERSION;
+        localStorage.setItem(cacheKey, JSON.stringify(p));
+        return true;
+    } catch { return false; }
 }
 
 // 저장된 대본의 '끝까지 못 받음' 표시만 지운다(대본 내용은 그대로).

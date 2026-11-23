@@ -75,7 +75,7 @@ import { getTrash, clearTrash } from './utils/trashUtils';
 import { makeRemap, remapIndices } from './utils/lineAnchors';
 import { recoverGate } from './utils/mediaRecover';
 import { lineKey } from './utils/liveMerge';
-import { parseCacheEntry, isCacheStale } from './utils/cacheUtils';
+import { parseCacheEntry, shouldShowStaleNotice, dismissCacheStale } from './utils/cacheUtils';
 
 
 const App = () => {
@@ -245,14 +245,22 @@ const App = () => {
   // 재분석이 도는 중(아직 차례가 안 온 문장이 옛 분석을 들고 있음) — 그동안은 '옛 대본' 안내를 숨긴다.
   // 안 숨기면 진행 중에 [전체 재분석]이 다시 보여, 누르면 끝난 문장까지 또 요청한다.
   const reanalyzing = transcriptData.some(d => d._prev);
+  // 노란 줄 [닫기]를 누른 횟수 — 닫음은 저장소(metadata.staleDismissed)에 적히므로 다시 읽게 하려는 신호
+  const [staleDismissTick, setStaleDismissTick] = useState(0);
   const isStaleAnalysis = useMemo(() => {
     if (!activeFile?.file?.name || transcriptData.length === 0) return false;
     if (analyzedCount === 0) return false; // 아직 분석 전이면 배너 불필요
     const key = `gemini_analysis_${activeFile.file.name}_${activeFile.file.size}`;
     const meta = parseCacheEntry(key)?.metadata;
-    return meta ? isCacheStale(meta) : false;
+    return meta ? shouldShowStaleNotice(meta) : false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFile?.id, analyzedCount, transcriptData.length]);
+  }, [activeFile?.id, analyzedCount, transcriptData.length, staleDismissTick]);
+  // [닫기]: 이 대본만, 분석 규칙이 다시 바뀔 때(ANALYSIS_VERSION이 오를 때)까지 안 띄운다.
+  // 나중에 새 규칙으로 정리하고 싶으면 문장을 골라 '분석만 다시'를 쓰면 된다(2026-11-23 사용자 결정).
+  const dismissStaleNotice = () => {
+    if (activeFile?.file) dismissCacheStale(activeFile.file);
+    setStaleDismissTick(t => t + 1);
+  };
 
   // [자동 업데이트] 배포된 새 번들 감지 → 새로고침 안내 배너
   const updateReady = useAppUpdate();
@@ -1068,6 +1076,12 @@ const App = () => {
             className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white dark:bg-amber-500/25 dark:hover:bg-amber-500/40 dark:text-amber-100 dark:border dark:border-amber-600 font-bold transition-colors"
           >
             전체 재분석
+          </button>
+          <button
+            onClick={dismissStaleNotice}
+            className="shrink-0 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+          >
+            닫기
           </button>
         </div>
       )}
