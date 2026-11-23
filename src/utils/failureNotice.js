@@ -9,6 +9,10 @@ export function stage1FailureNotice(errorText) {
     const raw = String(errorText || '').trim();
     let msg = raw;
     for (const p of PREFIXES) msg = msg.replace(p, '');
+    // 0줄일 때 gemini.js가 붙인 꼬리 "(받은 글 N자, …)" — 그 안의 숫자·낱말("540자", "500 nghìn", "offline")이
+    // 아래 키·5xx·한도·인터넷 규칙에 걸리지 않게 떼어 두고 따로 본다(독립 검토 2026-11-23)
+    const tail = msg.match(/\s*\(받은 글 (\d+)자, 시각 못 읽은 줄 (\d+)개[^]*$/);
+    if (tail) msg = msg.slice(0, tail.index);
 
     // gemini.js가 이미 "[오류: 구글 서버 과부하] 설명…"처럼 한국어로 만든 것은 머리말을 제목으로 쓴다
     const bracket = msg.match(/^\[오류:\s*([^\]]+)\]\s*(.*)$/s);
@@ -31,6 +35,11 @@ export function stage1FailureNotice(errorText) {
     }
     if (/Failed to fetch|NetworkError|network error|ERR_INTERNET|ERR_NETWORK|offline/i.test(msg)) {
         return { title: '인터넷이 끊겼어요', detail: '연결을 확인한 뒤 다시 시도해 주세요.', action: 'retry', raw };
+    }
+    // AI가 대본을 보냈는데 앱이 시각 모양을 못 읽어 한 줄도 못 쓴 경우 — '말소리 없음'이라고 하면 파일 탓으로 오해한다.
+    // 음악·효과음 줄처럼 읽었지만 일부러 걸러 낸 경우(시각 못 읽은 줄 0개)는 그대로 '말소리 없음'
+    if (/No valid data found/i.test(msg) && tail && Number(tail[1]) >= 50 && Number(tail[2]) > 0) {
+        return { title: '받은 대본을 읽지 못했어요', detail: 'AI가 대본을 보냈지만 앱이 그 모양을 읽지 못했어요. 다시 시도해 보고, 계속 안 되면 아래 자세히를 보여 주세요.', action: 'retry', raw };
     }
     if (/No valid data found|music\/noise/i.test(msg)) {
         return { title: '말소리를 찾지 못했어요', detail: '이 파일은 음악이나 소음만 있을 수 있어요. 다른 파일로 해 보세요.', action: 'retry', raw };

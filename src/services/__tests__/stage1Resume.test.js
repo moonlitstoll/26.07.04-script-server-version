@@ -589,3 +589,32 @@ describe('실제 이어받기 루프 — 이어받으면 안 되는 경우', () 
         expect(e.message).toMatch(/끊겼어요/);
     });
 });
+
+// 2026-11-22: 정상 종료(STOP)인데 한 줄도 못 읽으면, 받은 글 모양을 결과에 붙여 오류 원문에 남긴다
+describe('정상 종료 + 0줄 — 받은 글 모양을 남긴다', () => {
+    it('시각 모양이 달라 못 읽은 글은 글자 수·끝 사유·앞부분이 남는다', async () => {
+        const t = setup([{ steps: [{ text: '(대본 없음) 이 영상에는 말이 없습니다.\n', finish: 'STOP' }] }]);
+        const out = await t.run();
+        expect(out).toHaveLength(0);
+        expect(out.emptyInfo).toMatchObject({ finishReason: 'STOP', textLen: 24, unmatched: 1 });
+        expect(out.emptyInfo.head).toContain('이 영상에는 말이 없습니다');
+        expect(t.model.calls).toHaveLength(1);
+    });
+    it('시각은 읽었지만 걸러 낸 줄(음악 표시)뿐이면 시각 못 읽은 줄은 0개', async () => {
+        const t = setup([{ steps: [{ text: L(0, '(nhạc)') + L(5, '[Music]') + '[03:50.00] [END_OF_AUDIO]\n', finish: 'STOP' }] }]);
+        const out = await t.run();
+        expect(out).toHaveLength(0);
+        expect(out.emptyInfo.unmatched).toBe(0);
+    });
+    it('대괄호 안 빈칸 모양("[ 00:00.00]")은 이제 읽힌다(0줄이 아니다)', async () => {
+        const t = setup([{ steps: [{ text: '[ 00:00.00] [Người nói] || Thái độ nhân viên.\n[ 00:01.60] [Người nói] || Dịch vụ.\n', finish: 'STOP' }] }]);
+        const out = await t.run();
+        expect(out.map(m => m.seconds)).toEqual([0, 1.6]);
+    });
+    it('읽은 줄이 있으면 붙이지 않는다', async () => {
+        const t = setup([{ steps: [{ text: L(0, 'Xin chào.'), finish: 'STOP' }] }]);
+        const out = await t.run();
+        expect(out).toHaveLength(1);
+        expect(out.emptyInfo).toBeUndefined();
+    });
+});

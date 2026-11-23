@@ -504,6 +504,8 @@ async function transcribeStream(model, parts, {
     let endedByMarker = false; // 90% 이후 [END_OF_AUDIO]를 받아 우리가 먼저 끝냄
     let inBandError = null;    // 스트림 안에 실려 온 서버 오류 조각 {"error":…}
     let looped = false;        // 모델이 같은 말을 끝없이 되풀이해 우리가 끊음
+    let gotLen = 0, gotHead = ''; // 받은 글 전체 길이·앞부분(0줄일 때 원인을 남기는 용도)
+    let unmatched = 0;             // 시각 모양(LINE_REGEX)이 안 맞아 못 읽은 줄 수 — 걸러 낸 줄(음악 표시 등)과 구별
 
     try {
         arm(firstChunkMs);
@@ -520,6 +522,8 @@ async function transcribeStream(model, parts, {
 
             const chunkText = chunk.text(); // RECITATION·SAFETY 차단이면 여기서 던진다(기존 안내 유지)
             if (!chunkText) continue;
+            if (gotHead.length < 200) gotHead += chunkText.slice(0, 200 - gotHead.length);
+            gotLen += chunkText.length;
             fullText += chunkText;
 
             // [증분 파싱] 완성된 줄만 처리, 마지막 미완성 줄은 다음 chunk로 이월.
@@ -534,6 +538,7 @@ async function transcribeStream(model, parts, {
                 }
                 const parsed = parseLine(line);
                 if (parsed) matches.push(parsed);
+                else if (line.trim() && !LINE_REGEX.test(line)) unmatched++;
                 if (dupRun >= LOOP_DUP_LINES) { looped = true; break; }
             }
             // 줄바꿈 없이 끝난 마커(스트림 마지막 조각)
@@ -581,6 +586,12 @@ async function transcribeStream(model, parts, {
 
     if (onPartial && matches.length > 0) onPartial([...matches]);
 
+    // 정상 종료인데 한 줄도 못 읽었다 — 받은 글 모양을 결과에 붙여 둔다(오류 원문 '자세히'에 실린다).
+    // 예전엔 아무것도 안 남아, 모델이 시각을 "[ 00:00.00]"으로 바꿔 쓴 것(2026-11-22)을 휴대폰 화면만으로는 알 수 없었다.
+    if (matches.length === 0) {
+        if (fullText.trim() && !fullText.includes('[END_OF_AUDIO]') && !LINE_REGEX.test(fullText)) unmatched++;
+        Object.defineProperty(matches, 'emptyInfo', { value: { finishReason, textLen: gotLen, unmatched, head: gotHead.trim().slice(0, 120).replace(/\s+/g, ' ') } });
+    }
     return matches;
 }
 
@@ -1121,6 +1132,7 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
             console.log(`[Stage 1] Splitting ${totalDuration.toFixed(0)}s audio into ${chunkMinutes}min chunks...`);
             const chunks = await splitAudio(audioBlob, totalDuration, chunkDurationSec, OVERLAP_SEC);
             allMatches = [];
+            const chunkEmpty = []; // 조각별 0줄 정보
 
             for (let i = 0; i < chunks.length; i++) {
                 if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -1145,11 +1157,21 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
                     label: `Stage 1 청크 ${i + 1}/${chunks.length}`,
                 });
 
+                if (chunkMatches.emptyInfo) chunkEmpty.push(chunkMatches.emptyInfo);
                 allMatches = [...allMatches, ...chunkMatches];
                 if (onProgress) onProgress([...allMatches]);
             }
 
             allMatches = deduplicateOverlap(allMatches);
+            // 조각이 전부 0줄이면 조각별 받은 글 모양을 합쳐 남긴다(오류 원문용)
+            if (allMatches.length === 0 && chunkEmpty.length > 0) {
+                Object.defineProperty(allMatches, 'emptyInfo', { value: {
+                    finishReason: chunkEmpty[chunkEmpty.length - 1].finishReason,
+                    textLen: chunkEmpty.reduce((n, e) => n + e.textLen, 0),
+                    unmatched: chunkEmpty.reduce((n, e) => n + (e.unmatched || 0), 0),
+                    head: chunkEmpty[0].head,
+                } });
+            }
         } else {
             // --- 단일 패스 전사 (기존 동작) ---
             const mediaPart = await blobToGeminiPart(audioBlob, apiKey);
@@ -1171,8 +1193,12 @@ export async function extractTranscript(file, apiKey, modelId = DEFAULT_MODEL_ID
         }
 
         if (!allMatches || allMatches.length === 0) {
-            console.error("[Stage 1] Analysis failed: no valid data found.");
-            throw new Error("API Error (Stage 1): No valid data found. Video might just be music/noise.");
+            const info = allMatches?.emptyInfo;
+            const got = info && info.textLen > 0
+                ? ` (받은 글 ${info.textLen}자, 시각 못 읽은 줄 ${info.unmatched || 0}개, 끝 사유 ${info.finishReason || '없음'}, 앞부분: "${info.head}")`
+                : '';
+            console.error("[Stage 1] Analysis failed: no valid data found." + got);
+            throw new Error("API Error (Stage 1): No valid data found. Video might just be music/noise." + got);
         }
 
         // [후처리] 모델이 여러 문장을 한 줄에 뭉쳐 출력한 경우 문장별로 분할

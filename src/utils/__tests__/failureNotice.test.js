@@ -27,6 +27,27 @@ describe('stage1FailureNotice — 전사 실패 화면 문구', () => {
         expect(n.detail).toMatch(/^구글 AI 서버가/);
         expect(n.action).toBe('retry');
     });
+    it('AI가 글을 보냈는데 한 줄도 못 읽음 — 말소리 없음이 아니라 읽지 못함', () => {
+        const raw = 'Analysis failed: API Error (Stage 1): API Error (Stage 1): No valid data found. Video might just be music/noise. (받은 글 17824자, 시각 못 읽은 줄 412개, 끝 사유 STOP, 앞부분: "[ 00:00.00] [Người nói] || Thái độ")';
+        const n = stage1FailureNotice(raw);
+        expect(n.title).toBe('받은 대본을 읽지 못했어요');
+        expect(n.raw).toContain('[ 00:00.00]');
+        expect(n.action).toBe('retry');
+    });
+    it('받은 글이 아주 짧으면(빈 답에 가까움) 그대로 말소리 없음', () => {
+        expect(stage1FailureNotice('API Error (Stage 1): No valid data found. Video might just be music/noise. (받은 글 15자, 시각 못 읽은 줄 1개, 끝 사유 STOP, 앞부분: "[END_OF_AUDIO]")').title).toBe('말소리를 찾지 못했어요');
+    });
+    it('꼬리 안의 숫자·낱말(540자, 401, 500 nghìn, offline)이 다른 오류 규칙에 걸리지 않는다', () => {
+        const base = 'Analysis failed: API Error (Stage 1): API Error (Stage 1): No valid data found. Video might just be music/noise.';
+        for (const [len, head] of [[540, '[ 00:00.00] Xin chào'], [401, '[ 00:00.00] Xin chào'], [429, 'x'], [413, 'x'], [17824, '… Giá 500 nghìn đồng'], [2000, '… I am offline today, quota exceeds']]) {
+            const n = stage1FailureNotice(`${base} (받은 글 ${len}자, 시각 못 읽은 줄 3개, 끝 사유 STOP, 앞부분: "${head}")`);
+            expect(n.title).toBe('받은 대본을 읽지 못했어요');
+        }
+    });
+    it('읽었지만 걸러 낸 줄뿐이면(음악 표시 등, 시각 못 읽은 줄 0개) 말소리 없음', () => {
+        const n = stage1FailureNotice('API Error (Stage 1): No valid data found. Video might just be music/noise. (받은 글 540자, 시각 못 읽은 줄 0개, 끝 사유 STOP, 앞부분: "[00:00.00] (nhạc)")');
+        expect(n.title).toBe('말소리를 찾지 못했어요');
+    });
     it('말소리 없음', () => {
         expect(stage1FailureNotice('API Error (Stage 1): No valid data found. Video might just be music/noise.').title).toBe('말소리를 찾지 못했어요');
     });

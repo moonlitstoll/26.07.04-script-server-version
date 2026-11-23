@@ -386,7 +386,7 @@ const App = () => {
 
   // 감지 완료 안내의 [그 문장 보기] — 훅보다 아래에서 정의되는 선택 상태를 쓰므로 ref로 넘긴다
   const revealSentenceRef = useRef(null);
-  const { unsavedKeys, retryUnsaved, forgetUnsaved, dismissIncomplete, isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
+  const { autoSpeechEnds, unsavedKeys, retryUnsaved, forgetUnsaved, dismissIncomplete, isDragging, onDragOver, onDragLeave, onDrop, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, stage2Progress, detectSpeechEndsForFile, speechDetectBusy } = useMediaAnalysis({
     setFiles, setActiveFileId, setIsSwitchingFile, resetPlayerState,
     refreshCacheKeys: () => refreshCacheKeysRef.current && refreshCacheKeysRef.current(),
     apiKey, claudeApiKey: config.claudeApiKey, stage1Model, stage2Model, stage3Model, temperature, topP, antiRecitation, markerChar, markerInterval, chunkEnabled, chunkMinutes, realignEnabled, speechAutoDetect: config.speechAutoDetect, stage2AbortRef, stage2ActiveRef, filesRef,
@@ -467,7 +467,7 @@ const App = () => {
     loadCache, refreshCacheKeys, cloudItems, cloudStatus, refreshCloud, loadCloud, localVideoIds, cloudDownload } = useMediaCache({
     files, setFiles, setActiveFileId, setShowSettings, setShowCacheHistory, setIsSwitchingFile,
     resetPlayerState, runStage2, apiKey, stage2Model, stage2AbortRef, stage2ActiveRef, filesRef, showConfirm, showToast,
-    onPurge: forgetUnsaved
+    onPurge: forgetUnsaved, autoSpeechEnds
   });
 
   // 저장 공간이 꽉 차 저장 못 한 대본이 있을 때, 다른 대본을 지워 공간이 생기면 바로 다시 저장한다

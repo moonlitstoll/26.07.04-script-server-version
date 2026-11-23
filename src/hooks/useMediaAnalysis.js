@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { mediaStore } from '../utils/MediaStore';
 import { getMediaDuration, sanitizeData } from '../utils/mediaUtils';
 import { extractTranscript, analyzeBatchSentences, retranscribeSegments, deduplicateOverlap, detectSpeechEnds, detectSpeechEndsByClips } from '../services/gemini';
@@ -75,6 +75,11 @@ export const useMediaAnalysis = ({
     const speechEndGraftRef = useRef(new Map());
     // 다시 전사·복구로 새로 생겨 대사 끝을 찾아야 할 문장: fileId → { seconds:Set, data:그 편집 직후 대본 }
     const pendingSpeechEndRef = useRef(new Map());
+    // [대사 끝 자동 찾기] 설정 값의 최신 사본 — 분석이 끝난 '나중에' 읽으므로 그때의 설정을 본다
+    const speechAutoRef = useRef(speechAutoDetect);
+    useLayoutEffect(() => { speechAutoRef.current = speechAutoDetect; });
+    const autoSpeechTriedRef = useRef(new Set()); // 이번 실행에서 자동 찾기를 건 파일(이름_크기) — 실패 비용 반복 방지
+    const autoSpeechQueueRef = useRef(new Map());  // 다른 감지가 도는 동안 차례를 기다리는 파일
     // 1단계가 구글 파일 저장소에 올린 전체 오디오(utils/audioReuse) — '대사만' 감지가 다시 올리지 않고 재사용
     const stage1AudioRef = useRef(new Map());
     const stage1AbortRef = useRef(null);
@@ -216,12 +221,22 @@ export const useMediaAnalysis = ({
         const m = stage2ActiveRef?.current;
         if (m) m.set(fileId, (m.get(fileId) || 0) + 1);
         stage2ModelRef.current.set(fileId, rest[3]); // rest = [fileInfo, transcript, apiKey, modelId, opts]
+        let res = null;
         try {
-            return await runStage2Inner(fileId, ...rest);
+            res = await runStage2Inner(fileId, ...rest);
+            return res;
         } finally {
             if (m) {
                 const n = (m.get(fileId) || 1) - 1;
                 if (n > 0) m.set(fileId, n); else m.delete(fileId);
+            }
+            // 분석이 끝까지 돌았으면(끊기지 않았고 전부 실패도 아니면) 대사 끝 자동 찾기 — 어느 경로의 분석이든.
+            // 전량 실패(success 0)면 API 자체가 아픈 상태라 감지까지 얹지 않는다.
+            // '전부 실패'는 이번 실행에 성공이 0이고 결과 대본에 분석된 문장도 없을 때만 — 매번 실패하는 문장 하나만
+            // 다시 돌린 실행(total 1, success 0)까지 막으면 그 대본은 영영 자동 감지가 안 걸린다(독립 검토)
+            const anyDone = Array.isArray(res?.data) && res.data.some(d => d.isAnalyzed);
+            if (res && !res.aborted && (res.total === 0 || res.success > 0 || anyDone)) {
+                autoSpeechEnds(rest[0], { fileId, data: Array.isArray(res.data) && res.data.length ? res.data : null });
             }
         }
     };
@@ -726,14 +741,9 @@ export const useMediaAnalysis = ({
         // 완료 후에 돌리는 이유: 분석과 병행하면 API 동시 부하 + 결과 덮어쓰기 경합 창이 넓어진다.
         // 중단(aborted)이나 전량 실패 시엔 실행하지 않는다 — 취소한 파일에 감지 비용을 쓰지 않기 위함.
         // 신원은 sourceFile로 고정 — 이 위의 persistCache(sourceFile)·감지 저장과 같은 캐시 키를 쓴다
-        const stage2Promise = runStage2(fileId, sourceFile, data, apiKey, stage2Model)
-            .then((res) => {
-                // 전량 실패(success 0)면 API 자체가 아픈 상태 — 감지까지 얹지 않는다
-                if (speechAutoDetect && res && !res.aborted && (res.total === 0 || res.success > 0)) {
-                    detectSpeechEndsForFile(fileId);
-                }
-                return res;
-            });
+        // 자동 감지는 이제 runStage2 래퍼가 분석이 끝날 때 건다(autoSpeechEnds). 예전엔 여기 한 곳에서만 걸어서,
+        // 이 분석이 다시 시도·홈 → 다시 열기·편집으로 끊기면 아무 표시 없이 영영 안 찾았다.
+        const stage2Promise = runStage2(fileId, sourceFile, data, apiKey, stage2Model);
 
         if (saveMedia) {
             try {
@@ -872,6 +882,9 @@ export const useMediaAnalysis = ({
                     if (pending > 0 && apiKey && !sameFileBusy) {
                         console.log(`[Upload] 캐시 대본에 미분석 ${pending}문장 → Stage 2 이어서`);
                         runStage2(fItem.id, fItem.file, data, apiKey, stage2Model);
+                    } else if (pending === 0 && !sameFileBusy) {
+                        // 분석이 다 끝난 대본인데 대사 끝을 한 번도 안 찾았으면 지금 찾는다(목록에서 열 때와 같은 동작)
+                        autoSpeechEnds(fItem.file, { fileId: fItem.id, data });
                     }
                     // 캐시된 대본이 있어도 미디어가 IndexedDB에 없으면 (재)저장 → 새로고침 후에도 재생 복원.
                     // (사이트 데이터 삭제 등으로 미디어 스토어가 비면, '연결하기'/재업로드 한 번으로 다시 채워짐)
@@ -1293,6 +1306,11 @@ export const useMediaAnalysis = ({
             return false;
         }
         if (speechBusyRef.current) return false; // 중복 실행 방지 (ref — 자동 실행 경로의 stale state 회피)
+        // 사용자가 직접 감지를 시작했으면 그 파일의 자동 감지 대기는 지운다(끝난 뒤 또 걸리지 않게)
+        if (!silent) {
+            const f0 = (filesRef?.current || []).find(p => p.id === fileId)?.file;
+            if (f0?.name) { const k0 = `${f0.name}_${f0.size}`; autoSpeechQueueRef.current.delete(k0); autoSpeechTriedRef.current.add(k0); }
+        }
 
         // [경합 제거] 예전엔 setFiles 업데이터 안에서 값을 꺼내고 setTimeout(0)으로 '실행됐겠지' 하고
         // 기다렸다. React 18은 자체 스케줄러(MessageChannel)로 업데이트를 처리하므로 setTimeout(0)이
@@ -1481,7 +1499,50 @@ export const useMediaAnalysis = ({
             speechBusyRef.current = false;
             setSpeechDetectBusy(null);
             flushFreshSpeechEnds(); // 감지하는 동안 또 고친 문장이 있으면 이어서
+            // 자동 찾기를 기다리던 대본이 있으면 이어서(감지는 한 번에 하나)
+            for (const [k, info] of autoSpeechQueueRef.current) {
+                if (speechBusyRef.current) break;
+                autoSpeechQueueRef.current.delete(k);
+                autoSpeechEnds(info);
+            }
         }
+    };
+
+    /**
+     * [대사 끝 자동 찾기] 설정이 켜져 있고, 그 대본의 분석이 끝났고, 대사 끝을 한 번도 찾은 적 없으면 찾는다.
+     * 예전엔 '처음 전사한 그 실행의 분석이 끊기지 않고 끝났을 때' 한 곳에서만 걸었다. 다시 시도·홈 → 다시 열기·편집으로
+     * 분석이 끊기면 아무 표시 없이 영영 안 찾아 '대사만' 칩이 회색으로 남았다
+     * (휴대폰 실측 2026-11-22: 분석 도중 홈 → 목록에서 다시 열기 → 169/169 분석 완료, 감지 요청 0).
+     * 부르는 곳: runStage2 래퍼(분석이 끝날 때, 경로 무관), loadCache·loadCloud(분석이 이미 끝난 대본을 열 때).
+     *  - 대본은 파일 신원(이름_크기)으로 찾는다 — 다시 열면 화면 항목 번호가 바뀐다. fileId가 화면에 있으면 그것.
+     *  - data: 방금 쓴 대본(filesRef는 다음 그리기 뒤에야 바뀐다). 주면 그것으로 판단한다.
+     *  - 대사 끝 값이나 '판단 불가' 표시가 하나라도 있으면 이미 찾은 대본이다(빠진 문장은 '빠진 대사'로 사용자가 고른다).
+     *  - 이번 실행에서 한 번 건 파일은 다시 안 건다(실패해도 비용이 되풀이되지 않게). 화면에 없으면 걸지 않고 다음에 열 때 건다.
+     */
+    const autoSpeechEnds = (fileInfo, { fileId = null, data = null } = {}) => {
+        if (!speechAutoRef.current || !fileInfo?.name || !apiKey) return;
+        if (isOffline()) return; // 인터넷이 없으면 조용히 넘긴다 — 다음에 열거나 분석이 끝날 때 다시
+        const key = `${fileInfo.name}_${fileInfo.size}`;
+        if (autoSpeechTriedRef.current.has(key)) return;
+        const list = filesRef?.current || [];
+        const entry = (fileId && list.find(p => p.id === fileId))
+            || list.find(p => p.file?.name === fileInfo.name && p.file?.size === fileInfo.size);
+        if (!entry) return;                                // 화면에 없다 — 다음에 열 때 다시
+        // 부르는 쪽이 방금 쓴 대본(data)을 주면 그걸 믿는다(화면 사본은 한 박자 늦어 '전사 중'·오류가 남아 있을 수 있다)
+        if (!data && (entry.isAnalyzing || entry.error)) return;
+        if (stage2ActiveRef?.current?.get(entry.id)) return; // 그 대본 분석이 아직 돈다 — 끝나면 다시 불린다
+        const snap = data || entry.data;
+        if (!Array.isArray(snap) || snap.length === 0) return;
+        if (snap.some(d => typeof d.speechEnd === 'number' || d.speechEndSkipped)) return; // 이미 한 번 찾았다
+        if (speechBusyRef.current) { autoSpeechQueueRef.current.set(key, fileInfo); return; }
+        autoSpeechTriedRef.current.add(key);
+        autoSpeechQueueRef.current.delete(key);
+        console.log(`[SpeechEnd] 자동 찾기 시작: ${fileInfo.name}`);
+        // 자동 실행은 안내를 띄우지 않는다(결과는 칩·카드 배지로 보인다. 다른 대본을 보는 중에 오류 안내가 뜨지 않게).
+        // 값을 못 얻고 끝나면(연결 실패, 대본을 닫음 등) '시도함'을 지워 다음에 열 때 다시 건다
+        detectSpeechEndsForFile(entry.id, { ...(data ? { baseData: data } : {}), silent: true })
+            .then((ok) => { if (!ok) autoSpeechTriedRef.current.delete(key); })
+            .catch(() => autoSpeechTriedRef.current.delete(key));
     };
 
     // 기다리는 새 문장의 대사 끝을 찾는다. 감지는 한 번에 하나라, 도는 중이면 끝날 때 다시 불린다.
@@ -1960,5 +2021,5 @@ export const useMediaAnalysis = ({
         processFiles(e.dataTransfer.files);
     };
 
-    return { unsavedKeys, retryUnsaved, forgetUnsaved, dismissIncomplete, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
+    return { autoSpeechEnds, unsavedKeys, retryUnsaved, forgetUnsaved, dismissIncomplete, processFiles, runStage2, retryAnalysis, retranscribeSentences, retranscribeRange, splitSentence, setSpeechEndManual, reanalyzeSentences, recoverGap, deleteSentences, restoreSentences, cancelStage1, isDragging, onDragOver, onDragLeave, onDrop, stage2Progress, detectSpeechEndsForFile, speechDetectBusy };
 };

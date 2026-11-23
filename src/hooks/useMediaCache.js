@@ -46,6 +46,7 @@ export const useMediaCache = ({
     stage2Model,
     stage2AbortRef,
     stage2ActiveRef, // Map<fileId, 실행중 개수> — 분석 중인 대본을 다시 열 때 재시작 방지
+    autoSpeechEnds,  // 분석이 끝난 대본을 열 때 대사 끝을 한 번도 안 찾았으면 찾기(useMediaAnalysis)
     filesRef,        // 최신 files 사본(App 소유). setFiles 업데이터 실행 타이밍에 의존하지 않기 위함
     showConfirm,
     showToast,
@@ -382,6 +383,9 @@ export const useMediaCache = ({
                 data,
                 url: mediaUrl,
                 isAnalyzing: false,
+                // 같은 파일의 전사 실패 항목(오류 카드)에 저장된 대본을 열면 오류를 지운다 — 예전엔 error가 남아
+                // 멀쩡한 대본 위에 "말소리를 찾지 못했어요" 카드가 덮였다(휴대폰 2026-11-22 01:17 화면)
+                error: null,
                 isFromCache: true,
                 incomplete: metadata.incomplete || null // 전사를 끝까지 못 받은 지점(있으면 화면에 띠)
             };
@@ -426,6 +430,9 @@ export const useMediaCache = ({
             } else if (hasPending && apiKey && newFileEntry.file?.name && runStage2) {
                 console.log(`[Cache Load] ${dataForStage2.filter(d => !d.isAnalyzed).length} pending items detected. Resuming Stage 2...`);
                 runStage2(id, newFileEntry.file, dataForStage2, apiKey, stage2Model);
+            } else if (!hasPending && autoSpeechEnds && !(latestEntry && latestEntry.isAnalyzing)) {
+                // 분석이 다 끝난 대본인데 대사 끝을 한 번도 안 찾았으면(분석 도중 홈으로 나갔다 다시 연 경우 등) 지금 찾는다
+                autoSpeechEnds(newFileEntry.file, { fileId: id, data: dataForStage2 });
             }
             if (setIsSwitchingFile) setIsSwitchingFile(false);
         } catch (e) {
@@ -502,6 +509,8 @@ export const useMediaCache = ({
             if (hasPending && apiKey && runStage2) {
                 console.log(`[Cloud Load] ${data.filter(d => !d.isAnalyzed).length}개 미완료 항목 → Stage 2 재개`);
                 runStage2(id, newFileEntry.file, data, apiKey, stage2Model);
+            } else if (autoSpeechEnds) {
+                autoSpeechEnds(newFileEntry.file, { fileId: id, data });
             }
         } catch (e) {
             console.error('[Cloud] 로드 실패:', e);
