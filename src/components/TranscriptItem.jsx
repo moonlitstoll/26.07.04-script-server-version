@@ -7,6 +7,7 @@ import GlossText from './GlossText';
 import { checkAnalysisCoverage, coverageTitle } from '../utils/analysisCoverage';
 import { splitBreakdown, tidyGlosses } from '../utils/analysisParser';
 import { buildCloze, marksForLines } from '../utils/clozeUtils';
+import { focusedByKeyboard } from '../utils/inputModality';
 
 // **굵게** 표시 → 초록 청크
 // 베트남어는 굵기를 낮게 둔다(문장 medium, 초록 청크 semibold — 2026-11-17). bold·extrabold에서는 획이 두꺼워
@@ -44,9 +45,10 @@ const stripPatternTags = (s) => (s || '').replace(/\s*〔💡[^〕]*〕/g, '');
 // 휴대폰 탭 영역: 보이는 크기는 그대로 두고 투명한 가상요소로 위아래를 넓힌다(카드 높이가 안 늘게).
 // 타임스탬프 16px + 위아래 12px = 40px, 배지 16px + 위아래 10px = 36px.
 const HIT_TS = "relative before:content-[''] before:absolute before:-inset-x-1 before:-inset-y-3";
-// div에 role=button을 줄 때 키보드(Enter·Space)도 탭처럼 — 화면 읽기 기능·키보드만 쓰는 사용자용
+// div에 role=button을 줄 때 키보드(Enter·Space)도 탭처럼 — 화면 읽기 기능·키보드만 쓰는 사용자용.
+// Tab으로 온 경우만. 마우스로 누른 뒤의 Space·Enter는 전역 단축키(재생/일시정지·구간 반복)로 넘긴다.
 const onKeyActivate = (fn) => (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); }
+    if ((e.key === 'Enter' || e.key === ' ') && focusedByKeyboard()) { e.preventDefault(); fn(); }
 };
 const HIT_BADGE = "relative before:content-[''] before:absolute before:-inset-x-0.5 before:-inset-y-2.5";
 

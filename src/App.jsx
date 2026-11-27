@@ -804,6 +804,7 @@ const App = () => {
     mediaUrl, activeFile, togglePlay, toggleLoop, toggleGlobalAnalysis,
     jumpToSentence, activeIdxRef, lastActionTimeRef, videoRef,
     onToggleHelp: () => setShowShortcuts(s => !s),
+    helpOpen: showShortcuts,
     playbackRate, handleRateChange,
     onPrevSentence: goPrev, onNextSentence: goNext,
   });

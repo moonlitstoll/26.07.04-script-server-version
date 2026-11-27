@@ -380,6 +380,12 @@ blob URL은 '업로드 때 고른 File'을 가리키는 **임시 링크**다. �
 
 Space: 재생/일시정지, Enter: 구간 반복, B: 분석 토글, ←/→: 문장 이동(묶음 반복 중엔 묶음 단위), ↑/↓: 5초 탐색, `[`/`]`: 배속 -/+, `?`: 도움말 토글. **단축키를 추가하면 `ShortcutsHelp.jsx`의 목록도 함께 갱신할 것**(둘이 따로 관리됨). ←/→는 App의 `goPrev`/`goNext`에 위임(모드 인식).
 
+**단축키 규칙 (2026-11-27 점검, 사용자 보고 "문장을 누른 뒤 Space가 재생이 아니라 그쪽으로 스크롤")**:
+- **마우스로 누른 칸에 초점이 남아 있어도 Space·Enter는 단축키다.** 문장·해설 칸(`role=button tabIndex=0`)과 버튼은 마우스로 누르면 초점을 잡아, 뒤이은 Space·Enter가 '그 칸 다시 누르기'(문장 처음으로 되감기·풀이 접힘·▶ 다시 이동·[다음 문장] 한 번 더·고른 문장 풀림)로 먹혔다. `utils/inputModality.js#focusedByKeyboard`(마지막이 Tab이면 키보드, pointerdown이면 마우스)로 갈라 **Tab으로 온 경우만** 그 칸 누르기로 둔다 — 전역 핸들러와 `TranscriptItem#onKeyActivate` 둘 다 같은 함수를 본다. 버튼의 Space 누르기는 키를 뗄 때 일어나므로 단축키로 쓴 Space는 keyup도 막는다(`spaceTaken`, 안 막으면 재생이 두 번 바뀐다).
+- **뒤 화면을 가리는 창이 열려 있으면 쉰다** — `useEscapeToClose.js#hasOpenModal`(설정·편집 창·확인창·휴지통·기록 창·도움말). 예전엔 설정·자르기 창을 띄운 채 Space·→·Enter·B·]가 뒤 화면을 움직였다(자르기 미리 듣기와 본 영상 소리가 겹침). 창 안 버튼·입력은 브라우저 기본 동작 그대로. 팝오버(묶음·가리기·배속)는 `useEscapeToClose(onClose, { modal: false })`라 막지 않는다. **새 창을 만들면 `useEscapeToClose`를 걸 것** — 안 걸면 ESC도 안 되고 단축키도 뒤에서 먹는다. 도움말 창만 `?`로 다시 닫힌다(`helpOpen`).
+- **Space·Enter·B·?는 꾹 눌러도 한 번**(`e.repeat` 무시), 화살표·배속은 연속 그대로. **Ctrl·Alt·Meta와 같이 누른 키는 건드리지 않는다**(Alt+← 뒤로 가기).
+- 시험은 화면에서만 된다(훅·초점 의존): 무음 파일 + 가짜 대본 20문장으로 32개 항목, 예전 코드로 되돌리면 19개 실패 확인.
+
 ### 라이트/다크 모드 (2026-10-18, 가지 `dark`)
 
 - **설정창 '화면 테마' = 시스템(기본) / 라이트 / 다크.** 값은 `config.theme`(`miniapp_theme`), 규칙은 `utils/theme.js`(순수, 테스트 有): `resolveTheme(pref, 기기다크)` → `applyResolvedTheme(document, …)`가 `<html>`에 `dark` 클래스·`color-scheme`·`meta theme-color`(라이트 `#f8fafc`, 다크 `#0f172a`)를 맞춘다. `hooks/useTheme.js`가 App에서 이걸 돌리고, '시스템'이면 `matchMedia('(prefers-color-scheme: dark)')`의 change를 구독한다. 툴바 버튼은 일부러 없다(사용자 결정).

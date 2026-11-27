@@ -1,4 +1,5 @@
 import { X, Keyboard } from 'lucide-react';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 const SHORTCUTS = [
     { keys: ['Space'], desc: '재생 / 일시정지' },
@@ -10,7 +11,9 @@ const SHORTCUTS = [
     { keys: ['?'], desc: '이 도움말 열기 / 닫기' },
 ];
 
-const ShortcutsHelp = ({ onClose }) => (
+const ShortcutsHelp = ({ onClose }) => {
+    useEscapeToClose(onClose); // 다른 창처럼 ESC로 닫힘 (2026-11-27)
+    return (
     <div className="fixed inset-0 z-[120] bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
         <div
             className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
@@ -48,6 +51,7 @@ const ShortcutsHelp = ({ onClose }) => (
             </div>
         </div>
     </div>
-);
+    );
+};
 
 export default ShortcutsHelp;

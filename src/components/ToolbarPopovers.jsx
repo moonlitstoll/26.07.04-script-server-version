@@ -14,7 +14,7 @@ import { RATE_MIN, RATE_MAX, RATE_PRESETS, stepRate, fmtRate } from '../utils/pl
 // 가로 위치는 그려진 패널 폭을 재서 정한다(재기 전 한 프레임은 숨김) — 상태 대신 DOM에 직접 쓴다.
 // placement: 'below'(툴바 칩 — 칩 아래) | 'above'(플레이어 버튼 — 화면 바닥에 있으니 위로). above는 anchor.top이 필요하다.
 const AnchoredPopover = ({ anchor, align = 'center', placement = 'below', label, onClose, className = '', children }) => {
-  useEscapeToClose(onClose); // 조건부 마운트라 열려 있을 때만 ESC 스택에 올라간다
+  useEscapeToClose(onClose, { modal: false }); // 단축키는 안 막음(뒤 화면을 보며 쓰는 작은 창). 조건부 마운트라 열려 있을 때만 ESC 스택에 올라간다
   const panelRef = useRef(null);
   useLayoutEffect(() => {
     const el = panelRef.current;
